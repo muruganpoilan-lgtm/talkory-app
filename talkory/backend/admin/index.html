@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Talkory Admin</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#1c1e21;--mut:#6b7280;--line:#e5e7eb;--pri:#6c4dff;--bad:#d93025;--ok:#188038}
+@media(prefers-color-scheme:dark){:root{--bg:#14151a;--card:#1e2028;--ink:#eceef2;--mut:#9aa0ac;--line:#2e313b}}
+*{box-sizing:border-box}body{margin:0;font:15px system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+header{display:flex;align-items:center;gap:16px;padding:12px 20px;background:var(--card);border-bottom:1px solid var(--line)}
+header b{font-size:18px}nav{display:flex;gap:4px;flex:1}
+button{font:inherit;padding:6px 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);cursor:pointer}
+button.on,button.pri{background:var(--pri);border-color:var(--pri);color:#fff}button.bad{color:var(--bad)}button.ok{color:var(--ok)}
+main{max-width:1000px;margin:20px auto;padding:0 16px}.box{max-width:340px;margin:12vh auto;display:grid;gap:12px}
+input{font:inherit;padding:9px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow-x:auto}
+table{width:100%;border-collapse:collapse}th,td{padding:10px 14px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--mut);font-weight:500;font-size:13px}tr:last-child td{border:0}td.act{white-space:nowrap;display:flex;gap:6px}
+dialog{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:12px}
+.mut{color:var(--mut);font-size:13px}.err{color:var(--bad)}.empty{padding:28px;text-align:center;color:var(--mut)}
+</style></head><body>
+<div id="app"></div>
+<script>
+const $=s=>document.querySelector(s);let token=sessionStorage.t||'',tab='payouts',phone='';
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const rs=p=>'₹'+(p/100).toLocaleString('en-IN',{minimumFractionDigits:2});
+const when=d=>d?new Date(d).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'}):'';
+async function api(path,body){
+  const r=await fetch(path,{method:body?'POST':'GET',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:body&&JSON.stringify(body)});
+  const d=await r.json().catch(()=>({}));
+  if(r.status===401&&token){logout();throw Error('Session expired')}
+  if(!r.ok)throw Error(d.error||'Request failed');return d}
+function logout(){token='';sessionStorage.removeItem('t');render()}
+function login(){$('#app').innerHTML=`<div class="box"><h2>Talkory Admin</h2>
+<input id="ph" placeholder="+91XXXXXXXXXX" value="${esc(phone)}"><input id="cd" placeholder="OTP" style="display:${phone?'':'none'}">
+<button class="pri" id="go">${phone?'Verify':'Send OTP'}</button><div class="err" id="e"></div></div>`;
+  $('#go').onclick=async()=>{try{const p=$('#ph').value.trim();
+    if(!phone){await api('/auth/request-otp',{phone:p});phone=p;login()}
+    else{const d=await api('/auth/verify-otp',{phone,code:$('#cd').value.trim(),role:'admin'});token=d.token;sessionStorage.t=token;render()}
+  }catch(e){$('#e').textContent=e.message}}}
+const TABS={
+ payouts:{url:'/partner/admin/payouts',cols:['Partner','Amount','UPI ID','Requested'],
+  row:r=>[esc(r.display_name)+(r.kyc!=='approved'?' <span class="err">(KYC '+r.kyc+')</span>':''),rs(r.amount),esc(r.upi_id),when(r.requested_at)],
+  acts:r=>[['Mark paid','ok','/partner/admin/payouts/'+r.id+'/paid',()=>({reference:prompt('Payment reference (UPI txn id):','')??null}),'Confirm you have sent '+rs(r.amount)+' to '+r.upi_id+'?'],
+           ['Reject','bad','/partner/admin/payouts/'+r.id+'/reject',()=>({}),'Reject and refund the partner wallet?']]},
+ kyc:{url:'/admin/kyc',cols:['Partner','Languages','Rate/min','Bio','Joined'],
+  row:r=>[esc(r.display_name),esc((r.languages||[]).join(', ')),rs(r.rate_per_min),esc(r.bio),when(r.created_at)],
+  acts:r=>[['View documents','',null,()=>viewDocs(r.id)],['Approve','ok','/admin/kyc/'+r.id,()=>({status:'approved'})],['Reject','bad','/admin/kyc/'+r.id,()=>({status:'rejected',note:prompt('Reason the partner will see:','Photo unclear, please resubmit')||''})]]},
+ reports:{url:'/admin/reports',cols:['Reported','Reason','By','Reports','Date'],
+  row:r=>[esc(r.reported)+' <span class="mut">('+r.reported_role+(r.is_blocked?', blocked':'')+')</span>',esc(r.reason),esc(r.reporter),r.total_reports,when(r.created_at)],
+  acts:r=>[['Dismiss','','/admin/reports/'+r.id+'/resolve',()=>({block:false})],['Block account','bad','/admin/reports/'+r.id+'/resolve',()=>({block:true}),'Block '+r.reported+'? They can no longer log in.']]},
+ photos:{url:'/admin/avatars',cols:['Host'],row:r=>[esc(r.display_name)],
+  acts:r=>[['View photo','',null,()=>viewPhoto(r.id)],['Approve','ok','/admin/avatars/'+r.id,()=>({status:'approved'})],['Reject','bad','/admin/avatars/'+r.id,()=>({status:'rejected',note:prompt('Reason the host will see:','Please use a clear photo of yourself with no text or contact details')||''})]]}};
+async function viewDocs(id){
+  const get=async k=>{const r=await fetch(`/admin/kyc/${id}/document/${k}`,{headers:{Authorization:'Bearer '+token}});if(!r.ok)throw Error('Document missing');return URL.createObjectURL(await r.blob())};
+  try{const [a,b]=await Promise.all([get('id_front'),get('selfie')]);
+    const d=document.createElement('dialog');
+    d.innerHTML=`<div style="display:flex;gap:12px;flex-wrap:wrap"><div><div class="mut">ID</div><img src="${a}" style="max-width:420px;max-height:70vh"></div><div><div class="mut">Selfie</div><img src="${b}" style="max-width:420px;max-height:70vh"></div></div><p><button>Close</button></p>`;
+    d.querySelector('button').onclick=()=>{d.close();d.remove();URL.revokeObjectURL(a);URL.revokeObjectURL(b)};
+    document.body.appendChild(d);d.showModal()}catch(e){alert(e.message)}}
+async function viewPhoto(id){
+  const r=await fetch(`/admin/avatars/${id}/image`,{headers:{Authorization:'Bearer '+token}});if(!r.ok)return alert('Photo missing');
+  const u=URL.createObjectURL(await r.blob()),d=document.createElement('dialog');
+  d.innerHTML=`<img src="${u}" style="max-width:420px;max-height:70vh"><p><button>Close</button></p>`;
+  d.querySelector('button').onclick=()=>{d.close();d.remove();URL.revokeObjectURL(u)};document.body.appendChild(d);d.showModal()}
+async function render(){
+  if(!token)return login();
+  $('#app').innerHTML=`<header><b>Talkory Admin</b><nav>${Object.keys(TABS).map(k=>`<button class="${k===tab?'on':''}" data-t="${k}">${k[0].toUpperCase()+k.slice(1)}</button>`).join('')}</nav><button id="lo">Log out</button></header><main><div class="card" id="list"><div class="empty">Loading…</div></div></main>`;
+  $('#lo').onclick=logout;document.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{tab=b.dataset.t;render()});
+  const T=TABS[tab];let rows=[];
+  try{rows=await api(T.url)}catch(e){return $('#list').innerHTML='<div class="empty err">'+esc(e.message)+'</div>'}
+  if(!rows.length)return $('#list').innerHTML='<div class="empty">Nothing pending 🎉</div>';
+  $('#list').innerHTML=`<table><tr>${T.cols.map(c=>'<th>'+c+'</th>').join('')}<th></th></tr>${rows.map((r,i)=>`<tr>${T.row(r).map(c=>'<td>'+c+'</td>').join('')}<td class="act">${T.acts(r).map((a,j)=>`<button class="${a[1]}" data-i="${i}" data-j="${j}">${a[0]}</button>`).join('')}</td></tr>`).join('')}</table>`;
+  $('#list').onclick=async e=>{const b=e.target.closest('button[data-i]');if(!b)return;
+    const r=rows[b.dataset.i],a=T.acts(r)[b.dataset.j];if(!a[2])return a[3]();if(a[4]&&!confirm(a[4]))return;
+    try{b.disabled=true;await api(a[2],a[3]());render()}catch(x){alert(x.message);b.disabled=false}}}
+render();
+</script></body></html>

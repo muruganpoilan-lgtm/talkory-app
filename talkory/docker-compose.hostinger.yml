@@ -1,0 +1,92 @@
+# Talkory for Hostinger Docker Manager ("Compose from URL" or "Compose manually").
+# The ONLY edit this file needs: replace REPLACE_GITHUB_USERNAME below (your GitHub username, lowercase).
+# It contains no passwords. Put settings in Docker Manager's "Environment variables" box, one per line, e.g.:
+#   ADMIN_PHONE=+919876543210
+name: talkory
+
+services:
+  api:
+    image: ghcr.io/REPLACE_GITHUB_USERNAME/talkory-api:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      PORT: "3000"
+      NODE_ENV: production
+      PGHOST: db
+      PGUSER: talkory
+      PGPASSWORD: "${DB_PASSWORD:-talkory_internal_db}"
+      PGDATABASE: talkory
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: "${JWT_SECRET:-}"            # leave unset: generated once and kept in a volume
+      ADMIN_PHONE: "${ADMIN_PHONE:-}"          # your phone with country code: becomes your admin login
+      OTP_DEV_MODE: "${OTP_DEV_MODE:-true}"    # true = login codes appear in this container's logs. Set to false once Twilio works.
+      TERMS_VERSION: "${TERMS_VERSION:-2026-10-03}"
+      AGORA_APP_ID: "${AGORA_APP_ID:-}"
+      AGORA_APP_CERT: "${AGORA_APP_CERT:-}"
+      RAZORPAY_KEY_ID: "${RAZORPAY_KEY_ID:-}"
+      RAZORPAY_KEY_SECRET: "${RAZORPAY_KEY_SECRET:-}"
+      RAZORPAY_WEBHOOK_SECRET: "${RAZORPAY_WEBHOOK_SECRET:-}"
+      TWILIO_ACCOUNT_SID: "${TWILIO_ACCOUNT_SID:-}"
+      TWILIO_AUTH_TOKEN: "${TWILIO_AUTH_TOKEN:-}"
+      TWILIO_VERIFY_SID: "${TWILIO_VERIFY_SID:-}"
+    volumes:
+      - appdata:/data/app
+      - kycdata:/data/kyc
+      - avatars:/data/avatars
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: talkory
+      POSTGRES_PASSWORD: "${DB_PASSWORD:-talkory_internal_db}"   # not reachable from outside; set DB_PASSWORD before the FIRST deploy to change it
+      POSTGRES_DB: talkory
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U talkory"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+
+  caddy:
+    # Gets the HTTPS certificate for the domain by itself. Change the domain here only if yours is different.
+    image: caddy:2
+    restart: unless-stopped
+    command: caddy reverse-proxy --from api.talkory.tech --to api:3000
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  appdata:
+  pgdata:
+  redisdata:
+  kycdata:
+  avatars:
+  caddy_data:
+  caddy_config:

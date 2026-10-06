@@ -1,0 +1,17 @@
+name: talkory_core
+description: Shared API client, login and call screens for Talkory apps.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.24.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.2.2
+  url_launcher: ^6.3.0
+  shared_preferences: ^2.3.2
+  agora_rtc_engine: ^6.3.2
+  permission_handler: ^11.3.1
