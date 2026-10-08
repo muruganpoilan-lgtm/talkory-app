@@ -6,7 +6,7 @@ name: talkory
 
 services:
   api:
-    image: ghcr.io/REPLACE_GITHUB_USERNAME/talkory-api:latest
+    image: ghcr.io/muruganpoilan-lgtm/talkory-api:latest
     restart: unless-stopped
     depends_on:
       db:
