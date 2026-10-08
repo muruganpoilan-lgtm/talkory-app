@@ -6,11 +6,17 @@ const apns = require('./apns');
 let enabled = false;
 try {
   const file = process.env.FIREBASE_SERVICE_ACCOUNT;
-  if (file) {
+  const b64 = process.env.FIREBASE_SERVICE_ACCOUNT_B64; // the whole key file, base64 encoded, on one line
+  if (b64) {
+    const key = JSON.parse(Buffer.from(b64.trim(), 'base64').toString('utf8'));
+    admin.initializeApp({ credential: admin.credential.cert(key) });
+    enabled = true;
+    console.log('[push] Firebase ready for project', key.project_id);
+  } else if (file) {
     admin.initializeApp({ credential: admin.credential.cert(require(path.resolve(file))) });
     enabled = true;
   } else {
-    console.warn('[push] FIREBASE_SERVICE_ACCOUNT not set: push notifications disabled');
+    console.warn('[push] FIREBASE_SERVICE_ACCOUNT(_B64) not set: push notifications disabled');
   }
 } catch (e) {
   console.error('[push] init failed:', e.message);
