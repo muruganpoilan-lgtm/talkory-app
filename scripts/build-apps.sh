@@ -47,6 +47,28 @@ if os.path.exists(pl):
 PY
 }
 
+# Some plugins (e.g. Agora) are compiled against an old Android SDK (31) while their androidx dependencies need 33/34+,
+# which fails the build at "checkReleaseAarMetadata". This Gradle init script raises compileSdk to 36 for every plugin module.
+write_gradle_init() {
+  local d="${GRADLE_USER_HOME:-$HOME/.gradle}/init.d"
+  mkdir -p "$d"
+  cat > "$d/talkory-compilesdk.gradle" <<'GRADLE_END'
+allprojects {
+    afterEvaluate { p ->
+        def android = p.extensions.findByName('android')
+        if (android != null && p.name != 'app') {
+            try {
+                android.compileSdkVersion(36)
+            } catch (Throwable ignored) {
+                try { android.compileSdk = 36 } catch (Throwable ignored2) { }
+            }
+        }
+    }
+}
+GRADLE_END
+}
+[[ -n "$SKIP_FLUTTER" ]] || write_gradle_init
+
 build_app() { # project_name label "PERMISSIONS" "ios modes" needs_firebase(yes|no)
   local name="$1" label="$2" perms="$3" modes="$4" fb="$5" dir="apps/$1"
   echo; echo "=== $label ==="
