@@ -6,7 +6,7 @@ name: talkory
 
 services:
   api:
-    image: ghcr.io/muruganpoilan-lgtm/talkory-api:latest
+    image: ghcr.io/REPLACE_GITHUB_USERNAME/talkory-api:latest
     restart: unless-stopped
     depends_on:
       db:
@@ -33,6 +33,7 @@ services:
       TWILIO_ACCOUNT_SID: "${TWILIO_ACCOUNT_SID:-}"
       TWILIO_AUTH_TOKEN: "${TWILIO_AUTH_TOKEN:-}"
       TWILIO_VERIFY_SID: "${TWILIO_VERIFY_SID:-}"
+      FIREBASE_SERVICE_ACCOUNT_B64: "${FIREBASE_SERVICE_ACCOUNT_B64:-}"   # the Firebase service-account key file, base64 on one line (see BUILD.md)
     volumes:
       - appdata:/data/app
       - kycdata:/data/kyc
