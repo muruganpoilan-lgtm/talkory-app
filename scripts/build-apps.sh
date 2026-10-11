@@ -9,6 +9,16 @@ ORG="${ORG:-com.example}"
 SENTRY_DSN="${SENTRY_DSN:-}"
 SKIP_FLUTTER="${SKIP_FLUTTER:-}" # set to 1 to only apply the file patches (used for testing the script)
 
+# Secrets pasted into GitHub often carry a hidden trailing newline or space, which breaks the flutter command line.
+# None of these values may contain whitespace, so strip it all.
+strip_ws() { printf '%s' "$1" | tr -d '[:space:]'; }
+API_URL="$(strip_ws "$API_URL")"
+SENTRY_DSN="$(strip_ws "$SENTRY_DSN")"
+FIREBASE_API_KEY="$(strip_ws "${FIREBASE_API_KEY:-}")"
+FIREBASE_APP_ID="$(strip_ws "${FIREBASE_APP_ID:-}")"
+FIREBASE_SENDER_ID="$(strip_ws "${FIREBASE_SENDER_ID:-}")"
+FIREBASE_PROJECT_ID="$(strip_ws "${FIREBASE_PROJECT_ID:-}")"
+
 if [[ -z "$SKIP_FLUTTER" ]] && ! command -v flutter >/dev/null; then
   echo "Flutter SDK not found. Install it (https://docs.flutter.dev/get-started/install), run 'flutter doctor', then try again."; exit 1
 fi
