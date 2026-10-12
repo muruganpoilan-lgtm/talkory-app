@@ -6,6 +6,19 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// 10.0.2.2 is the host machine as seen from the Android emulator.
 const kBaseUrl = String.fromEnvironment('API_URL', defaultValue: 'http://10.0.2.2:3000');
 
+/// Keep in sync with LANGUAGES in backend/src/partners.js
+const kLanguages = ['Hindi', 'English', 'Tamil', 'Telugu', 'Bengali', 'Marathi', 'Odia', 'Bhojpuri', 'Malayalam', 'Kannada', 'Gujarati', 'Punjabi', 'Urdu', 'Assamese'];
+
+/// Coins shown to users: 1 coin = ₹1, kept in paise on the server. 3000 -> "30", 70 -> "0.7", 1850 -> "18.5".
+String formatCoins(int paise) {
+  if (paise % 100 == 0) return '${paise ~/ 100}';
+  if (paise % 10 == 0) return (paise / 100).toStringAsFixed(1);
+  return (paise / 100).toStringAsFixed(2);
+}
+
+/// What one chat message costs a user, in paise (0.3 coins). Keep in sync with MESSAGE_COST in backend/src/chat.js
+const kMessageCostPaise = 30;
+
 class ApiException implements Exception {
   ApiException(this.status, this.message);
   final int status;
@@ -33,18 +46,22 @@ class Partner {
       : id = j['id'],
         name = j['display_name'],
         bio = j['bio'] ?? '',
+        tagline = j['tagline'] ?? '',
         languages = List<String>.from(j['languages'] ?? []),
         ratePerMin = j['rate_per_min'],
         rating = double.tryParse('${j['rating_avg']}') ?? 0,
         ratingCount = j['rating_count'] ?? 0,
         busy = j['busy'] == true,
-        avatarUrl = j['avatar_url'];
-  final String id, name, bio;
+        avatarUrl = j['avatar_url'],
+        introUrl = j['intro_url'],
+        verified = j['verified'] == true;
+  final String id, name, bio, tagline;
+  final String? introUrl; // approved voice intro, path like /intros/abc.m4a
   final String? avatarUrl; // path like /avatars/abc.jpg, prefix with Api.baseUrl
   final List<String> languages;
   final int ratePerMin, ratingCount;
   final double rating;
-  final bool busy;
+  final bool busy, verified;
 }
 
 class Api {
@@ -102,8 +119,9 @@ class Api {
   }
 
   // ---- user app
-  Future<List<Partner>> listPartners({String? language}) async {
-    final q = language == null ? '' : '?language=${Uri.encodeQueryComponent(language)}';
+  Future<List<Partner>> listPartners({String? language, String? query}) async {
+    final params = <String, String>{if (language != null) 'language': language, if (query != null && query.isNotEmpty) 'q': query};
+    final q = params.isEmpty ? '' : '?${Uri(queryParameters: params).query}';
     final data = await _send('GET', '/partners$q') as List;
     return data.map((e) => Partner.fromJson(e)).toList();
   }
@@ -168,8 +186,8 @@ class Api {
 
   Future<Map<String, dynamic>> myProfile() async => Map<String, dynamic>.from(await _send('GET', '/partners/me'));
 
-  Future<void> saveProfile({required String displayName, required String bio, required List<String> languages, required int rateRupees}) =>
-      _send('PUT', '/partners/me', {'displayName': displayName, 'bio': bio, 'languages': languages, 'rateRupees': rateRupees});
+  Future<void> saveProfile({required String displayName, String tagline = '', required String bio, required List<String> languages, required int rateRupees}) =>
+      _send('PUT', '/partners/me', {'displayName': displayName, 'tagline': tagline, 'bio': bio, 'languages': languages, 'rateRupees': rateRupees});
 
   // ---- partner KYC
   /// {status: pending|approved|rejected, submitted, note, docs: [id_front, selfie]}
@@ -179,6 +197,37 @@ class Api {
       _send('POST', '/partner/kyc/documents', {'kind': kind, 'imageBase64': imageBase64});
 
   Future<void> submitKyc() => _send('POST', '/partner/kyc/submit');
+
+  /// {role, displayName, phone, avatarUrl, supportEmail}
+  Future<Map<String, dynamic>> accountMe() async => Map<String, dynamic>.from(await _send('GET', '/account/me'));
+
+  Future<void> setGst(String gstin) => _send('PUT', '/account/gst', {'gstNumber': gstin});
+
+  // ---- user's own photo (only they see it)
+  Future<void> uploadUserAvatar(String imageBase64) => _send('POST', '/account/avatar', {'imageBase64': imageBase64});
+  Future<void> removeUserAvatar() => _send('POST', '/account/avatar/remove');
+
+  // ---- partner voice intro (reviewed by admin before users can hear it)
+  Future<void> uploadIntro(String audioBase64) => _send('POST', '/partner/intro', {'audioBase64': audioBase64});
+  Future<void> removeIntro() => _send('POST', '/partner/intro/remove');
+
+  // ---- chat. Users pay 0.3 coins per message they send; host replies are free.
+  /// [{id (other person), name, avatar_url, last_body, last_at, unread}]
+  Future<List<Map<String, dynamic>>> chatThreads() async =>
+      (await _send('GET', '/chat/threads') as List).map((e) => Map<String, dynamic>.from(e)).toList();
+
+  Future<int> chatUnread() async => (await _send('GET', '/chat/unread'))['unread'] as int;
+
+  /// [{id, body, created_at, mine}] oldest first. Pass [after] to get only newer messages.
+  Future<List<Map<String, dynamic>>> chatMessages(String otherId, {int after = 0}) async =>
+      (await _send('GET', '/chat/$otherId/messages?after=$after') as List).map((e) => Map<String, dynamic>.from(e)).toList();
+
+  /// Returns the stored message (plus `balance` in paise for users). Throws ApiException(402) when out of coins.
+  Future<Map<String, dynamic>> sendMessage(String otherId, String body) async =>
+      Map<String, dynamic>.from(await _send('POST', '/chat/$otherId', {'body': body}));
+
+  Future<void> reportChat(String otherId, String reason) => _send('POST', '/chat/$otherId/report', {'reason': reason});
+  Future<void> blockChat(String otherId) => _send('POST', '/chat/$otherId/block');
 
   Future<void> deleteAccount() => _send('POST', '/account/delete', {'confirm': 'DELETE'});
 

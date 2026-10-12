@@ -77,6 +77,11 @@ router.get('/history', requireAuth(['user']), async (req, res) => {
       WHERE l.account_id = $1 AND l.type = 'call_debit'
       GROUP BY c.id, a.display_name, c.billed_seconds
      UNION ALL
+     SELECT 'chat' AS kind, 'chat-' || MAX(l.id)::text, SUM(l.amount)::bigint, MAX(l.created_at), a.display_name, COUNT(*)::int
+       FROM ledger l JOIN messages m ON l.ref = 'msg:' || m.id::text JOIN accounts a ON a.id = m.partner_id
+      WHERE l.account_id = $1 AND l.type = 'chat_debit'
+      GROUP BY m.partner_id, a.display_name, date_trunc('day', l.created_at)
+     UNION ALL
      SELECT l.type::text, l.id::text, l.amount, l.created_at, NULL::text, NULL::int
        FROM ledger l WHERE l.account_id = $1 AND l.type IN ('topup', 'refund', 'adjustment')
      ORDER BY at DESC LIMIT ${PAGE} OFFSET $2`, [req.auth.id, page * PAGE]);

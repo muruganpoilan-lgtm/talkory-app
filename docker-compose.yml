@@ -13,6 +13,7 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       OTP_DEV_MODE: ${OTP_DEV_MODE:-false}
       TERMS_VERSION: ${TERMS_VERSION:-2026-10-03}
+      SUPPORT_EMAIL: ${SUPPORT_EMAIL:-}
       SENTRY_DSN: ${SENTRY_DSN:-}
       APNS_KEY_PATH: /secrets/AuthKey.p8
       APNS_KEY_ID: ${APNS_KEY_ID:-}

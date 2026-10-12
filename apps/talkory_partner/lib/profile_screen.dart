@@ -13,6 +13,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final _name = TextEditingController();
   final _bio = TextEditingController();
+  final _tagline = TextEditingController();
   final _langs = <String>{};
   Map<String, dynamic>? _meta;
   double _rate = 10;
@@ -33,6 +34,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       setState(() {
         _meta = d;
         _name.text = d['displayName'];
+        _tagline.text = (d['tagline'] as String?) ?? '';
         _setAvatar(d);
         _bio.text = d['bio'];
         _langs.addAll(List<String>.from(d['languages']));
@@ -90,6 +92,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       await widget.api.saveProfile(
         displayName: _name.text.trim(),
+        tagline: _tagline.text.trim(),
         bio: _bio.text.trim(),
         languages: _langs.toList(),
         rateRupees: _rate.round(),
@@ -145,6 +148,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   controller: _name,
                   maxLength: 30,
                   decoration: const InputDecoration(labelText: 'Display name', helperText: 'Shown to callers instead of your number', border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _tagline,
+                  maxLength: 40,
+                  decoration: const InputDecoration(labelText: 'Tagline', helperText: 'A short line shown under your name, e.g. Calm Friend', border: OutlineInputBorder()),
                 ),
                 const SizedBox(height: 16),
                 TextField(

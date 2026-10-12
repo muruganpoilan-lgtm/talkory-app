@@ -12,7 +12,7 @@
 ## Should build
 - [x] User wallet activity (top-ups, calls, refunds) and balance on the home screen: built.
 - [x] Per-IP rate limiting (general 600/min, OTP 20 per 10 min). Tune in server.js if real users get blocked.
-- [x] Sentry error monitoring (backend + both apps) built: set SENTRY_DSN. Still do: an uptime monitor on /health (e.g. UptimeRobot) and a load test before a launch push.
+- [x] Sentry error monitoring built for the backend (set SENTRY_DSN). Phone apps: not yet, the Sentry Flutter 8.x plugin fails to build with the current Kotlin; revisit with a newer version once the apps build. Still do: an uptime monitor on /health (e.g. UptimeRobot) and a load test before a launch push.
 - [x] iOS VoIP ring: backend + Dart done; one native Xcode step left, see IOS_VOIP.md (needs a Mac and a real iPhone).
 - [x] Ring/billing timers now run on a BullMQ queue in Redis: restarts no longer drop calls and several API containers are safe.
 

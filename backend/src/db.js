@@ -6,6 +6,11 @@ const jwt = require('jsonwebtoken');
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const redis = new Redis(process.env.REDIS_URL);
 
+// A database or Redis restart (for example during a redeploy) drops idle connections. Log it and reconnect
+// instead of letting the unhandled error crash the whole API.
+pool.on('error', (e) => console.error('[db] idle connection error (will reconnect):', e.message));
+redis.on('error', (e) => console.error('[redis] connection error:', e.message));
+
 const signToken = (acc) =>
   jwt.sign({ id: acc.id, role: acc.role }, process.env.JWT_SECRET, { expiresIn: '30d' });
 

@@ -7,7 +7,7 @@
 
 ## Android, one command
 ```
-API_URL=https://api.yourdomain.com SENTRY_DSN=<optional> ORG=com.yourcompany bash scripts/build-apps.sh
+API_URL=https://api.yourdomain.com ORG=com.yourcompany bash scripts/build-apps.sh
 ```
 First run: creates the Android/iOS project folders, adds the permissions, app names and minimum Android version, then builds.
 Output in `dist/`: `talkory_user.apk`, `talkory_partner.apk` (install on a phone to test) and the `.aab` files (upload to Google Play).
@@ -56,3 +56,9 @@ To enable calls, add an Android app in the Firebase console (package name = `<or
 - `FIREBASE_SENDER_ID`: the same page, "Project number"
 - `FIREBASE_APP_ID`: under "Your apps" > the Android app > App ID (looks like `1:1234567890:android:abc123`)
 - `FIREBASE_API_KEY`: the "current_key" value inside the downloaded google-services.json (or Google Cloud Console > Credentials)
+
+## Firebase for the server (so the partner phone rings)
+Besides the four app values above, the backend needs a service-account key: Firebase console > Project settings > Service accounts > Generate new private key (downloads a .json file).
+On Windows PowerShell, put it on the clipboard as one base64 line (nothing is printed):
+`[Convert]::ToBase64String([IO.File]::ReadAllBytes("$HOME\Downloads\your-key-file.json")) | Set-Clipboard`
+Paste it as the environment variable `FIREBASE_SERVICE_ACCOUNT_B64` in Docker Manager and redeploy. Treat that value like a password: never put it in GitHub or chat.

@@ -117,4 +117,28 @@ admin.post('/:id', async (req, res) => {
   res.json({ ok: true });
 });
 
-module.exports = { router, admin, AVATAR_DIR, PUBLIC, PENDING };
+// ---- caller's own photo (mounted at /account/avatar). Only the user sees it, so no review queue is needed.
+const userRouter = express.Router();
+
+userRouter.post('/', requireAuth(['user']), async (req, res) => {
+  const b64 = req.body.imageBase64;
+  if (typeof b64 !== 'string' || b64.length > MAX_BYTES * 1.4) return res.status(400).json({ error: 'That photo is too large' });
+  const clean = sanitize(Buffer.from(b64, 'base64'));
+  if (!clean || clean.buf.length > MAX_BYTES) return res.status(400).json({ error: 'Please upload a JPG or PNG photo' });
+  await fs.mkdir(PUBLIC, { recursive: true });
+  const file = `${crypto.randomUUID()}.${clean.ext}`;
+  await fs.writeFile(path.join(PUBLIC, file), clean.buf, { mode: 0o644 });
+  const prev = (await pool.query('SELECT avatar_url FROM accounts WHERE id=$1', [req.auth.id])).rows[0];
+  await pool.query('UPDATE accounts SET avatar_url=$1 WHERE id=$2', [`/avatars/${file}`, req.auth.id]);
+  await rm(PUBLIC, prev?.avatar_url);
+  res.json({ ok: true });
+});
+
+userRouter.post('/remove', requireAuth(['user']), async (req, res) => {
+  const prev = (await pool.query('SELECT avatar_url FROM accounts WHERE id=$1', [req.auth.id])).rows[0];
+  await pool.query('UPDATE accounts SET avatar_url=NULL WHERE id=$1', [req.auth.id]);
+  await rm(PUBLIC, prev?.avatar_url);
+  res.json({ ok: true });
+});
+
+module.exports = { router, admin, userRouter, AVATAR_DIR, PUBLIC, PENDING };

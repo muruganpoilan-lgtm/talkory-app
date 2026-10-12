@@ -30,3 +30,14 @@ Run `backend && npm run smoke` first (see README "Testing"): it covers the serve
 - [ ] Delete account in both apps; log in again with the same number: it is a brand-new account.
 - [ ] Trigger an error on purpose (stop Postgres for a minute): the app shows a friendly message and Sentry gets the event.
 - [ ] Rough load check: `npx autocannon -c 100 -d 20 -H "Authorization: Bearer <user token>" https://api.yourdomain.com/partners`. Errors should stay near zero; watch CPU on the server.
+
+## Chat, voice intro, profile (redesign)
+- [ ] Backend check: `npm run` is not needed, run `node scripts/chat-test.js` against a LOCAL backend (OTP_DEV_MODE=true): every line should say PASS.
+- [ ] User app: host card chat button opens a thread; the top strip shows "0.3 coins per message" and the balance; each sent message lowers the balance by 0.3.
+- [ ] Phone numbers, links and @handles are refused in chat (nothing is charged). With under 0.3 coins the app says to add coins.
+- [ ] Partner app: Chat tab shows the message with an unread badge; the host can reply free; a host cannot start a chat with a user.
+- [ ] Report and Block inside a chat: block hides the thread for both sides; report appears in the admin Reports tab prefixed "[chat]".
+- [ ] Host records a voice intro (Profile > Voice intro) > admin Intros tab plays and approves > the Play button appears on the host card and plays.
+- [ ] Host photo: upload > admin Photos approves > appears on the card. User photo: camera icon on Profile works and is not shown to hosts.
+- [ ] User Profile: level card matches minutes talked; Add GST Number accepts a valid GSTIN and rejects a bad one; Language chooses the default filter on the Call tab.
+- [ ] Wallet shows coins everywhere; the activity list has "Chat with …" lines.

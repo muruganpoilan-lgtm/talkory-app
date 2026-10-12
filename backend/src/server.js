@@ -25,18 +25,27 @@ app.use('/auth/verify-otp', limit(10 * 60 * 1000, 60));
 
 app.use('/partner/kyc', express.json({ limit: '6mb' })); // base64 photos
 app.use('/partner/avatar', express.json({ limit: '3mb' }));
+app.use('/account/avatar', express.json({ limit: '3mb' }));
+app.use('/partner/intro', express.json({ limit: '1.5mb' })); // base64 audio
 app.use(express.json());
 app.use('/auth', require('./auth'));
 app.use('/partners', require('./partners'));
 app.use('/calls', require('./calls'));
 app.use('/wallet', wallet.router);
+app.get('/legal/support', (req, res) => res.type('html').send(require('./support')(process.env.SUPPORT_EMAIL)));
 app.use('/legal', express.static(path.join(__dirname, '../legal'), { extensions: ['html'] })); // /legal/terms, /legal/privacy
 app.use('/account', require('./account').router);
 const avatars = require('./avatars');
 app.use('/avatars', express.static(avatars.PUBLIC, { maxAge: '30d', immutable: true, index: false })); // approved photos only
+app.use('/account/avatar', avatars.userRouter);
+const intros = require('./intros');
+app.use('/intros', express.static(intros.PUBLIC, { maxAge: '30d', immutable: true, index: false })); // approved voice intros only
+app.use('/partner/intro', intros.router);
+app.use('/admin/intros', intros.admin);
 app.use('/admin/avatars', avatars.admin);
 app.use('/admin', require('./admin'));
 app.use('/panel', express.static(path.join(__dirname, '../admin'))); // admin web panel
+app.use('/chat', require('./chat').router);
 app.use('/devices', require('./devices'));
 app.use('/partner/kyc', require('./kyc').router);
 app.use('/partner/avatar', avatars.router);

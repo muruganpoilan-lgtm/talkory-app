@@ -1,10 +1,12 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:talkory_core/talkory_core.dart';
-import 'earnings_screen.dart';
-import 'kyc_screen.dart';
-import 'profile_screen.dart';
+import 'calls_tab.dart';
+import 'home_tab.dart';
+import 'partner_profile_tab.dart';
 import 'push_service.dart';
 
+/// Bottom-tab shell: Home (online switch + today), Calls (history), Chat and Profile.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.api, required this.onLogout});
   final Api api;
@@ -14,93 +16,59 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  bool _online = false;
+  int _tab = 0;
+  int _unread = 0;
+  Timer? _timer;
+
+  Future<void> _loadUnread() async {
+    try {
+      final n = await widget.api.chatUnread();
+      if (mounted && n != _unread) setState(() => _unread = n);
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
 
   @override
   void initState() {
     super.initState();
+    _loadUnread();
+    _timer = Timer.periodic(const Duration(seconds: 20), (_) => _loadUnread());
     // Registers this phone for call alerts and listens for accept/decline from the call screen.
     WidgetsBinding.instance.addPostFrameCallback((_) => PushService.instance.start(widget.api).catchError((_) {}));
   }
 
-  void _snack(String m) {
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
-  }
-
-  Future<void> _toggle(bool value) async {
-    try {
-      await widget.api.setOnline(value);
-      setState(() => _online = value);
-    } on ApiException catch (e) {
-      if (e.status == 401) return widget.onLogout();
-      _snack(e.message);
-    } catch (_) {
-      _snack('Network error. Try again.');
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
+    // Only the selected tab is built, so each tab reloads fresh data whenever it is opened.
+    final tabs = <Widget>[
+      HomeTab(api: widget.api, onLogout: widget.onLogout),
+      CallsTab(api: widget.api),
+      ChatTab(api: widget.api, isUser: false, onBalanceChanged: _loadUnread, onLogout: widget.onLogout),
+      PartnerProfileTab(api: widget.api, onLogout: widget.onLogout),
+    ];
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Talkory Partner'),
-        actions: [
-          IconButton(onPressed: () => showLegalSheet(context, widget.api, onAccountDeleted: widget.onLogout), icon: const Icon(Icons.info_outline)),
-          IconButton(onPressed: widget.onLogout, icon: const Icon(Icons.logout)),
+      body: SafeArea(child: tabs[_tab]),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _tab,
+        onDestinationSelected: (i) {
+          setState(() => _tab = i);
+          _loadUnread();
+        },
+        destinations: [
+          const NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
+          const NavigationDestination(icon: Icon(Icons.call_outlined), selectedIcon: Icon(Icons.call), label: 'Calls'),
+          NavigationDestination(
+            icon: Badge(isLabelVisible: _unread > 0, label: Text('$_unread'), child: const Icon(Icons.chat_bubble_outline)),
+            selectedIcon: Badge(isLabelVisible: _unread > 0, label: Text('$_unread'), child: const Icon(Icons.chat_bubble)),
+            label: 'Chat',
+          ),
+          const NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Profile'),
         ],
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            Card(
-              child: SwitchListTile(
-                value: _online,
-                onChanged: _toggle,
-                title: Text(_online ? 'You are online' : 'You are offline'),
-                subtitle: Text(_online
-                    ? 'Incoming calls will ring even if the app is closed'
-                    : 'Go online to start receiving calls'),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.verified_user_outlined),
-                title: const Text('Verification (KYC)'),
-                subtitle: const Text('Required before you can go online'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => KycScreen(api: widget.api)),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.person_outline),
-                title: const Text('My profile'),
-                subtitle: const Text('Name, bio, languages and your rate per minute'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => ProfileScreen(api: widget.api)),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.account_balance_wallet_outlined),
-                title: const Text('Earnings & payouts'),
-                subtitle: const Text('Balance, call history, withdrawals'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => EarningsScreen(api: widget.api)),
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

@@ -1,9 +1,12 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:talkory_core/talkory_core.dart';
+import 'call_tab.dart';
+import 'profile_tab.dart';
 import 'wallet_screen.dart';
 
-const _languages = ['Hindi', 'English', 'Tamil', 'Telugu', 'Bengali', 'Marathi'];
-
+/// Bottom-tab shell: Call (find hosts), Chat and Profile.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.api, required this.onLogout});
   final Api api;
@@ -13,143 +16,95 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  String? _language;
-  late Future<List<Partner>> _future = _load();
-
-  Future<List<Partner>> _load() => widget.api.listPartners(language: _language);
-
+  int _tab = 0;
   int? _balance; // paise
+  int _unread = 0;
+  String? _language; // preferred language chosen in Profile
+  Timer? _timer;
 
   @override
   void initState() {
     super.initState();
-    _loadBalance();
+    loadBalance();
+    _loadUnread();
+    SharedPreferences.getInstance().then((p) {
+      if (mounted) setState(() => _language = p.getString('pref_language'));
+    }).catchError((_) {});
+    _timer = Timer.periodic(const Duration(seconds: 20), (_) => _loadUnread());
   }
 
-  Future<void> _loadBalance() async {
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _loadUnread() async {
+    try {
+      final n = await widget.api.chatUnread();
+      if (mounted && n != _unread) setState(() => _unread = n);
+    } catch (_) {}
+  }
+
+  Future<void> loadBalance() async {
     try {
       final b = await widget.api.walletBalance();
       if (mounted) setState(() => _balance = b);
     } catch (_) {}
   }
 
-  void _refresh() {
-    _loadBalance();
-    setState(() => _future = _load());
-  }
-
-  void _openWallet() => Navigator.of(context)
-      .push(MaterialPageRoute(builder: (_) => WalletScreen(api: widget.api)))
-      .then((_) => _loadBalance());
-
-  void _snack(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
-
-  Future<void> _call(Partner p) async {
+  Future<void> _setLanguage(String? l) async {
+    setState(() => _language = l);
     try {
-      final session = await widget.api.startCall(p.id);
-      if (!mounted) return;
-      final connected = await Navigator.of(context).push<bool>(
-        MaterialPageRoute(builder: (_) => CallScreen(api: widget.api, session: session, peerName: p.name, onAddCredits: _openWallet)),
-      );
-      if (connected == true && mounted) {
-        await Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => PostCallScreen(api: widget.api, callId: session.callId, peerName: p.name, canRate: true),
-        ));
-      }
-      _refresh();
-    } on ApiException catch (e) {
-      if (e.status == 401) return widget.onLogout();
-      if (e.status == 402) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: const Text('Not enough balance for this call.'),
-          action: SnackBarAction(label: 'Add credits', onPressed: _openWallet),
-        ));
+      final p = await SharedPreferences.getInstance();
+      if (l == null) {
+        await p.remove('pref_language');
       } else {
-        _snack(e.message);
+        await p.setString('pref_language', l);
       }
-    }
+    } catch (_) {}
   }
+
+  void openWallet() => Navigator.of(context)
+      .push(MaterialPageRoute(builder: (_) => WalletScreen(api: widget.api)))
+      .then((_) => loadBalance());
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Talkory'),
-        actions: [
-          TextButton.icon(
-            onPressed: _openWallet,
-            icon: const Icon(Icons.account_balance_wallet_outlined),
-            label: Text(_balance == null ? '—' : '₹${(_balance! / 100).toStringAsFixed(0)}'),
+      body: SafeArea(
+        child: IndexedStack(index: _tab, children: [
+          CallTab(api: widget.api, balance: _balance, onWallet: openWallet, onBalanceChanged: loadBalance, onLogout: widget.onLogout, preferredLanguage: _language),
+          // Only build the chat inbox while it is selected so it reloads each time it is opened
+          _tab == 1
+              ? ChatTab(api: widget.api, isUser: true, onBalanceChanged: () async { await loadBalance(); await _loadUnread(); }, onLogout: widget.onLogout)
+              : const SizedBox.shrink(),
+          ProfileTab(
+            api: widget.api,
+            balance: _balance,
+            onWallet: openWallet,
+            onLogout: widget.onLogout,
+            language: _language,
+            onLanguage: _setLanguage,
+            active: _tab == 2,
           ),
-          IconButton(onPressed: () => showLegalSheet(context, widget.api, onAccountDeleted: widget.onLogout), icon: const Icon(Icons.info_outline)),
-          IconButton(onPressed: widget.onLogout, icon: const Icon(Icons.logout)),
-        ],
+        ]),
       ),
-      body: Column(
-        children: [
-          SizedBox(
-            height: 56,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              children: [
-                for (final l in [null, ..._languages])
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: ChoiceChip(
-                      label: Text(l ?? 'All'),
-                      selected: _language == l,
-                      onSelected: (_) {
-                        _language = l;
-                        _refresh();
-                      },
-                    ),
-                  ),
-              ],
-            ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _tab,
+        onDestinationSelected: (i) {
+          setState(() => _tab = i);
+          if (i != 0) loadBalance();
+          _loadUnread();
+        },
+        destinations: [
+          const NavigationDestination(icon: Icon(Icons.call_outlined), selectedIcon: Icon(Icons.call), label: 'Call'),
+          NavigationDestination(
+            icon: Badge(isLabelVisible: _unread > 0, label: Text('$_unread'), child: const Icon(Icons.chat_bubble_outline)),
+            selectedIcon: Badge(isLabelVisible: _unread > 0, label: Text('$_unread'), child: const Icon(Icons.chat_bubble)),
+            label: 'Chat',
           ),
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: () async {
-                _refresh();
-                await _future;
-              },
-              child: FutureBuilder<List<Partner>>(
-                future: _future,
-                builder: (context, snap) {
-                  if (snap.connectionState != ConnectionState.done) return const Center(child: CircularProgressIndicator());
-                  if (snap.hasError) {
-                    final e = snap.error;
-                    if (e is ApiException && e.status == 401) WidgetsBinding.instance.addPostFrameCallback((_) => widget.onLogout());
-                    return ListView(children: [Padding(padding: const EdgeInsets.all(32), child: Text('Could not load hosts.\n$e'))]);
-                  }
-                  final list = snap.data!;
-                  if (list.isEmpty) return ListView(children: const [Padding(padding: EdgeInsets.all(32), child: Text('No hosts online right now. Pull down to refresh.'))]);
-                  return ListView.separated(
-                    itemCount: list.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
-                    itemBuilder: (_, i) {
-                      final p = list[i];
-                      return ListTile(
-                        leading: CircleAvatar(
-                          backgroundImage: p.avatarUrl == null ? null : NetworkImage('${widget.api.baseUrl}${p.avatarUrl}'),
-                          child: p.avatarUrl == null ? Text(p.name[0].toUpperCase()) : null,
-                        ),
-                        title: Text(p.name),
-                        subtitle: Text('${p.languages.join(', ')}\n★ ${p.rating.toStringAsFixed(1)} (${p.ratingCount})  ·  ₹${(p.ratePerMin / 100).toStringAsFixed(0)}/min'),
-                        isThreeLine: true,
-                        trailing: FilledButton.icon(
-                          onPressed: p.busy ? null : () => _call(p),
-                          icon: const Icon(Icons.call),
-                          label: Text(p.busy ? 'Busy' : 'Call'),
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
-            ),
-          ),
+          const NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Profile'),
         ],
       ),
     );

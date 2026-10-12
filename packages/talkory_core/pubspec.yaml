@@ -15,3 +15,4 @@ dependencies:
   shared_preferences: ^2.3.2
   agora_rtc_engine: ^6.3.2
   permission_handler: ^11.3.1
+  audioplayers: ^6.1.0

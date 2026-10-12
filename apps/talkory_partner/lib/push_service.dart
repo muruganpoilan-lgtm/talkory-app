@@ -50,10 +50,13 @@ class PushService {
   String? _token;
   final _seen = <String>{}; // call ids we already acted on
   StreamSubscription? _fcm, _callkit, _refresh;
+  Timer? _poll;
+  bool _dialogOpen = false;
 
   Future<void> start(Api api) async {
     _api = api;
     await _cancelSubs();
+    _startPolling(); // works with the app open even if push (Firebase) is not set up
 
     final fm = FirebaseMessaging.instance;
     await fm.requestPermission(alert: true, sound: true, badge: false);
@@ -83,7 +86,56 @@ class PushService {
     _token = null;
   }
 
+  /// While the app is open, ask the server every 3 seconds whether someone is calling.
+  /// Push (FCM/CallKit) is what rings a phone whose app is closed; this makes calls work when it is open.
+  void _startPolling() {
+    _poll?.cancel();
+    _poll = Timer.periodic(const Duration(seconds: 3), (_) async {
+      final api = _api;
+      if (api == null || _dialogOpen) return;
+      try {
+        final c = await api.incomingCall();
+        final id = c?['id'] as String?;
+        if (id == null || _seen.contains(id)) return;
+        await _showRingDialog(id, (c?['user_name'] as String?) ?? 'Caller');
+      } catch (_) {}
+    });
+  }
+
+  Future<void> _showRingDialog(String callId, String callerName) async {
+    final ctx = navigatorKey.currentContext;
+    if (ctx == null) return;
+    _dialogOpen = true;
+    final timeout = Timer(const Duration(seconds: 20), () {
+      if (_dialogOpen) navigatorKey.currentState?.pop(); // ring timeout, same as the server (dialog is the top route)
+    });
+    final accept = await showDialog<bool>(
+      context: ctx,
+      barrierDismissible: false,
+      builder: (dctx) {
+        return AlertDialog(
+          title: const Text('Incoming call'),
+          content: Text('$callerName wants to talk'),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(dctx).pop(false), child: const Text('Decline')),
+            FilledButton(onPressed: () => Navigator.of(dctx).pop(true), child: const Text('Accept')),
+          ],
+        );
+      },
+    );
+    timeout.cancel();
+    _dialogOpen = false;
+    if (accept == true) {
+      await _accept(callId, callerName);
+    } else if (accept == false) {
+      await _decline(callId);
+    } else {
+      _seen.add(callId);
+    }
+  }
+
   Future<void> _cancelSubs() async {
+    _poll?.cancel();
     await _fcm?.cancel();
     await _callkit?.cancel();
     await _refresh?.cancel();

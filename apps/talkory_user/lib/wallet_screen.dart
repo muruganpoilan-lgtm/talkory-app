@@ -78,18 +78,19 @@ class _WalletScreenState extends State<WalletScreen> {
     final amount = it['amount'] as int; // paise, negative = spent
     final kind = it['kind'] as String;
     final (icon, title) = switch (kind) {
-      'topup' => (Icons.add_circle_outline, 'Added credits'),
+      'topup' => (Icons.add_circle_outline, 'Added coins'),
+      'chat' => (Icons.chat_bubble_outline, 'Chat with ${it['counterpart']}'),
       'call' => (Icons.call_made, 'Call with ${it['counterpart']}'),
       'refund' => (Icons.undo, 'Refund'),
       _ => (Icons.tune, 'Adjustment'),
     };
-    final sub = [_when(it['at']), if (kind == 'call') _dur((it['seconds'] ?? 0) as int)].join('  ·  ');
+    final sub = [_when(it['at']), if (kind == 'call') _dur((it['seconds'] ?? 0) as int), if (kind == 'chat') '${it['seconds']} message${it['seconds'] == 1 ? '' : 's'}'].join('  ·  ');
     return ListTile(
       contentPadding: EdgeInsets.zero,
       leading: Icon(icon),
       title: Text(title),
       subtitle: Text(sub),
-      trailing: Text('${amount >= 0 ? '+' : '−'}₹${(amount.abs() / 100).toStringAsFixed(2)}',
+      trailing: Text('${amount >= 0 ? '+' : '−'}${formatCoins(amount.abs())} coins',
           style: TextStyle(fontWeight: FontWeight.w600, color: amount >= 0 ? Colors.green : null)),
     );
   }
@@ -155,20 +156,20 @@ class _WalletScreenState extends State<WalletScreen> {
                 children: [
                   Text('Balance', style: text.labelLarge),
                   const SizedBox(height: 8),
-                  Text(_balance == null ? '—' : '₹${(_balance! / 100).toStringAsFixed(2)}',
+                  Text(_balance == null ? '—' : '${formatCoins(_balance!)} coins',
                       style: text.displaySmall?.copyWith(fontWeight: FontWeight.bold)),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 24),
-          Text('Add credits', style: text.titleMedium),
+          Text('Add coins  (1 coin = ₹1)', style: text.titleMedium),
           const SizedBox(height: 12),
           Wrap(
             spacing: 8,
             children: [
               for (final a in _presets)
-                ChoiceChip(label: Text('₹$a'), selected: _amount == a, onSelected: (_) => setState(() => _amount = a)),
+                ChoiceChip(label: Text('$a coins'), selected: _amount == a, onSelected: (_) => setState(() => _amount = a)),
             ],
           ),
           const SizedBox(height: 24),

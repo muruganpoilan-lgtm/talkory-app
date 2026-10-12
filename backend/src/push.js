@@ -72,4 +72,14 @@ async function notifyCallCancelled(partnerId, callId) {
   })));
 }
 
-module.exports = { notifyIncomingCall, notifyCallCancelled };
+// New chat message: a plain notification (never includes the message text)
+async function notifyMessage(accountId, fromName) {
+  if (!enabled) return;
+  await Promise.all((await devicesOf(accountId)).map((d) => sendFcm(d, {
+    notification: { title: 'New message', body: `${fromName} sent you a message` },
+    data: { type: 'chat_message' },
+    android: { priority: 'high' },
+  })));
+}
+
+module.exports = { notifyIncomingCall, notifyCallCancelled, notifyMessage };

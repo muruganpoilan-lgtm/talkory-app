@@ -122,7 +122,7 @@ No database changes are needed.
 
 ## Hardening round
 - **Call timers in Redis (BullMQ):** ring timeout, 15s billing and a once-a-minute safety sweep run from a queue, so deploys/restarts no longer end calls and billing continues. Run `npm install` (new packages: bullmq, @sentry/node, express-rate-limit, express-async-errors).
-- **Errors:** async route errors now return a 500 instead of crashing the server; Sentry (optional) captures them. Apps: `--dart-define=SENTRY_DSN=...`.
+- **Errors:** async route errors now return a 500 instead of crashing the server; Sentry (optional) captures them. Phone-app error reporting is not included yet (the Sentry Flutter plugin 8.x fails to build with current Kotlin); backend errors are reported.
 - **Rate limits:** per-IP limits on the API, tighter on OTP requests.
 - **iOS ring:** run `migrations/007_voip_token.sql`, then follow IOS_VOIP.md.
 
@@ -158,3 +158,10 @@ only then does it appear in the user app's host list. GPS/camera metadata is str
 until the new one is approved. Run `psql talkory -f backend/migrations/008_avatars.sql` on an existing database. Photos live in the `avatars` Docker volume (included in the nightly backup).
 
 Build instructions for the apps: see BUILD.md (one command: bash scripts/build-apps.sh).
+
+## Phase 1 redesign (tabs, search, host cards)
+- User app: bottom tabs Call and Profile; Call tab has a wallet pill, name search, language chips (14 languages) and new host cards (photo ring, rating, verified tick, tagline, languages, price). Profile tab: wallet, Privacy & Security, Customer Support, Logout.
+- Partner app: tabs Home (online switch, earned today, balance), Calls (history), Profile (tagline, photo, verification, earnings, privacy, support, logout).
+- Backend: `?q=` name search, `tagline`, `verified`, more languages, `/account/me`. Migrations now run automatically on every start (they are idempotent), so deploys never need a manual SQL step.
+- Set `SUPPORT_EMAIL` as an environment variable so the Customer Support button opens an email to you.
+- Still to come (Phase 2/3): voice intro, level card, GST number, user photo, chat tab.

@@ -8,6 +8,10 @@ Future<void> openLegal(Api api, String page) =>
     launchUrl(Uri.parse('${api.baseUrl}/legal/$page'), mode: LaunchMode.externalApplication);
 
 /// Pass [onAccountDeleted] to also show "Delete my account".
+/// Opens the mail app addressed to support.
+Future<void> openSupport(String email) =>
+    launchUrl(Uri(scheme: 'mailto', path: email, queryParameters: {'subject': 'Talkory support'}));
+
 void showLegalSheet(BuildContext context, Api api, {VoidCallback? onAccountDeleted}) => showModalBottomSheet(
       context: context,
       builder: (ctx) => SafeArea(

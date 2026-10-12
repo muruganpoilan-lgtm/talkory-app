@@ -33,6 +33,12 @@ async function bootstrap() {
       console.log('[bootstrap] empty database: creating tables');
       await client.query(fs.readFileSync(path.join(__dirname, '../schema.sql'), 'utf8'));
     }
+    const dir = path.join(__dirname, '../migrations'); // every file is written to be safe to run repeatedly
+    if (fs.existsSync(dir)) {
+      for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.sql')).sort()) {
+        await client.query(fs.readFileSync(path.join(dir, f), 'utf8'));
+      }
+    }
     const phone = process.env.ADMIN_PHONE;
     if (phone && /^\+\d{8,15}$/.test(phone)) {
       await client.query(

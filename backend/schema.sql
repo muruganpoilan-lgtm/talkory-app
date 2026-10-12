@@ -3,7 +3,7 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 CREATE TYPE account_role AS ENUM ('user', 'partner', 'admin');
 CREATE TYPE call_status AS ENUM ('ringing', 'active', 'ended', 'missed', 'rejected', 'failed');
-CREATE TYPE ledger_type AS ENUM ('topup', 'call_debit', 'call_earning', 'platform_fee', 'payout', 'refund', 'adjustment');
+CREATE TYPE ledger_type AS ENUM ('topup', 'call_debit', 'call_earning', 'platform_fee', 'payout', 'refund', 'adjustment', 'chat_debit', 'chat_earning');
 CREATE TYPE payout_status AS ENUM ('requested', 'processing', 'paid', 'rejected');
 CREATE TYPE kyc_status AS ENUM ('pending', 'approved', 'rejected');
 
@@ -163,3 +163,13 @@ ALTER TABLE devices ADD COLUMN IF NOT EXISTS voip_token TEXT;
 ALTER TABLE partner_profiles ADD COLUMN IF NOT EXISTS avatar_pending TEXT;
 ALTER TABLE partner_profiles ADD COLUMN IF NOT EXISTS avatar_status TEXT CHECK (avatar_status IN ('pending', 'approved', 'rejected'));
 ALTER TABLE partner_profiles ADD COLUMN IF NOT EXISTS avatar_note TEXT;
+
+-- Host tagline (see migrations/009_tagline.sql)
+ALTER TABLE partner_profiles ADD COLUMN IF NOT EXISTS tagline TEXT;
+
+-- Voice intro + GST number (see migrations/010_phase2.sql)
+ALTER TABLE partner_profiles ADD COLUMN IF NOT EXISTS intro_pending TEXT;
+ALTER TABLE partner_profiles ADD COLUMN IF NOT EXISTS intro_status TEXT CHECK (intro_status IN ('pending', 'approved', 'rejected'));
+ALTER TABLE partner_profiles ADD COLUMN IF NOT EXISTS intro_note TEXT;
+ALTER TABLE partner_profiles ADD COLUMN IF NOT EXISTS intro_url TEXT;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS gst_number TEXT;
