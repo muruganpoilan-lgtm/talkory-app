@@ -77,9 +77,7 @@ class _HomeTabState extends State<HomeTab> {
       onRefresh: _load,
       child: ListView(
         padding: const EdgeInsets.all(16),
-        children: [
-          'Talkory Partner v2', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary)),
-          if (name.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Text('Hello, $name')),
+        children: [Text('Talkory Partner v2', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary)),
           const SizedBox(height: 12),
           Card(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
