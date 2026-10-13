@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_callkit_incoming/entities/entities.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:talkory_core/talkory_core.dart';
@@ -106,6 +107,14 @@ class PushService {
     final ctx = navigatorKey.currentContext;
     if (ctx == null) return;
     _dialogOpen = true;
+    // Ring and vibrate until the host answers (the system alert sound repeats every 1.5 seconds).
+    void ring() {
+      SystemSound.play(SystemSoundType.alert);
+      HapticFeedback.vibrate();
+    }
+
+    ring();
+    final ringer = Timer.periodic(const Duration(milliseconds: 1500), (_) => ring());
     final timeout = Timer(const Duration(seconds: 20), () {
       if (_dialogOpen) navigatorKey.currentState?.pop(); // ring timeout, same as the server (dialog is the top route)
     });
@@ -124,6 +133,7 @@ class PushService {
       },
     );
     timeout.cancel();
+    ringer.cancel();
     _dialogOpen = false;
     if (accept == true) {
       await _accept(callId, callerName);
