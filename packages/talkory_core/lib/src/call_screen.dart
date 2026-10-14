@@ -23,7 +23,7 @@ class _CallScreenState extends State<CallScreen> {
   int? _secondsLeft;
   bool _warned = false;
   int _seconds = 0;
-  bool _connected = false, _muted = false, _leaving = false, _speaker = false;
+  bool _connected = false, _muted = false, _leaving = false, _speaker = false, _free = false;
 
   @override
   void initState() {
@@ -64,6 +64,8 @@ class _CallScreenState extends State<CallScreen> {
         autoSubscribeAudio: true,
       ),
     );
+    // Also watch the call while it is still ringing, so a decline or no-answer closes this screen
+    _poll ??= Timer.periodic(const Duration(seconds: 3), (_) => _checkStatus());
   }
 
   /// Warns the user when talk time is running low, and leaves if the server already ended the call.
@@ -72,8 +74,9 @@ class _CallScreenState extends State<CallScreen> {
     try {
       final s = await widget.api.callStatus(widget.session.callId);
       if (!mounted || _leaving) return;
+      if (s['status'] == 'ringing') return; // still ringing on the other phone
       if (s['status'] != 'active') {
-        return _leave((_secondsLeft ?? 999) <= 30 ? 'Call ended: balance used up' : 'Call ended');
+        return _leave(s['status'] == 'rejected' ? 'Call declined' : !_connected ? 'No answer' : _free ? 'Free call ended' : (_secondsLeft ?? 999) <= 30 ? 'Call ended: balance used up' : 'Call ended');
       }
       final left = s['secondsLeft'] as int?;
       if (left != null && left <= 60 && !_warned) {
@@ -81,7 +84,10 @@ class _CallScreenState extends State<CallScreen> {
         HapticFeedback.heavyImpact();
       }
       if (left != null && left > 60) _warned = false; // topped up
-      setState(() => _secondsLeft = left);
+      setState(() {
+        _secondsLeft = left;
+        _free = s['free'] == true;
+      });
     } catch (_) {} // transient network error: try again in 5s
   }
 
@@ -133,8 +139,8 @@ class _CallScreenState extends State<CallScreen> {
               const SizedBox(height: 16),
               Text(widget.peerName, style: Theme.of(context).textTheme.headlineSmall),
               const SizedBox(height: 8),
-              Text(_connected ? _clock : 'Connecting…', style: Theme.of(context).textTheme.titleMedium),
-              if (_secondsLeft != null && _secondsLeft! <= 60) ...[
+              Text(_connected ? _clock : 'Ringing…', style: Theme.of(context).textTheme.titleMedium),
+              if (_secondsLeft != null && (_free || _secondsLeft! <= 60)) ...[
                 const SizedBox(height: 24),
                 Container(
                   margin: const EdgeInsets.symmetric(horizontal: 24),
@@ -147,10 +153,10 @@ class _CallScreenState extends State<CallScreen> {
                     const Icon(Icons.warning_amber_rounded, color: Colors.black87),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: Text('Low balance: about ${_secondsLeft}s of talk time left',
+                      child: Text(_free ? 'Free call: about ${_secondsLeft}s left' : 'Low balance: about ${_secondsLeft}s of talk time left',
                           style: const TextStyle(color: Colors.black87)),
                     ),
-                    if (widget.onAddCredits != null)
+                    if (widget.onAddCredits != null && !_free)
                       TextButton(onPressed: widget.onAddCredits, child: const Text('Add credits')),
                   ]),
                 ),

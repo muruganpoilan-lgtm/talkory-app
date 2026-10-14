@@ -31,6 +31,7 @@ app.use(express.json());
 app.use('/auth', require('./auth'));
 app.use('/partners', require('./partners'));
 app.use('/calls', require('./calls'));
+app.use('/host-calls', require('./hostcalls'));
 app.use('/wallet', wallet.router);
 app.get('/legal/support', (req, res) => res.type('html').send(require('./support')(process.env.SUPPORT_EMAIL)));
 app.use('/legal', express.static(path.join(__dirname, '../legal'), { extensions: ['html'] })); // /legal/terms, /legal/privacy

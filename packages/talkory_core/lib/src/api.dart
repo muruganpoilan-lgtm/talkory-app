@@ -129,6 +129,23 @@ class Api {
   Future<CallSession> startCall(String partnerId) async =>
       CallSession.fromJson(await _send('POST', '/calls', {'partnerId': partnerId}));
 
+  /// {available: bool, seconds: 120, nextAt: ISO time or null}: the free 2-minute call (one every 3 hours)
+  Future<Map<String, dynamic>> freeCallStatus() async => Map<String, dynamic>.from(await _send('GET', '/calls/free-status') as Map);
+
+  // ---- host-started calls
+  /// Host: ring a user who has messaged them.
+  Future<CallSession> hostCall(String userId) async =>
+      CallSession.fromJson(await _send('POST', '/host-calls', {'userId': userId}));
+
+  /// User: returns {id, partner_name} while a host is ringing, else null.
+  Future<Map<String, dynamic>?> hostCallIncoming() async =>
+      (await _send('GET', '/host-calls/incoming')) as Map<String, dynamic>?;
+
+  Future<CallSession> acceptHostCall(String id) async =>
+      CallSession.fromJson(await _send('POST', '/host-calls/$id/accept'));
+
+  Future<void> rejectHostCall(String id) => _send('POST', '/host-calls/$id/reject');
+
   // ---- partner app
   Future<void> setOnline(bool online) => _send('POST', '/partners/online', {'online': online});
 

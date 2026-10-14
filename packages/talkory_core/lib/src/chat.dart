@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'api.dart';
+import 'call_screen.dart';
+import 'post_call_screen.dart';
 import 'widgets.dart';
 
 /// Chat inbox, shared by both apps. [isUser] controls the hint text (users pay per message, hosts reply free).
@@ -240,6 +242,32 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  bool _calling = false;
+
+  /// Host only: ring this user. They pay the normal per-minute rate once they accept.
+  Future<void> _callUser() async {
+    if (_calling) return;
+    _calling = true;
+    try {
+      final session = await widget.api.hostCall(widget.otherId);
+      if (!mounted) return;
+      final connected = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(builder: (_) => CallScreen(api: widget.api, session: session, peerName: widget.otherName)),
+      );
+      if (connected == true && mounted) {
+        await Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => PostCallScreen(api: widget.api, callId: session.callId, peerName: widget.otherName, canRate: false),
+        ));
+      }
+    } on ApiException catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Network error. Try again.')));
+    } finally {
+      _calling = false;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -247,6 +275,7 @@ class _ChatScreenState extends State<ChatScreen> {
       appBar: AppBar(
         title: Text(widget.otherName),
         actions: [
+          if (!widget.isUser) IconButton(icon: const Icon(Icons.call), tooltip: 'Call', onPressed: _callUser),
           PopupMenuButton<String>(
             onSelected: (v) => v == 'report' ? _report() : _block(),
             itemBuilder: (_) => const [

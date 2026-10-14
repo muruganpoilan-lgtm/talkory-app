@@ -6,6 +6,7 @@ const { billTick, TICK_SECONDS } = require('./billing');
 const push = require('./push');
 const { finishCall } = require('./callctl');
 const { ringTimeout, scheduleTick } = require('./queue');
+const { freeStatus, FREE_SECONDS } = require('./freecall');
 
 const CALL_MAX_SECONDS = 4 * 3600; // token + privilege lifetime, also the partner busy-lock lifetime
 const agoraToken = (channel, uid) =>
@@ -14,6 +15,11 @@ const agoraToken = (channel, uid) =>
     CALL_MAX_SECONDS, CALL_MAX_SECONDS); // both are durations in seconds
 
 // User starts a call
+// Is the free 2-minute call available to this user right now?
+router.get('/free-status', requireAuth(['user']), async (req, res) => {
+  res.json(await freeStatus(req.auth.id));
+});
+
 router.post('/', requireAuth(['user']), async (req, res) => {
   const { partnerId } = req.body;
   const { rows } = await pool.query(
@@ -29,8 +35,9 @@ router.post('/', requireAuth(['user']), async (req, res) => {
   if (blocked.rowCount) return res.status(403).json({ error: 'this host is unavailable' });
 
   const minCost = Math.ceil((p.rate_per_min * Number(process.env.MIN_CALL_SECONDS || 60)) / 60);
+  const free = (await freeStatus(req.auth.id)).available; // first call in every 3 hours is free for 2 minutes
   const w = await pool.query('SELECT balance FROM wallets WHERE account_id=$1', [req.auth.id]);
-  if (Number(w.rows[0].balance) < minCost) return res.status(402).json({ error: 'insufficient balance', required: minCost });
+  if (!free && Number(w.rows[0].balance) < minCost) return res.status(402).json({ error: 'insufficient balance', required: minCost });
 
   // Atomic busy lock: only one call per partner
   if (!(await redis.set(`partner:busy:${partnerId}`, req.auth.id, 'EX', CALL_MAX_SECONDS, 'NX')))
@@ -38,8 +45,8 @@ router.post('/', requireAuth(['user']), async (req, res) => {
 
   const channel = `call_${crypto.randomBytes(8).toString('hex')}`;
   const call = (await pool.query(
-    `INSERT INTO calls (user_id, partner_id, channel_name, rate_per_min) VALUES ($1,$2,$3,$4) RETURNING *`,
-    [req.auth.id, partnerId, channel, p.rate_per_min])).rows[0];
+    `INSERT INTO calls (user_id, partner_id, channel_name, rate_per_min, is_free) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+    [req.auth.id, partnerId, channel, p.rate_per_min, free])).rows[0];
 
   const caller = await pool.query('SELECT display_name FROM accounts WHERE id=$1', [req.auth.id]);
   push.notifyIncomingCall(partnerId, call.id, caller.rows[0].display_name).catch(() => {});
@@ -52,7 +59,7 @@ router.post('/', requireAuth(['user']), async (req, res) => {
 router.get('/incoming', requireAuth(['partner']), async (req, res) => {
   const { rows } = await pool.query(
     `SELECT c.id, a.display_name AS user_name FROM calls c JOIN accounts a ON a.id = c.user_id
-      WHERE c.partner_id=$1 AND c.status='ringing' ORDER BY c.created_at DESC LIMIT 1`, [req.auth.id]);
+      WHERE c.partner_id=$1 AND c.status='ringing' AND c.initiated_by='user' ORDER BY c.created_at DESC LIMIT 1`, [req.auth.id]);
   res.json(rows[0] || null);
 });
 
@@ -60,7 +67,7 @@ router.get('/incoming', requireAuth(['partner']), async (req, res) => {
 router.post('/:id/accept', requireAuth(['partner']), async (req, res) => {
   const { rows } = await pool.query(
     `UPDATE calls SET status='active', started_at=now()
-      WHERE id=$1 AND partner_id=$2 AND status='ringing' RETURNING *`, [req.params.id, req.auth.id]);
+      WHERE id=$1 AND partner_id=$2 AND initiated_by='user' AND status='ringing' RETURNING *`, [req.params.id, req.auth.id]);
   const call = rows[0];
   if (!call) return res.status(409).json({ error: 'call not available' });
 
@@ -96,12 +103,13 @@ router.get('/:id/status', requireAuth(['user', 'partner']), async (req, res) => 
   const c = await callFor(req, res); if (!c) return;
   let secondsLeft = null;
   if (c.status === 'active') await redis.set(`call:hb:${c.id}`, 1, 'EX', 40);
-  if (c.status === 'active' && req.auth.id === c.user_id) {
+  if (c.status === 'active' && c.is_free) secondsLeft = Math.max(0, FREE_SECONDS - c.billed_seconds); // both sides see the free time left
+  else if (c.status === 'active' && req.auth.id === c.user_id) {
     const w = await pool.query('SELECT balance FROM wallets WHERE account_id=$1', [c.user_id]);
     const tickCost = Math.ceil((c.rate_per_min * TICK_SECONDS) / 60);
     secondsLeft = Math.floor(Number(w.rows[0].balance) / tickCost) * TICK_SECONDS;
   }
-  res.json({ status: c.status, secondsLeft });
+  res.json({ status: c.status, secondsLeft, free: !!c.is_free });
 });
 
 // ---- post-call: rating, report, block (either side may report/block; only the user rates)

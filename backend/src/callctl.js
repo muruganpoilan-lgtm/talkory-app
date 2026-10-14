@@ -9,7 +9,7 @@ async function finishCall(callId, status, from = ['ringing', 'active']) {
   if (rows[0]) {
     await redis.del(`partner:busy:${rows[0].partner_id}`);
     // Never answered: stop the partner's phone from ringing
-    if (!rows[0].started_at) push.notifyCallCancelled(rows[0].partner_id, callId).catch(() => {});
+    if (!rows[0].started_at && rows[0].initiated_by !== 'partner') push.notifyCallCancelled(rows[0].partner_id, callId).catch(() => {});
   }
   return rows[0];
 }
