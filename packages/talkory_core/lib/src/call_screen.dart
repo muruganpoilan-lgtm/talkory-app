@@ -23,7 +23,7 @@ class _CallScreenState extends State<CallScreen> {
   int? _secondsLeft;
   bool _warned = false;
   int _seconds = 0;
-  bool _connected = false, _muted = false, _leaving = false;
+  bool _connected = false, _muted = false, _leaving = false, _speaker = false;
 
   @override
   void initState() {
@@ -170,6 +170,15 @@ class _CallScreenState extends State<CallScreen> {
                       icon: Icon(_muted ? Icons.mic_off : Icons.mic),
                     ),
                     const SizedBox(width: 32),
+                    IconButton.filledTonal(
+                      iconSize: 32,
+                      onPressed: () {
+                        setState(() => _speaker = !_speaker);
+                        _engine?.setEnableSpeakerphone(_speaker);
+                      },
+                      icon: Icon(_speaker ? Icons.volume_up : Icons.volume_down),
+                    ),
+                    const SizedBox(width: 32),
                     IconButton.filled(
                       iconSize: 32,
                       style: IconButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
@@ -186,3 +195,4 @@ class _CallScreenState extends State<CallScreen> {
     );
   }
 }
+
