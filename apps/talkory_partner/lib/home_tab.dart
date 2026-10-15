@@ -89,7 +89,7 @@ class _HomeTabState extends State<HomeTab> {
               title: name.isEmpty ? 'Talkory Partner' : 'Hi, $name',
               subtitle: 'Talkory Partner',
               bottomPadding: 56,
-              trailing: ProfileAvatar(baseUrl: widget.api.baseUrl, name: name, url: _profile?['avatarUrl'] as String?, radius: 26, ring: Colors.white),
+              trailing: ProfileAvatar(baseUrl: widget.api.baseUrl, name: name, url: _profile?['avatarUrl'] as String?, radius: 26, ring: kGold),
             ),
             Transform.translate(
               offset: const Offset(0, -34),

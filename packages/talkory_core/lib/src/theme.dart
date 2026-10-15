@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
 const kInk = Color(0xFF1B1740);
-const kSoftBg = Color(0xFFF5F2FF);
+const kSoftBg = Color(0xFFF3EEFA);
+const kGold = Color(0xFFF2C14E);
+const kRoyalDeep = Color(0xFF1E0A56);
+const kRoyal = Color(0xFF4B22B0);
 
 /// Shared look for both apps: soft lavender background, white rounded cards, pill buttons, floating tab bar.
 /// [seed] is each app's main colour.
@@ -23,21 +26,68 @@ ThemeData talkoryTheme(Color seed) {
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       height: 68,
-      indicatorColor: scheme.primaryContainer,
+      indicatorColor: const Color(0xFFE6DAFB),
     ),
     filledButtonTheme: FilledButtonThemeData(style: FilledButton.styleFrom(shape: const StadiumBorder(), minimumSize: const Size(0, 44))),
     outlinedButtonTheme: OutlinedButtonThemeData(style: OutlinedButton.styleFrom(shape: const StadiumBorder())),
   );
 }
 
-/// Two-colour gradient made from the app colour (second colour is the same colour with its hue shifted).
-LinearGradient brandGradient(Color base) {
-  final hsl = HSLColor.fromColor(base);
-  return LinearGradient(
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-    colors: [base, hsl.withHue((hsl.hue + 40) % 360).toColor()],
-  );
+/// Royal gradient: deep indigo to rich purple (the [base] colour is kept for compatibility).
+LinearGradient brandGradient(Color base) => const LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [kRoyalDeep, kRoyal, Color(0xFF7A3FD0)],
+      stops: [0.0, 0.6, 1.0],
+    );
+
+class _RoyalPattern extends CustomPainter {
+  @override
+  void paint(Canvas c, Size s) {
+    final ring = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2
+      ..color = kGold.withOpacity(0.22);
+    final fill = Paint()..color = kGold.withOpacity(0.07);
+    final o = Offset(s.width * 0.92, s.height * 0.15);
+    c.drawCircle(o, 86, fill);
+    for (final r in [44.0, 70.0, 98.0, 128.0]) {
+      c.drawCircle(o, r, ring);
+    }
+    c.drawCircle(Offset(s.width * 0.05, s.height * 0.95), 60, ring);
+    final dot = Paint()..color = kGold.withOpacity(0.5);
+    for (final d in [Offset(s.width * 0.62, s.height * 0.2), Offset(s.width * 0.78, s.height * 0.62), Offset(s.width * 0.45, s.height * 0.8)]) {
+      c.drawCircle(d, 2.2, dot);
+    }
+    final line = Paint()
+      ..color = kGold.withOpacity(0.7)
+      ..strokeWidth = 2;
+    c.drawLine(Offset(s.width * 0.2, s.height - 1), Offset(s.width * 0.8, s.height - 1), line);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter old) => false;
+}
+
+/// Royal header background: gradient with soft gold rings and a thin gold edge.
+class RoyalBox extends StatelessWidget {
+  const RoyalBox({super.key, required this.child, this.padding = EdgeInsets.zero});
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          gradient: brandGradient(kRoyal),
+          borderRadius: const BorderRadius.vertical(bottom: Radius.circular(32)),
+          boxShadow: const [BoxShadow(color: Color(0x551E0A56), blurRadius: 18, offset: Offset(0, 8))],
+        ),
+        child: ClipRRect(
+          borderRadius: const BorderRadius.vertical(bottom: Radius.circular(32)),
+          child: CustomPaint(painter: _RoyalPattern(), child: Padding(padding: padding, child: child)),
+        ),
+      );
 }
 
 /// Wraps a NavigationBar so it floats above the bottom edge as a white rounded bar.
@@ -51,7 +101,7 @@ class FloatingNav extends StatelessWidget {
         child: Material(
           color: Colors.white,
           elevation: 8,
-          shadowColor: const Color(0x401B1740),
+          shadowColor: const Color(0x601E0A56),
           borderRadius: BorderRadius.circular(24),
           clipBehavior: Clip.antiAlias,
           child: child,
@@ -70,13 +120,8 @@ class GradientHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final top = MediaQuery.of(context).padding.top;
-    return Container(
-      width: double.infinity,
+    return RoyalBox(
       padding: EdgeInsets.fromLTRB(20, top + 16, 20, bottomPadding),
-      decoration: BoxDecoration(
-        gradient: brandGradient(Theme.of(context).colorScheme.primary),
-        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(32)),
-      ),
       child: Row(children: [
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

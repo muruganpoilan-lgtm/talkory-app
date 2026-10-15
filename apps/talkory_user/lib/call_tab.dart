@@ -108,12 +108,8 @@ class _CallTabState extends State<CallTab> {
               left: 0,
               right: 0,
               height: top + 160,
-              child: Container(
+              child: RoyalBox(
                 padding: EdgeInsets.fromLTRB(20, top + 14, 20, 0),
-                decoration: BoxDecoration(
-                  gradient: brandGradient(scheme.primary),
-                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(32)),
-                ),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
                     const Text('Talkory', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
@@ -123,12 +119,12 @@ class _CallTabState extends State<CallTab> {
                       borderRadius: BorderRadius.circular(999),
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                        decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(999)),
+                        decoration: BoxDecoration(color: kGold, borderRadius: BorderRadius.circular(999)),
                         child: Row(mainAxisSize: MainAxisSize.min, children: [
-                          const Icon(Icons.monetization_on_outlined, size: 18, color: Colors.white),
+                          const Icon(Icons.monetization_on, size: 18, color: kRoyalDeep),
                           const SizedBox(width: 6),
                           Text(widget.balance == null ? '—' : '${formatCoins(widget.balance!)} coins',
-                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                              style: const TextStyle(color: kRoyalDeep, fontWeight: FontWeight.w800)),
                         ]),
                       ),
                     ),

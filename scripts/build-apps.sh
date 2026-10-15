@@ -86,6 +86,11 @@ build_app() { # project_name label "PERMISSIONS" "ios modes" needs_firebase(yes|
     (cd "$dir" && flutter create . --org "$ORG" --project-name "$name" --platforms=android,ios && rm -f test/widget_test.dart)
   fi
   patch_platforms "$dir" "$label" "$perms" "$modes"
+  # Royal app icon: copy the prepared launcher icons over the Flutter defaults.
+  if [[ -d "$dir/icon" && -d "$dir/android/app/src/main/res" ]]; then
+    cp -r "$dir"/icon/mipmap-* "$dir/android/app/src/main/res/"
+    rm -rf "$dir/android/app/src/main/res/mipmap-anydpi-v26" "$dir/android/app/src/main/res/mipmap-anydpi-v33"
+  fi
   if [[ "$fb" == yes && -z "$SKIP_FLUTTER" && -z "${FIREBASE_API_KEY:-}" && ! -f "$dir/android/app/google-services.json" ]]; then
     echo "NOTE: Firebase is not configured, so $label will work but will not ring for incoming calls (see BUILD.md > Firebase)."
   fi

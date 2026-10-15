@@ -57,15 +57,10 @@ class _PartnerProfileTabState extends State<PartnerProfileTab> {
       child: ListView(
         padding: const EdgeInsets.only(bottom: 16),
         children: [
-          Container(
-            width: double.infinity,
+          RoyalBox(
             padding: EdgeInsets.fromLTRB(20, top + 20, 20, 28),
-            decoration: BoxDecoration(
-              gradient: brandGradient(Theme.of(context).colorScheme.primary),
-              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(32)),
-            ),
             child: Column(children: [
-              ProfileAvatar(baseUrl: widget.api.baseUrl, name: name, url: _p?['avatarUrl'] as String?, radius: 48, ring: Colors.white),
+              ProfileAvatar(baseUrl: widget.api.baseUrl, name: name, url: _p?['avatarUrl'] as String?, radius: 48, ring: kGold),
               const SizedBox(height: 12),
               Row(mainAxisSize: MainAxisSize.min, children: [
                 Text(name.isEmpty ? '—' : name, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800)),
