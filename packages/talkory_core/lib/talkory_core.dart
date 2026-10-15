@@ -9,3 +9,4 @@ export 'src/chat.dart';
 export 'src/intro_button.dart';
 export 'src/ringer.dart';
 export 'src/support_screen.dart';
+export 'src/theme.dart';

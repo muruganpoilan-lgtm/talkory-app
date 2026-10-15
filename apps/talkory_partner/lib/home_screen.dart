@@ -53,7 +53,8 @@ class _HomeScreenState extends State<HomeScreen> {
     ];
     return Scaffold(
       body: SafeArea(child: tabs[_tab]),
-      bottomNavigationBar: NavigationBar(
+      bottomNavigationBar: FloatingNav(
+          child: NavigationBar(
         selectedIndex: _tab,
         onDestinationSelected: (i) {
           setState(() => _tab = i);
@@ -69,7 +70,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Profile'),
         ],
-      ),
+      )),
     );
   }
 }

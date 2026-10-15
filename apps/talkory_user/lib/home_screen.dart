@@ -140,6 +140,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
+        top: _tab != 0, // the Call tab draws its gradient header under the status bar
         child: IndexedStack(index: _tab, children: [
           CallTab(api: widget.api, balance: _balance, onWallet: openWallet, onBalanceChanged: loadBalance, onLogout: widget.onLogout, preferredLanguage: _language),
           // Only build the chat inbox while it is selected so it reloads each time it is opened
@@ -157,7 +158,8 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ]),
       ),
-      bottomNavigationBar: NavigationBar(
+      bottomNavigationBar: FloatingNav(
+          child: NavigationBar(
         selectedIndex: _tab,
         onDestinationSelected: (i) {
           setState(() => _tab = i);
@@ -173,7 +175,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Profile'),
         ],
-      ),
+      )),
     );
   }
 }

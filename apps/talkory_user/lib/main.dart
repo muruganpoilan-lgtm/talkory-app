@@ -24,7 +24,7 @@ class _TalkoryAppState extends State<TalkoryApp> {
     return MaterialApp(
       title: 'Talkory',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(colorSchemeSeed: const Color(0xFF6C4DFF), useMaterial3: true),
+      theme: talkoryTheme(const Color(0xFF5B3DF5)),
       home: _loggedIn
           ? HomeScreen(api: widget.api, onLogout: () async {
               await widget.api.logout();

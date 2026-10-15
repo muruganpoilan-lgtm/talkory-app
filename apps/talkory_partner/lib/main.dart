@@ -69,7 +69,7 @@ class _PartnerAppState extends State<PartnerApp> {
       title: 'Talkory Partner',
       navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(colorSchemeSeed: const Color(0xFF00A884), useMaterial3: true),
+      theme: talkoryTheme(const Color(0xFF00796B)),
       home: _loggedIn
           ? HomeScreen(api: widget.api, onLogout: _logout)
           : LoginScreen(

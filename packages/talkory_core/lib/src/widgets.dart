@@ -1,6 +1,7 @@
+import 'dart:ui' show BlurStyle, MaskFilter;
 import 'package:flutter/material.dart';
 
-/// Default profile picture drawn in code: a female or male illustrated avatar. [seed] picks the skin tone, hair,
+/// Default profile picture drawn in code: a female or male 3D-style (soft clay look) avatar. [seed] picks the skin tone, hair,
 /// hair style, outfit and background, so different people look different.
 class AvatarFigure extends StatelessWidget {
   const AvatarFigure({super.key, required this.female, this.radius = 28, this.seed = 0});
@@ -21,7 +22,15 @@ class AvatarFigure extends StatelessWidget {
   Widget build(BuildContext context) => SizedBox(
         width: radius * 2,
         height: radius * 2,
-        child: ClipOval(child: CustomPaint(painter: _FigurePainter(female, seed))),
+        child: ClipOval(
+          child: Image.asset(
+            'assets/avatars/${female ? 'f' : 'm'}${1 + seed % 15}.jpg',
+            package: 'talkory_core',
+            fit: BoxFit.cover,
+            alignment: Alignment.topCenter,
+            errorBuilder: (_, __, ___) => CustomPaint(painter: _FigurePainter(female, seed)),
+          ),
+        ),
       );
 }
 
@@ -37,7 +46,26 @@ class _FigurePainter extends CustomPainter {
   static const _clothesF = [Color(0xFFAD1457), Color(0xFF00796B), Color(0xFF3949AB), Color(0xFFEF6C00), Color(0xFF6A1B9A)];
   static const _clothesM = [Color(0xFF1565C0), Color(0xFF2E7D32), Color(0xFF455A64), Color(0xFF6D4C41), Color(0xFFC62828)];
 
-  Paint _f(Color col) => Paint()..color = col;
+  Color _l(Color c, double t) => Color.lerp(c, Colors.white, t)!;
+  Color _d(Color c, double t) => Color.lerp(c, Colors.black, t)!;
+
+  Paint _lin(Rect r, List<Color> cols) =>
+      Paint()..shader = LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: cols).createShader(r);
+
+  // a lit "clay ball": bright at the top left, darker towards the bottom right
+  Paint _ball(Rect r, Color base) => Paint()
+    ..shader = RadialGradient(
+      center: const Alignment(-0.3, -0.4),
+      radius: 0.85,
+      colors: [_l(base, 0.38), base, _d(base, 0.3)],
+      stops: const [0.0, 0.55, 1.0],
+    ).createShader(r);
+
+  Paint _blur(Color col, double sigma) => Paint()
+    ..color = col
+    ..maskFilter = MaskFilter.blur(BlurStyle.normal, sigma);
+
+  Paint _fill(Color col) => Paint()..color = col;
 
   @override
   void paint(Canvas c, Size s) {
@@ -48,91 +76,133 @@ class _FigurePainter extends CustomPainter {
     final clothes = (female ? _clothesF : _clothesM)[(seed ~/ 125) % 5];
     final style = (seed ~/ 625) % 4;
     final cx = w * 0.5;
-    final headC = Offset(cx, w * 0.42);
+    final hy = w * 0.42;
     final hw = w * 0.17; // half head width
     final hh = w * 0.21; // half head height
 
-    // background
-    final rect = Offset.zero & s;
+    // soft background
+    final full = Offset.zero & s;
     c.drawRect(
-      rect,
+      full,
       Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [bg, Color.lerp(bg, Colors.white, 0.55)!],
-        ).createShader(rect),
+        ..shader = RadialGradient(
+          center: const Alignment(0, -0.3),
+          radius: 0.95,
+          colors: [_l(bg, 0.6), bg, _d(bg, 0.1)],
+          stops: const [0.0, 0.6, 1.0],
+        ).createShader(full),
     );
+
+    // zoom in a little so the face fills the circle
+    c.save();
+    c.translate(w * 0.5, w * 0.56);
+    c.scale(1.22);
+    c.translate(-w * 0.5, -w * 0.5);
+
+    final hairRect = Rect.fromLTWH(w * 0.2, w * 0.05, w * 0.6, w * 0.75);
+    final hairP = _lin(hairRect, [_l(hair, 0.22), hair, _d(hair, 0.35)]);
 
     // hair behind the head
     if (female) {
       if (style == 0) {
-        c.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(cx - hw * 1.35, headC.dy - hh * 1.05, hw * 2.7, hh * 3.0), Radius.circular(hw * 1.2)), _f(hair));
+        c.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(cx - hw * 1.35, hy - hh * 1.05, hw * 2.7, hh * 3.0), Radius.circular(hw * 1.2)), hairP);
       } else if (style == 1) {
-        c.drawOval(Rect.fromCenter(center: headC.translate(0, -hh * 0.05), width: hw * 2.5, height: hh * 2.3), _f(hair));
+        c.drawOval(Rect.fromCenter(center: Offset(cx, hy - hh * 0.05), width: hw * 2.5, height: hh * 2.3), hairP);
       } else if (style == 2) {
-        c.drawCircle(Offset(cx, headC.dy - hh * 1.15), hw * 0.55, _f(hair));
-        c.drawOval(Rect.fromCenter(center: headC.translate(0, -hh * 0.05), width: hw * 2.4, height: hh * 2.25), _f(hair));
+        c.drawCircle(Offset(cx, hy - hh * 1.15), hw * 0.55, hairP);
+        c.drawOval(Rect.fromCenter(center: Offset(cx, hy - hh * 0.05), width: hw * 2.4, height: hh * 2.24), hairP);
       } else {
-        c.drawCircle(headC.translate(0, -hh * 0.1), hw * 1.55, _f(hair));
+        c.drawCircle(Offset(cx, hy - hh * 0.1), hw * 1.55, hairP);
       }
     } else if (style == 3) {
-      c.drawCircle(headC.translate(0, -hh * 0.25), hw * 1.2, _f(hair));
+      c.drawCircle(Offset(cx, hy - hh * 0.25), hw * 1.2, hairP);
     }
 
-    // shoulders and clothes
-    c.drawOval(Rect.fromLTWH(w * 0.08, w * 0.68, w * 0.84, w * 0.7), _f(clothes));
-    // neck
-    c.drawRect(Rect.fromCenter(center: Offset(cx, w * 0.66), width: hw * 0.7, height: hh * 0.75), _f(Color.lerp(skin, Colors.brown, 0.15)!));
-    // neckline
+    // shoulders and clothes, with a soft highlight
+    final bodyRect = Rect.fromCenter(center: Offset(cx, w * 1.03), width: w * 0.84, height: w * 0.7);
+    c.drawOval(bodyRect, _lin(bodyRect, [_l(clothes, 0.28), clothes, _d(clothes, 0.32)]));
+    c.drawOval(Rect.fromCenter(center: Offset(w * 0.35, w * 0.745), width: w * 0.3, height: w * 0.07), _blur(Colors.white.withOpacity(0.3), w * 0.012));
+
+    // neck and neckline
+    final neck = Rect.fromCenter(center: Offset(cx, w * 0.66), width: hw * 0.7, height: hh * 0.75);
+    c.drawRect(
+      neck,
+      Paint()..shader = LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [_d(skin, 0.2), _d(skin, 0.35)]).createShader(neck),
+    );
     c.drawPath(
       Path()
         ..moveTo(cx - hw * 0.55, w * 0.70)
         ..lineTo(cx + hw * 0.55, w * 0.70)
         ..lineTo(cx, w * 0.82)
         ..close(),
-      _f(skin),
+      _fill(_d(skin, 0.1)),
     );
 
     // braid over the shoulder
     if (female && style == 1) {
       for (var i = 0; i < 4; i++) {
-        c.drawCircle(Offset(cx + hw * 1.05, headC.dy + hh * 0.9 + i * hw * 0.5), hw * (0.3 - i * 0.03), _f(hair));
+        c.drawCircle(Offset(cx + hw * 1.05, hy + hh * 0.9 + i * hw * 0.5), hw * (0.3 - i * 0.03), hairP);
       }
     }
 
-    // ears and head
-    c.drawCircle(Offset(cx - hw, headC.dy + hh * 0.05), hw * 0.17, _f(skin));
-    c.drawCircle(Offset(cx + hw, headC.dy + hh * 0.05), hw * 0.17, _f(skin));
-    c.drawOval(Rect.fromCenter(center: headC, width: hw * 2, height: hh * 2), _f(skin));
+    // shadow under the chin, ears and head
+    c.drawOval(Rect.fromCenter(center: Offset(cx, hy + hh * 0.92), width: hw * 1.2, height: hw * 0.36), _blur(Colors.black.withOpacity(0.25), w * 0.012));
+    for (final sx in [-1.0, 1.0]) {
+      final er = Rect.fromCircle(center: Offset(cx + sx * hw, hy + hh * 0.05), radius: hw * 0.17);
+      c.drawOval(er, _ball(er, skin));
+    }
+    final headRect = Rect.fromCenter(center: Offset(cx, hy), width: hw * 2, height: hh * 2);
+    c.drawOval(headRect, _ball(headRect, skin));
 
     // beard
     if (!female && style == 1) {
       c.drawPath(
         Path()
-          ..moveTo(cx - hw * 0.98, headC.dy + hh * 0.1)
-          ..quadraticBezierTo(cx - hw * 0.9, headC.dy + hh * 1.05, cx, headC.dy + hh * 1.05)
-          ..quadraticBezierTo(cx + hw * 0.9, headC.dy + hh * 1.05, cx + hw * 0.98, headC.dy + hh * 0.1)
-          ..quadraticBezierTo(cx + hw * 0.6, headC.dy + hh * 0.5, cx, headC.dy + hh * 0.5)
-          ..quadraticBezierTo(cx - hw * 0.6, headC.dy + hh * 0.5, cx - hw * 0.98, headC.dy + hh * 0.1)
+          ..moveTo(cx - hw * 0.98, hy + hh * 0.1)
+          ..quadraticBezierTo(cx - hw * 0.9, hy + hh * 1.05, cx, hy + hh * 1.05)
+          ..quadraticBezierTo(cx + hw * 0.9, hy + hh * 1.05, cx + hw * 0.98, hy + hh * 0.1)
+          ..quadraticBezierTo(cx + hw * 0.6, hy + hh * 0.5, cx, hy + hh * 0.5)
+          ..quadraticBezierTo(cx - hw * 0.6, hy + hh * 0.5, cx - hw * 0.98, hy + hh * 0.1)
           ..close(),
-        _f(hair),
+        hairP,
       );
     }
 
-    // fringe / front hair
+    // fringe and a shine on the hair
     c.drawPath(
       Path()
-        ..moveTo(cx - hw * 1.02, headC.dy - hh * 0.1)
-        ..quadraticBezierTo(cx - hw * 0.9, headC.dy - hh * 1.15, cx, headC.dy - hh * 1.05)
-        ..quadraticBezierTo(cx + hw * 0.9, headC.dy - hh * 1.15, cx + hw * 1.02, headC.dy - hh * 0.1)
-        ..quadraticBezierTo(cx + hw * 0.55, headC.dy - hh * 0.55, cx + hw * 0.1, headC.dy - hh * 0.62)
-        ..quadraticBezierTo(cx - hw * 0.45, headC.dy - hh * 0.5, cx - hw * 1.02, headC.dy - hh * 0.1)
+        ..moveTo(cx - hw * 1.02, hy - hh * 0.1)
+        ..quadraticBezierTo(cx - hw * 0.9, hy - hh * 1.15, cx, hy - hh * 1.05)
+        ..quadraticBezierTo(cx + hw * 0.9, hy - hh * 1.15, cx + hw * 1.02, hy - hh * 0.1)
+        ..quadraticBezierTo(cx + hw * 0.55, hy - hh * 0.55, cx + hw * 0.1, hy - hh * 0.62)
+        ..quadraticBezierTo(cx - hw * 0.45, hy - hh * 0.5, cx - hw * 1.02, hy - hh * 0.1)
         ..close(),
-      _f(hair),
+      hairP,
+    );
+    c.drawPath(
+      Path()
+        ..moveTo(cx - hw * 0.75, hy - hh * 0.62)
+        ..quadraticBezierTo(cx - hw * 0.2, hy - hh * 1.0, cx + hw * 0.35, hy - hh * 0.88),
+      Paint()
+        ..color = Colors.white.withOpacity(0.35)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = w * 0.022
+        ..strokeCap = StrokeCap.round
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, w * 0.012),
     );
 
-    // eyes and eyebrows
+    // glossy eyes, brows, blush
+    final ey = hy + hh * 0.06;
+    final lid = Paint()
+      ..color = const Color(0xFF1A0D09)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = w * 0.014
+      ..strokeCap = StrokeCap.round;
+    final lash = Paint()
+      ..color = const Color(0xFF1A0D09)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = w * 0.011
+      ..strokeCap = StrokeCap.round;
     final brow = Paint()
       ..color = hair
       ..style = PaintingStyle.stroke
@@ -140,31 +210,74 @@ class _FigurePainter extends CustomPainter {
       ..strokeCap = StrokeCap.round;
     for (final sx in [-1.0, 1.0]) {
       final ex = cx + sx * hw * 0.42;
-      final ey = headC.dy + hh * 0.05;
-      c.drawOval(Rect.fromCenter(center: Offset(ex, ey), width: hw * 0.36, height: hw * 0.22), _f(Colors.white));
-      c.drawCircle(Offset(ex, ey), hw * 0.1, _f(const Color(0xFF2B1B14)));
-      c.drawCircle(Offset(ex + hw * 0.035, ey - hw * 0.035), hw * 0.03, _f(Colors.white));
-      c.drawLine(Offset(ex - hw * 0.2, ey - hw * 0.24), Offset(ex + hw * 0.2, ey - hw * 0.28), brow);
+      c.drawOval(Rect.fromCenter(center: Offset(ex, ey), width: hw * 0.42, height: hw * 0.34), _fill(Colors.white));
+      final iris = Rect.fromCircle(center: Offset(ex, ey), radius: hw * 0.135);
+      c.drawOval(
+        iris,
+        Paint()
+          ..shader = RadialGradient(
+            center: const Alignment(-0.3, -0.4),
+            radius: 0.9,
+            colors: const [Color(0xFF8A5A3C), Color(0xFF4A2B1B), Color(0xFF24120B)],
+            stops: const [0.0, 0.6, 1.0],
+          ).createShader(iris),
+      );
+      c.drawCircle(Offset(ex, ey), hw * 0.06, _fill(const Color(0xFF0B0504)));
+      c.drawCircle(Offset(ex - hw * 0.045, ey - hw * 0.05), hw * 0.045, _fill(Colors.white));
+      c.drawCircle(Offset(ex + hw * 0.05, ey + hw * 0.05), hw * 0.02, _fill(Colors.white.withOpacity(0.8)));
+      c.drawArc(Rect.fromCenter(center: Offset(ex, ey), width: hw * 0.46, height: hw * 0.38), 3.14159, 3.14159, false, lid);
+      if (female) c.drawLine(Offset(ex + sx * hw * 0.21, ey - hw * 0.06), Offset(ex + sx * hw * 0.3, ey - hw * 0.15), lash);
+      c.drawPath(
+        Path()
+          ..moveTo(ex - hw * 0.22, ey - hw * 0.3)
+          ..quadraticBezierTo(ex, ey - hw * 0.38, ex + hw * 0.22, ey - hw * 0.3),
+        brow,
+      );
+      final bc = Offset(cx + sx * hw * 0.58, hy + hh * 0.42);
+      final br = Rect.fromCircle(center: bc, radius: hw * 0.25);
+      final pink = const Color(0xFFFF6F91);
+      c.drawCircle(
+        bc,
+        hw * 0.25,
+        Paint()
+          ..shader = RadialGradient(colors: [pink.withOpacity(female ? 0.55 : 0.25), pink.withOpacity(0)]).createShader(br),
+      );
     }
 
     // nose
-    c.drawOval(Rect.fromCenter(center: Offset(cx, headC.dy + hh * 0.3), width: hw * 0.22, height: hw * 0.14), _f(Color.lerp(skin, Colors.brown, 0.3)!));
+    c.drawOval(Rect.fromCenter(center: Offset(cx, hy + hh * 0.32), width: hw * 0.2, height: hw * 0.14), _blur(_d(skin, 0.25).withOpacity(0.5), w * 0.012));
+    c.drawOval(Rect.fromCenter(center: Offset(cx - hw * 0.03, hy + hh * 0.27), width: hw * 0.1, height: hw * 0.07), _fill(Colors.white.withOpacity(0.4)));
 
-    // blush and earrings
+    // lips with a glossy highlight
+    final my = hy + hh * 0.58;
+    final mw = hw * 0.34;
+    final lipRect = Rect.fromCenter(center: Offset(cx, my + hh * 0.1), width: mw * 2, height: hh * 0.26);
+    c.drawPath(
+      Path()
+        ..moveTo(cx - mw, my)
+        ..quadraticBezierTo(cx, my + hh * 0.26, cx + mw, my)
+        ..quadraticBezierTo(cx, my + hh * 0.07, cx - mw, my)
+        ..close(),
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: female ? const [Color(0xFFE0506E), Color(0xFFB0224A)] : const [Color(0xFFC77B6F), Color(0xFF9A5248)],
+        ).createShader(lipRect),
+    );
+    c.drawOval(Rect.fromCenter(center: Offset(cx - mw * 0.2, my + hh * 0.1), width: mw * 0.6, height: hh * 0.04), _fill(Colors.white.withOpacity(0.55)));
+
+    // earrings
     if (female) {
-      c.drawCircle(Offset(cx - hw * 0.55, headC.dy + hh * 0.38), hw * 0.2, _f(const Color(0x33E91E63)));
-      c.drawCircle(Offset(cx + hw * 0.55, headC.dy + hh * 0.38), hw * 0.2, _f(const Color(0x33E91E63)));
-      c.drawCircle(Offset(cx - hw * 1.0, headC.dy + hh * 0.3), hw * 0.09, _f(const Color(0xFFFFC107)));
-      c.drawCircle(Offset(cx + hw * 1.0, headC.dy + hh * 0.3), hw * 0.09, _f(const Color(0xFFFFC107)));
+      for (final sx in [-1.0, 1.0]) {
+        final r = Rect.fromCircle(center: Offset(cx + sx * hw * 0.99, hy + hh * 0.3), radius: hw * 0.09);
+        c.drawOval(
+          r,
+          Paint()..shader = const RadialGradient(center: Alignment(-0.3, -0.4), colors: [Color(0xFFFFF3B0), Color(0xFFE0A100)]).createShader(r),
+        );
+      }
     }
-
-    // smile
-    final smile = Paint()
-      ..color = female ? const Color(0xFFC2185B) : const Color(0xFF8D4A43)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = w * (female ? 0.02 : 0.014)
-      ..strokeCap = StrokeCap.round;
-    c.drawArc(Rect.fromCenter(center: Offset(cx, headC.dy + hh * 0.52), width: hw * 0.6, height: hw * 0.4), 0.25, 2.65, false, smile);
+    c.restore();
   }
 
   @override

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:talkory_core/talkory_core.dart';
 
 class CallTab extends StatefulWidget {
@@ -94,40 +95,80 @@ class _CallTabState extends State<CallTab> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Column(
+    final top = MediaQuery.of(context).padding.top;
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-          child: Row(children: [
-            Text('Talkory', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: scheme.primary)),
-            const Spacer(),
-            OutlinedButton.icon(
-              onPressed: widget.onWallet,
-              icon: const Icon(Icons.monetization_on_outlined, size: 18),
-              label: Text(widget.balance == null ? '—' : '${formatCoins(widget.balance!)} coins'),
-              style: OutlinedButton.styleFrom(shape: const StadiumBorder()),
+        SizedBox(
+          height: top + 190,
+          child: Stack(children: [
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: top + 160,
+              child: Container(
+                padding: EdgeInsets.fromLTRB(20, top + 14, 20, 0),
+                decoration: BoxDecoration(
+                  gradient: brandGradient(scheme.primary),
+                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(32)),
+                ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    const Text('Talkory', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
+                    const Spacer(),
+                    InkWell(
+                      onTap: widget.onWallet,
+                      borderRadius: BorderRadius.circular(999),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(999)),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          const Icon(Icons.monetization_on_outlined, size: 18, color: Colors.white),
+                          const SizedBox(width: 6),
+                          Text(widget.balance == null ? '—' : '${formatCoins(widget.balance!)} coins',
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                        ]),
+                      ),
+                    ),
+                  ]),
+                  const SizedBox(height: 14),
+                  const Text('Talk to someone\nwho listens', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w600, height: 1.25)),
+                ]),
+              ),
+            ),
+            Positioned(
+              left: 20,
+              right: 20,
+              top: top + 134,
+              child: Material(
+                color: Colors.white,
+                elevation: 6,
+                shadowColor: scheme.primary.withOpacity(0.35),
+                borderRadius: BorderRadius.circular(18),
+                child: TextField(
+                  controller: _search,
+                  onChanged: _onSearchChanged,
+                  textInputAction: TextInputAction.search,
+                  decoration: InputDecoration(
+                    hintText: 'Search by name',
+                    prefixIcon: const Icon(Icons.search),
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              ),
             ),
           ]),
         ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: TextField(
-            controller: _search,
-            onChanged: _onSearchChanged,
-            textInputAction: TextInputAction.search,
-            decoration: InputDecoration(
-              hintText: 'Search name',
-              prefixIcon: const Icon(Icons.search),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(28)),
-              contentPadding: EdgeInsets.zero,
-            ),
-          ),
-        ),
         SizedBox(
-          height: 56,
+          height: 54,
           child: ListView(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             children: [
               for (final l in [null, ...kLanguages])
                 Padding(
@@ -135,6 +176,12 @@ class _CallTabState extends State<CallTab> {
                   child: ChoiceChip(
                     label: Text(l ?? 'All'),
                     selected: _language == l,
+                    showCheckmark: false,
+                    selectedColor: kInk,
+                    backgroundColor: Colors.white,
+                    side: BorderSide.none,
+                    shape: const StadiumBorder(),
+                    labelStyle: TextStyle(color: _language == l ? Colors.white : kInk, fontWeight: FontWeight.w500),
                     onSelected: (_) {
                       _language = l;
                       _reload();
@@ -174,7 +221,7 @@ class _CallTabState extends State<CallTab> {
           ),
         ),
       ],
-    );
+    ));
   }
 }
 
@@ -186,69 +233,79 @@ class HostCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final status = p.busy ? Colors.orange : Colors.green;
-    final muted = Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant);
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Column(children: [
-              ProfileAvatar(baseUrl: baseUrl, name: p.name, url: p.avatarUrl, radius: 38, ring: status),
-              const SizedBox(height: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(color: Colors.green.shade600, borderRadius: BorderRadius.circular(4)),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  const Icon(Icons.star, size: 14, color: Colors.white),
-                  const SizedBox(width: 2),
-                  Text(p.rating.toStringAsFixed(1), style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
-                ]),
-              ),
-              const SizedBox(height: 4),
-              Text(p.busy ? 'BUSY' : 'ONLINE', style: TextStyle(color: status, fontSize: 12, fontWeight: FontWeight.w600)),
+    final scheme = Theme.of(context).colorScheme;
+    final dot = p.busy ? Colors.orange : Colors.green;
+    final muted = TextStyle(color: scheme.onSurfaceVariant, fontSize: 12);
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: const [BoxShadow(color: Color(0x121B1740), blurRadius: 18, offset: Offset(0, 6))],
+      ),
+      child: Row(children: [
+        Stack(children: [
+          ProfileAvatar(baseUrl: baseUrl, name: p.name, url: p.avatarUrl, radius: 32),
+          Positioned(
+            right: 0,
+            bottom: 2,
+            child: Container(
+              width: 16,
+              height: 16,
+              decoration: BoxDecoration(color: dot, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 3)),
+            ),
+          ),
+        ]),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Flexible(child: Text(p.name, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: kInk))),
+              if (p.verified) const Padding(padding: EdgeInsets.only(left: 6), child: Icon(Icons.verified, size: 17, color: Colors.blue)),
             ]),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(children: [
-                    Flexible(child: Text(p.name, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold))),
-                    if (p.verified) const Padding(padding: EdgeInsets.only(left: 6), child: Icon(Icons.verified, size: 18, color: Colors.blue)),
-                  ]),
-                  if (p.tagline.isNotEmpty) Text(p.tagline, style: Theme.of(context).textTheme.bodyLarge),
-                  const SizedBox(height: 4),
-                  Row(children: [
-                    const Icon(Icons.translate, size: 16),
-                    const SizedBox(width: 6),
-                    Expanded(child: Text(p.languages.join(', '), maxLines: 1, overflow: TextOverflow.ellipsis, style: muted)),
-                  ]),
-                  const SizedBox(height: 10),
-                  Row(children: [
-                    if (p.introUrl != null) ...[
-                      IntroButton(baseUrl: baseUrl, url: p.introUrl!),
-                      const SizedBox(width: 8),
-                    ],
-                    IconButton.outlined(onPressed: onChat, tooltip: 'Chat', icon: const Icon(Icons.chat_bubble_outline, size: 18)),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: FilledButton.icon(
-                        onPressed: p.busy ? null : onCall,
-                        icon: const Icon(Icons.call, size: 18),
-                        label: Text('${formatCoins(p.ratePerMin)}/min'),
-                      ),
-                    ),
-                  ]),
-                ],
+            if (p.tagline.isNotEmpty) Text(p.tagline, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: scheme.onSurface, fontSize: 13)),
+            const SizedBox(height: 2),
+            Text(p.languages.join(', '), maxLines: 1, overflow: TextOverflow.ellipsis, style: muted),
+            const SizedBox(height: 6),
+            Row(children: [
+              const Icon(Icons.star_rounded, size: 16, color: Color(0xFFFFB020)),
+              const SizedBox(width: 2),
+              Flexible(
+                child: Text('${p.rating.toStringAsFixed(1)} · ${formatCoins(p.ratePerMin)} coins/min${p.busy ? ' · Busy' : ''}',
+                    maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: kInk)),
+              ),
+            ]),
+            if (p.introUrl != null) Padding(padding: const EdgeInsets.only(top: 6), child: IntroButton(baseUrl: baseUrl, url: p.introUrl!)),
+          ]),
+        ),
+        const SizedBox(width: 8),
+        Column(mainAxisSize: MainAxisSize.min, children: [
+          Opacity(
+            opacity: p.busy ? 0.4 : 1,
+            child: Material(
+              color: Colors.transparent,
+              child: Ink(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(gradient: brandGradient(scheme.primary), shape: BoxShape.circle),
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: p.busy ? null : onCall,
+                  child: const Icon(Icons.call, color: Colors.white, size: 22),
+                ),
               ),
             ),
-          ],
-        ),
-      ),
+          ),
+          const SizedBox(height: 4),
+          IconButton(
+            onPressed: onChat,
+            tooltip: 'Chat',
+            visualDensity: VisualDensity.compact,
+            icon: Icon(Icons.chat_bubble_outline, size: 20, color: scheme.primary),
+          ),
+        ]),
+      ]),
     );
   }
 }
