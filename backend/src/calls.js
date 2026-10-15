@@ -6,7 +6,7 @@ const { billTick, TICK_SECONDS } = require('./billing');
 const push = require('./push');
 const { finishCall } = require('./callctl');
 const { ringTimeout, scheduleTick } = require('./queue');
-const { freeStatus, FREE_SECONDS } = require('./freecall');
+const { FREE_SECONDS } = require('./freecall');
 
 const CALL_MAX_SECONDS = 4 * 3600; // token + privilege lifetime, also the partner busy-lock lifetime
 const agoraToken = (channel, uid) =>
@@ -15,11 +15,6 @@ const agoraToken = (channel, uid) =>
     CALL_MAX_SECONDS, CALL_MAX_SECONDS); // both are durations in seconds
 
 // User starts a call
-// Is the free 2-minute call available to this user right now?
-router.get('/free-status', requireAuth(['user']), async (req, res) => {
-  res.json(await freeStatus(req.auth.id));
-});
-
 router.post('/', requireAuth(['user']), async (req, res) => {
   const { partnerId } = req.body;
   const { rows } = await pool.query(
@@ -35,7 +30,7 @@ router.post('/', requireAuth(['user']), async (req, res) => {
   if (blocked.rowCount) return res.status(403).json({ error: 'this host is unavailable' });
 
   const minCost = Math.ceil((p.rate_per_min * Number(process.env.MIN_CALL_SECONDS || 60)) / 60);
-  const free = (await freeStatus(req.auth.id)).available; // first call in every 3 hours is free for 2 minutes
+  const free = false; // the free 2-minute call is offered by hosts (see hostcalls.js), not on calls a user starts
   const w = await pool.query('SELECT balance FROM wallets WHERE account_id=$1', [req.auth.id]);
   if (!free && Number(w.rows[0].balance) < minCost) return res.status(402).json({ error: 'insufficient balance', required: minCost });
 

@@ -44,9 +44,12 @@ app.use('/intros', express.static(intros.PUBLIC, { maxAge: '30d', immutable: tru
 app.use('/partner/intro', intros.router);
 app.use('/admin/intros', intros.admin);
 app.use('/admin/avatars', avatars.admin);
+const tickets = require('./tickets');
+app.use('/admin/tickets', tickets.admin);
 app.use('/admin', require('./admin'));
 app.use('/panel', express.static(path.join(__dirname, '../admin'))); // admin web panel
 app.use('/chat', require('./chat').router);
+app.use('/support-tickets', tickets.router);
 app.use('/devices', require('./devices'));
 app.use('/partner/kyc', require('./kyc').router);
 app.use('/partner/avatar', avatars.router);

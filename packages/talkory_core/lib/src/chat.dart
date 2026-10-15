@@ -138,6 +138,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Timer? _timer;
   bool _sending = false, _loaded = false;
   int? _balance; // paise, users only
+  Map<String, dynamic>? _free; // hosts only: is a free 2-minute call to this user available?
 
   int get _lastId => _msgs.isEmpty ? 0 : _msgs.last['id'] as int;
 
@@ -147,6 +148,25 @@ class _ChatScreenState extends State<ChatScreen> {
     _poll();
     _timer = Timer.periodic(const Duration(seconds: 4), (_) => _poll());
     if (widget.isUser) widget.api.walletBalance().then((b) { if (mounted) setState(() => _balance = b); }).catchError((_) {});
+    if (!widget.isUser) _loadFree();
+  }
+
+  Future<void> _loadFree() async {
+    try {
+      final f = await widget.api.hostFreeStatus(widget.otherId);
+      if (mounted) setState(() => _free = f);
+    } catch (_) {}
+  }
+
+  String _freeText() {
+    final f = _free;
+    if (f == null) return '';
+    if (f['available'] == true) return 'Free call: your next call to this user is free for 2 minutes (you are still paid).';
+    final next = DateTime.tryParse((f['nextAt'] as String?) ?? '')?.toLocal();
+    if (next == null) return '';
+    final left = next.difference(DateTime.now());
+    if (left.isNegative) return 'Free call: your next call to this user is free for 2 minutes (you are still paid).';
+    return 'This user already had a free call. Free again in ${left.inHours}h ${left.inMinutes % 60}m; normal rates until then.';
   }
 
   @override
@@ -247,7 +267,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   bool _calling = false;
 
-  /// Host only: ring this user. They pay the normal per-minute rate once they accept.
+  /// Host only: ring this user. The first call to a user in any 3 hours is free for 2 minutes, then normal rates apply.
   Future<void> _callUser() async {
     if (_calling) return;
     _calling = true;
@@ -268,6 +288,7 @@ class _ChatScreenState extends State<ChatScreen> {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Network error. Try again.')));
     } finally {
       _calling = false;
+      _loadFree();
     }
   }
 
@@ -289,6 +310,20 @@ class _ChatScreenState extends State<ChatScreen> {
         ],
       ),
       body: Column(children: [
+        if (!widget.isUser && _freeText().isNotEmpty)
+          Container(
+            width: double.infinity,
+            color: _free?['available'] == true ? Colors.green.shade100 : scheme.surfaceContainerHighest,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(children: [
+              Icon(Icons.card_giftcard, size: 18, color: _free?['available'] == true ? Colors.green.shade800 : scheme.onSurfaceVariant),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(_freeText(),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: _free?['available'] == true ? Colors.green.shade900 : scheme.onSurfaceVariant)),
+              ),
+            ]),
+          ),
         if (widget.isUser)
           Container(
             width: double.infinity,

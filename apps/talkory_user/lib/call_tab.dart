@@ -27,31 +27,6 @@ class _CallTabState extends State<CallTab> {
   Timer? _debounce;
   late String? _language = widget.preferredLanguage;
   late Future<List<Partner>> _future = _load();
-  Map<String, dynamic>? _freeInfo; // free 2-minute call (one every 3 hours)
-
-  @override
-  void initState() {
-    super.initState();
-    _loadFree();
-  }
-
-  Future<void> _loadFree() async {
-    try {
-      final f = await widget.api.freeCallStatus();
-      if (mounted) setState(() => _freeInfo = f);
-    } catch (_) {}
-  }
-
-  String _freeText() {
-    final f = _freeInfo;
-    if (f == null) return '';
-    if (f['available'] == true) return 'Free 2-minute call available: try any host!';
-    final next = DateTime.tryParse((f['nextAt'] as String?) ?? '')?.toLocal();
-    if (next == null) return '';
-    final left = next.difference(DateTime.now());
-    if (left.isNegative) return 'Free 2-minute call available: try any host!';
-    return 'Next free call in ${left.inHours}h ${left.inMinutes % 60}m';
-  }
 
   @override
   void didUpdateWidget(CallTab old) {
@@ -99,7 +74,6 @@ class _CallTabState extends State<CallTab> {
         ));
       }
       widget.onBalanceChanged();
-      _loadFree();
       _reload();
     } on ApiException catch (e) {
       if (e.status == 401) return widget.onLogout();
@@ -135,24 +109,6 @@ class _CallTabState extends State<CallTab> {
             ),
           ]),
         ),
-        if (_freeText().isNotEmpty)
-          Container(
-            width: double.infinity,
-            margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: _freeInfo?['available'] == true ? Colors.green.shade100 : scheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(children: [
-              Icon(Icons.card_giftcard, size: 20, color: _freeInfo?['available'] == true ? Colors.green.shade800 : scheme.onSurfaceVariant),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(_freeText(),
-                    style: TextStyle(color: _freeInfo?['available'] == true ? Colors.green.shade900 : scheme.onSurfaceVariant)),
-              ),
-            ]),
-          ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: TextField(
@@ -192,8 +148,7 @@ class _CallTabState extends State<CallTab> {
           child: RefreshIndicator(
             onRefresh: () async {
               widget.onBalanceChanged();
-              _loadFree();
-              _reload();
+                      _reload();
               await _future;
             },
             child: FutureBuilder<List<Partner>>(

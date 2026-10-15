@@ -52,6 +52,7 @@ async function deleteAccount(id, { force = false } = {}) {
     files = (await client.query('DELETE FROM kyc_documents WHERE account_id=$1 RETURNING file_name', [id])).rows.map((r) => r.file_name);
     await client.query('DELETE FROM devices WHERE account_id=$1', [id]);
     await client.query('DELETE FROM messages WHERE user_id=$1 OR partner_id=$1', [id]);
+    await client.query('DELETE FROM support_tickets WHERE account_id=$1', [id]);
     await client.query('UPDATE ratings SET comment=NULL WHERE user_id=$1', [id]);
     await client.query('COMMIT');
   } catch (e) {

@@ -221,14 +221,8 @@ class _ProfileTabState extends State<ProfileTab> {
         ListTile(
           leading: const Icon(Icons.support_agent),
           title: const Text('Customer Support'),
-          onTap: () {
-            final email = (_me?['supportEmail'] as String?) ?? '';
-            if (email.isEmpty) {
-              _snack('Support contact is not set up yet');
-            } else {
-              openSupport(email);
-            }
-          },
+          subtitle: const Text('Chat with the Talkory team'),
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SupportScreen(api: widget.api))),
         ),
         ListTile(
           leading: const Icon(Icons.receipt_long_outlined),

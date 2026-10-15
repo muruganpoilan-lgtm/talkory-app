@@ -83,14 +83,8 @@ class _PartnerProfileTabState extends State<PartnerProfileTab> {
         ListTile(
           leading: const Icon(Icons.support_agent),
           title: const Text('Customer Support'),
-          onTap: () {
-            final email = (_me?['supportEmail'] as String?) ?? '';
-            if (email.isEmpty) {
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Support contact is not set up yet')));
-            } else {
-              openSupport(email);
-            }
-          },
+          subtitle: const Text('Chat with the Talkory team'),
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SupportScreen(api: widget.api))),
         ),
         ListTile(leading: const Icon(Icons.logout), title: const Text('Logout'), onTap: widget.onLogout),
       ],

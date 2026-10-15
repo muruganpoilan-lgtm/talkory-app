@@ -49,8 +49,24 @@ const TABS={
   acts:r=>[['Dismiss','','/admin/reports/'+r.id+'/resolve',()=>({block:false})],['Block account','bad','/admin/reports/'+r.id+'/resolve',()=>({block:true}),'Block '+r.reported+'? They can no longer log in.']]},
  intros:{url:'/admin/intros',cols:['Host'],row:r=>[esc(r.display_name)],
   acts:r=>[['Listen','',null,()=>listenIntro(r.id)],['Approve','ok','/admin/intros/'+r.id,()=>({status:'approved'})],['Reject','bad','/admin/intros/'+r.id,()=>({status:'rejected',note:prompt('Reason the host will see:','Please re-record: clear voice, no contact details')||''})]]},
+ support:{url:'/admin/tickets',cols:['Customer','Subject','Last message','Updated'],
+  row:r=>[esc(r.display_name)+' <span class="mut">('+r.role+', '+esc(r.phone)+')</span>',(r.needs_reply?'<b class="err">● </b>':'')+esc(r.subject),esc((r.last_body||'').slice(0,120)),when(r.updated_at)],
+  acts:r=>[['Open & reply','',null,()=>openTicket(r.id)],['Close','bad','/admin/tickets/'+r.id+'/close',()=>({}),'Close this ticket?']]},
  photos:{url:'/admin/avatars',cols:['Host'],row:r=>[esc(r.display_name)],
   acts:r=>[['View photo','',null,()=>viewPhoto(r.id)],['Approve','ok','/admin/avatars/'+r.id,()=>({status:'approved'})],['Reject','bad','/admin/avatars/'+r.id,()=>({status:'rejected',note:prompt('Reason the host will see:','Please use a clear photo of yourself with no text or contact details')||''})]]}};
+async function openTicket(id){
+  const d=document.createElement('dialog');d.style.cssText='width:min(560px,94vw)';document.body.appendChild(d);
+  const draw=async()=>{
+    let x;try{x=await api('/admin/tickets/'+id)}catch(e){alert(e.message);d.remove();return}
+    d.innerHTML=`<h3 style="margin:0 0 4px">${esc(x.ticket.subject)}</h3><div class="mut">${esc(x.ticket.display_name)} (${x.ticket.role}, ${esc(x.ticket.phone)}) · ${x.ticket.status}</div>
+<div id="th" style="margin:12px 0;max-height:46vh;overflow:auto;display:grid;gap:8px">${x.messages.map(m=>`<div style="justify-self:${m.from_admin?'end':'start'};max-width:85%;padding:8px 12px;border-radius:12px;background:${m.from_admin?'var(--pri)':'var(--bg)'};color:${m.from_admin?'#fff':'var(--ink)'};white-space:pre-wrap">${esc(m.body)}<div style="font-size:11px;opacity:.7">${when(m.created_at)}</div></div>`).join('')}</div>
+${x.ticket.status==='open'?'<textarea id="rp" rows="3" style="width:100%;font:inherit;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink)" placeholder="Type your reply"></textarea>':'<div class="mut">This ticket is closed.</div>'}
+<p style="display:flex;gap:8px;justify-content:flex-end;margin:10px 0 0">${x.ticket.status==='open'?'<button class="pri" id="sd">Send reply</button>':''}<button id="cl">Close window</button></p>`;
+    const th=d.querySelector('#th');th.scrollTop=th.scrollHeight;
+    d.querySelector('#cl').onclick=()=>{d.close();d.remove();render()};
+    const sd=d.querySelector('#sd');if(sd)sd.onclick=async()=>{const body=d.querySelector('#rp').value.trim();if(!body)return;
+      try{sd.disabled=true;await api('/admin/tickets/'+id+'/reply',{body});await draw()}catch(e){alert(e.message);sd.disabled=false}}};
+  await draw();d.showModal()}
 async function viewDocs(id){
   const get=async k=>{const r=await fetch(`/admin/kyc/${id}/document/${k}`,{headers:{Authorization:'Bearer '+token}});if(!r.ok)throw Error('Document missing');return URL.createObjectURL(await r.blob())};
   try{const [a,b]=await Promise.all([get('id_front'),get('selfie')]);

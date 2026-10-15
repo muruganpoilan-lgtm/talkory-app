@@ -146,6 +146,10 @@ class Api {
 
   Future<void> rejectHostCall(String id) => _send('POST', '/host-calls/$id/reject');
 
+  /// Host side: {available, seconds, nextAt} for the free 2-minute call to this user.
+  Future<Map<String, dynamic>> hostFreeStatus(String userId) async =>
+      Map<String, dynamic>.from(await _send('GET', '/host-calls/free-status?userId=$userId'));
+
   // ---- partner app
   Future<void> setOnline(bool online) => _send('POST', '/partners/online', {'online': online});
 
@@ -245,6 +249,18 @@ class Api {
 
   Future<void> reportChat(String otherId, String reason) => _send('POST', '/chat/$otherId/report', {'reason': reason});
   Future<void> blockChat(String otherId) => _send('POST', '/chat/$otherId/block');
+
+  // ---- customer support tickets (both apps)
+  /// [{id, subject, status, customer_unread, updated_at, last_body}]
+  Future<List<Map<String, dynamic>>> supportTickets() async =>
+      (await _send('GET', '/support-tickets') as List).map((e) => Map<String, dynamic>.from(e)).toList();
+
+  Future<void> createSupportTicket(String subject, String body) => _send('POST', '/support-tickets', {'subject': subject, 'body': body});
+
+  /// {ticket: {id, subject, status}, messages: [{id, from_admin, body, created_at}]}
+  Future<Map<String, dynamic>> supportTicket(String id) async => Map<String, dynamic>.from(await _send('GET', '/support-tickets/$id'));
+
+  Future<void> replySupportTicket(String id, String body) => _send('POST', '/support-tickets/$id/reply', {'body': body});
 
   Future<void> deleteAccount() => _send('POST', '/account/delete', {'confirm': 'DELETE'});
 

@@ -44,11 +44,11 @@ class _HomeScreenState extends State<HomeScreen> {
       final c = await widget.api.hostCallIncoming();
       final id = c?['id'] as String?;
       if (id == null || !_seenCalls.add(id)) return;
-      await _showIncoming(id, (c?['partner_name'] as String?) ?? 'Host');
+      await _showIncoming(id, (c?['partner_name'] as String?) ?? 'Host', c?['is_free'] == true);
     } catch (_) {}
   }
 
-  Future<void> _showIncoming(String callId, String hostName) async {
+  Future<void> _showIncoming(String callId, String hostName, bool free) async {
     _ringing = true;
     Ringer.instance.startRing();
     HapticFeedback.vibrate();
@@ -62,7 +62,7 @@ class _HomeScreenState extends State<HomeScreen> {
       barrierDismissible: false,
       builder: (dctx) => AlertDialog(
         title: const Text('Incoming call'),
-        content: Text('$hostName is calling you'),
+        content: Text(free ? '$hostName is calling you.\nThis call is free for 2 minutes!' : '$hostName is calling you'),
         actions: [
           TextButton(onPressed: () => Navigator.of(dctx).pop(false), child: const Text('Decline')),
           FilledButton(onPressed: () => Navigator.of(dctx).pop(true), child: const Text('Accept')),
