@@ -172,7 +172,7 @@ class _ProfileTabState extends State<ProfileTab> {
         Center(
           child: Column(children: [
             Stack(children: [
-              ProfileAvatar(baseUrl: widget.api.baseUrl, name: name, url: _me?['avatarUrl'] as String?, radius: 48),
+              ProfileAvatar(baseUrl: widget.api.baseUrl, name: name, url: _me?['avatarUrl'] as String?, radius: 48, female: false),
               Positioned(
                 right: 0,
                 bottom: 0,

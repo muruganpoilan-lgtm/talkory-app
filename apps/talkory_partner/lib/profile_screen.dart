@@ -121,11 +121,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: [
                 Center(
                   child: Column(children: [
-                    CircleAvatar(
-                      radius: 48,
-                      backgroundImage: _avatarUrl == null ? null : NetworkImage('${widget.api.baseUrl}$_avatarUrl'),
-                      child: _avatarUrl == null ? const Icon(Icons.person, size: 48) : null,
-                    ),
+                    ProfileAvatar(baseUrl: widget.api.baseUrl, name: '', url: _avatarUrl, radius: 48),
                     const SizedBox(height: 8),
                     if (_avatarStatus == 'pending') const Text('Your new photo is being reviewed'),
                     if (_avatarStatus == 'rejected')

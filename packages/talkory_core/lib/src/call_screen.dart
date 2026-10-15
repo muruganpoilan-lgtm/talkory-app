@@ -5,13 +5,15 @@ import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'api.dart';
 import 'ringer.dart';
+import 'widgets.dart';
 
 /// In-call screen: joins the Agora channel, shows the timer, mute and end buttons.
 class CallScreen extends StatefulWidget {
-  const CallScreen({super.key, required this.api, required this.session, required this.peerName, this.onAddCredits});
+  const CallScreen({super.key, required this.api, required this.session, required this.peerName, this.onAddCredits, this.peerFemale = true});
   final Api api;
   final CallSession session;
   final String peerName;
+  final bool peerFemale; // which default avatar to show for the other person
   final VoidCallback? onAddCredits; // user app: opens the wallet over the call
 
   @override
@@ -140,7 +142,7 @@ class _CallScreenState extends State<CallScreen> {
           child: Column(
             children: [
               const Spacer(),
-              CircleAvatar(radius: 56, child: Text(widget.peerName.isEmpty ? '?' : widget.peerName[0].toUpperCase(), style: const TextStyle(fontSize: 40))),
+              AvatarFigure(female: widget.peerFemale, radius: 56),
               const SizedBox(height: 16),
               Text(widget.peerName, style: Theme.of(context).textTheme.headlineSmall),
               const SizedBox(height: 8),

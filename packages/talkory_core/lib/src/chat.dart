@@ -92,7 +92,7 @@ class _ChatTabState extends State<ChatTab> {
                         final t = _threads![i];
                         final unread = (t['unread'] ?? 0) as int;
                         return ListTile(
-                          leading: ProfileAvatar(baseUrl: widget.api.baseUrl, name: t['name'] as String, url: t['avatar_url'] as String?, radius: 26),
+                          leading: ProfileAvatar(baseUrl: widget.api.baseUrl, name: t['name'] as String, url: t['avatar_url'] as String?, radius: 26, female: widget.isUser),
                           title: Text(t['name'] as String, style: TextStyle(fontWeight: unread > 0 ? FontWeight.bold : FontWeight.w500)),
                           subtitle: Text(t['last_body'] as String, maxLines: 1, overflow: TextOverflow.ellipsis),
                           trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
@@ -255,7 +255,7 @@ class _ChatScreenState extends State<ChatScreen> {
       final session = await widget.api.hostCall(widget.otherId);
       if (!mounted) return;
       final connected = await Navigator.of(context).push<bool>(
-        MaterialPageRoute(builder: (_) => CallScreen(api: widget.api, session: session, peerName: widget.otherName)),
+        MaterialPageRoute(builder: (_) => CallScreen(api: widget.api, session: session, peerName: widget.otherName, peerFemale: false)),
       );
       if (connected == true && mounted) {
         await Navigator.of(context).push(MaterialPageRoute(

@@ -203,7 +203,7 @@ class PushService {
       final nav = navigatorKey.currentState;
       if (nav == null) return;
       final connected = await nav.push<bool>(
-          MaterialPageRoute(builder: (_) => CallScreen(api: api, session: session, peerName: callerName)));
+          MaterialPageRoute(builder: (_) => CallScreen(api: api, session: session, peerName: callerName, peerFemale: false)));
       if (connected == true) {
         await nav.push(MaterialPageRoute(
             builder: (_) => PostCallScreen(api: api, callId: session.callId, peerName: callerName, canRate: false)));
