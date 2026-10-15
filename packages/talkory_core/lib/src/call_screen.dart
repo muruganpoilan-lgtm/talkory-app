@@ -142,7 +142,7 @@ class _CallScreenState extends State<CallScreen> {
           child: Column(
             children: [
               const Spacer(),
-              AvatarFigure(female: widget.peerFemale, radius: 56),
+              AvatarFigure(female: widget.peerFemale, radius: 56, seed: AvatarFigure.seedOf(widget.peerName)),
               const SizedBox(height: 16),
               Text(widget.peerName, style: Theme.of(context).textTheme.headlineSmall),
               const SizedBox(height: 8),
