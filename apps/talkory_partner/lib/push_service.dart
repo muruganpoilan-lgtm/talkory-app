@@ -108,13 +108,9 @@ class PushService {
     if (ctx == null) return;
     _dialogOpen = true;
     // Ring and vibrate until the host answers (the system alert sound repeats every 1.5 seconds).
-    void ring() {
-      SystemSound.play(SystemSoundType.alert);
-      HapticFeedback.vibrate();
-    }
-
-    ring();
-    final ringer = Timer.periodic(const Duration(milliseconds: 1500), (_) => ring());
+    Ringer.instance.startRing();
+    HapticFeedback.vibrate();
+    final ringer = Timer.periodic(const Duration(milliseconds: 1500), (_) => HapticFeedback.vibrate());
     final timeout = Timer(const Duration(seconds: 20), () {
       if (_dialogOpen) navigatorKey.currentState?.pop(); // ring timeout, same as the server (dialog is the top route)
     });
@@ -134,6 +130,7 @@ class PushService {
     );
     timeout.cancel();
     ringer.cancel();
+    Ringer.instance.stopRing();
     _dialogOpen = false;
     if (accept == true) {
       await _accept(callId, callerName);

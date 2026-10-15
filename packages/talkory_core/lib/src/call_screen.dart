@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'api.dart';
+import 'ringer.dart';
 
 /// In-call screen: joins the Agora channel, shows the timer, mute and end buttons.
 class CallScreen extends StatefulWidget {
@@ -44,6 +45,7 @@ class _CallScreenState extends State<CallScreen> {
     engine.registerEventHandler(RtcEngineEventHandler(
       onUserJoined: (conn, uid, elapsed) {
         if (!mounted) return;
+        Ringer.instance.stopRing();
         setState(() => _connected = true);
         _timer ??= Timer.periodic(const Duration(seconds: 1), (_) {
           if (mounted) setState(() => _seconds++);
@@ -66,6 +68,7 @@ class _CallScreenState extends State<CallScreen> {
     );
     // Also watch the call while it is still ringing, so a decline or no-answer closes this screen
     _poll ??= Timer.periodic(const Duration(seconds: 3), (_) => _checkStatus());
+    if (!_connected && !_leaving) Ringer.instance.startRing(); // ringback tone for the caller
   }
 
   /// Warns the user when talk time is running low, and leaves if the server already ended the call.
@@ -94,6 +97,7 @@ class _CallScreenState extends State<CallScreen> {
   Future<void> _leave([String? message]) async {
     if (_leaving) return;
     _leaving = true;
+    Ringer.instance.stopRing();
     _timer?.cancel();
     _poll?.cancel();
     try {
@@ -110,6 +114,7 @@ class _CallScreenState extends State<CallScreen> {
 
   @override
   void dispose() {
+    Ringer.instance.stopRing();
     _timer?.cancel();
     _poll?.cancel();
     super.dispose();

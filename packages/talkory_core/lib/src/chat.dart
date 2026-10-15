@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'api.dart';
 import 'call_screen.dart';
 import 'post_call_screen.dart';
+import 'ringer.dart';
 import 'widgets.dart';
 
 /// Chat inbox, shared by both apps. [isUser] controls the hint text (users pay per message, hosts reply free).
@@ -171,8 +172,10 @@ class _ChatScreenState extends State<ChatScreen> {
       final known = _msgs.map((m) => m['id']).toSet();
       final add = fresh.where((m) => !known.contains(m['id'])).toList();
       if (add.isNotEmpty || !_loaded) {
+        final wasLoaded = _loaded;
         setState(() { _msgs.addAll(add); _loaded = true; });
         if (add.isNotEmpty) _toBottom();
+        if (wasLoaded && add.any((m) => m['mine'] != true)) Ringer.instance.message();
       }
     } catch (_) {}
   }

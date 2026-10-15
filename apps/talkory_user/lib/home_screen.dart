@@ -50,13 +50,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _showIncoming(String callId, String hostName) async {
     _ringing = true;
-    void ring() {
-      SystemSound.play(SystemSoundType.alert);
-      HapticFeedback.vibrate();
-    }
-
-    ring();
-    final ringer = Timer.periodic(const Duration(milliseconds: 1500), (_) => ring());
+    Ringer.instance.startRing();
+    HapticFeedback.vibrate();
+    final ringer = Timer.periodic(const Duration(milliseconds: 1500), (_) => HapticFeedback.vibrate());
     final nav = Navigator.of(context, rootNavigator: true);
     final timeout = Timer(const Duration(seconds: 20), () {
       if (_ringing) nav.pop();
@@ -75,6 +71,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     timeout.cancel();
     ringer.cancel();
+    Ringer.instance.stopRing();
     _ringing = false;
     if (accept == false) {
       try {
@@ -111,6 +108,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadUnread() async {
     try {
       final n = await widget.api.chatUnread();
+      if (mounted && n > _unread) Ringer.instance.message();
       if (mounted && n != _unread) setState(() => _unread = n);
     } catch (_) {}
   }
