@@ -58,3 +58,55 @@ class FloatingNav extends StatelessWidget {
         ),
       );
 }
+
+/// Gradient banner at the top of a tab (title, optional subtitle and a widget on the right).
+class GradientHeader extends StatelessWidget {
+  const GradientHeader({super.key, required this.title, this.subtitle, this.trailing, this.bottomPadding = 28});
+  final String title;
+  final String? subtitle;
+  final Widget? trailing;
+  final double bottomPadding;
+
+  @override
+  Widget build(BuildContext context) {
+    final top = MediaQuery.of(context).padding.top;
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.fromLTRB(20, top + 16, 20, bottomPadding),
+      decoration: BoxDecoration(
+        gradient: brandGradient(Theme.of(context).colorScheme.primary),
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(32)),
+      ),
+      child: Row(children: [
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title, style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
+            if (subtitle != null) Padding(padding: const EdgeInsets.only(top: 4), child: Text(subtitle!, style: const TextStyle(color: Colors.white70, fontSize: 14))),
+          ]),
+        ),
+        if (trailing != null) trailing!,
+      ]),
+    );
+  }
+}
+
+/// White rounded card with a soft shadow, used for rows and groups.
+class SoftCard extends StatelessWidget {
+  const SoftCard({super.key, required this.child, this.margin = const EdgeInsets.fromLTRB(16, 6, 16, 6), this.color = Colors.white});
+  final Widget child;
+  final EdgeInsetsGeometry margin;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: margin,
+        child: Material(
+          color: color,
+          elevation: 3,
+          shadowColor: const Color(0x261B1740),
+          borderRadius: BorderRadius.circular(22),
+          clipBehavior: Clip.antiAlias,
+          child: child,
+        ),
+      );
+}

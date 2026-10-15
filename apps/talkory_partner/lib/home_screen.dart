@@ -52,7 +52,7 @@ class _HomeScreenState extends State<HomeScreen> {
       PartnerProfileTab(api: widget.api, onLogout: widget.onLogout),
     ];
     return Scaffold(
-      body: SafeArea(child: tabs[_tab]),
+      body: SafeArea(top: _tab == 2, child: tabs[_tab]),
       bottomNavigationBar: FloatingNav(
           child: NavigationBar(
         selectedIndex: _tab,

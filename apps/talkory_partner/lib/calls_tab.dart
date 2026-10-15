@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:talkory_core/talkory_core.dart';
 
 String _rs(num paise) => '₹${(paise / 100).toStringAsFixed(2)}';
@@ -40,26 +41,31 @@ class _CallsTabState extends State<CallsTab> {
   @override
   Widget build(BuildContext context) {
     final calls = _calls;
-    return RefreshIndicator(
-      onRefresh: _load,
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Text('Calls', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          if (calls == null && _error == null) const Padding(padding: EdgeInsets.all(32), child: Center(child: CircularProgressIndicator())),
-          if (_error != null) Padding(padding: const EdgeInsets.all(16), child: Text(_error!)),
-          if (calls != null && calls.isEmpty) const Padding(padding: EdgeInsets.all(16), child: Text('No calls yet. Go online on the Home tab to receive calls.')),
-          for (final c in calls ?? const [])
-            Card(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              child: ListTile(
-                leading: const CircleAvatar(child: Icon(Icons.call_received)),
-                title: Text('+ ${_rs(c['earned'])}', style: const TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: Text('${_when(c['startedAt'])}  ·  ${_dur(c['seconds'])}'),
+    final scheme = Theme.of(context).colorScheme;
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: RefreshIndicator(
+        onRefresh: _load,
+        edgeOffset: 80,
+        child: ListView(
+          padding: const EdgeInsets.only(bottom: 16),
+          children: [
+            const GradientHeader(title: 'Calls', subtitle: 'Your recent calls and earnings'),
+            const SizedBox(height: 8),
+            if (calls == null && _error == null) const Padding(padding: EdgeInsets.all(32), child: Center(child: CircularProgressIndicator())),
+            if (_error != null) Padding(padding: const EdgeInsets.all(16), child: Text(_error!)),
+            if (calls != null && calls.isEmpty) const Padding(padding: EdgeInsets.all(24), child: Text('No calls yet. Go online on the Home tab to receive calls.')),
+            for (final c in calls ?? const [])
+              SoftCard(
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  leading: CircleAvatar(backgroundColor: scheme.primaryContainer, child: Icon(Icons.call_received, color: scheme.primary)),
+                  title: Text('+ ${_rs(c['earned'])}', style: const TextStyle(fontWeight: FontWeight.w800, color: kInk)),
+                  subtitle: Text('${_when(c['startedAt'])}  ·  ${_dur(c['seconds'])}'),
+                ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
