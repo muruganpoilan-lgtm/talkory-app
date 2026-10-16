@@ -12,16 +12,64 @@ const MAX_BYTES = 1.5 * 1024 * 1024;
 
 // Re-write the file without metadata: phone photos carry GPS location, device model and timestamps, which would
 // undermine hosts' anonymity. JPEG: drop APP1-15 (EXIF/XMP/GPS) and comments. PNG: keep only the image chunks.
+// The one thing kept is the rotation flag (EXIF Orientation, a number 1-8), written into a fresh minimal EXIF block,
+// otherwise photos taken with the phone held upright would show sideways.
+function exifOrientation(seg) { // seg = the APP1 payload (starts with "Exif\0\0"); returns 1-8 or 1
+  try {
+    if (seg.toString('latin1', 0, 6) !== 'Exif\0\0') return 1;
+    const t = seg.subarray(6);
+    const le = t.toString('latin1', 0, 2) === 'II';
+    const u16 = (o) => (le ? t.readUInt16LE(o) : t.readUInt16BE(o));
+    const u32 = (o) => (le ? t.readUInt32LE(o) : t.readUInt32BE(o));
+    if (u16(2) !== 42) return 1;
+    const ifd = u32(4);
+    const n = u16(ifd);
+    for (let k = 0; k < n && k < 200; k++) {
+      const e = ifd + 2 + k * 12;
+      if (u16(e) === 0x0112) { const v = u16(e + 8); return v >= 1 && v <= 8 ? v : 1; }
+    }
+  } catch (_) { /* malformed EXIF: treat as upright */ }
+  return 1;
+}
+function orientationSegment(o) { // minimal EXIF holding only Orientation
+  const b = Buffer.alloc(36);
+  b.writeUInt16BE(0xffe1, 0);
+  b.writeUInt16BE(34, 2);
+  b.write('Exif\0\0', 4, 'latin1');
+  b.write('MM', 10, 'latin1');
+  b.writeUInt16BE(42, 12);
+  b.writeUInt32BE(8, 14);
+  b.writeUInt16BE(1, 18);          // one entry
+  b.writeUInt16BE(0x0112, 20);     // Orientation
+  b.writeUInt16BE(3, 22);          // type SHORT
+  b.writeUInt32BE(1, 24);          // count
+  b.writeUInt16BE(o, 28);          // value
+  return b;
+}
 function stripJpeg(b) {
-  const out = [b.subarray(0, 2)];
+  const head = [];
+  let orient = 1;
   let i = 2;
   while (i + 4 <= b.length) {
     if (b[i] !== 0xff) return null;
     const marker = b[i + 1];
-    if (marker === 0xda) { out.push(b.subarray(i)); return Buffer.concat(out); } // start of scan: rest is pixel data
+    if (marker === 0xda) { // start of scan: rest is pixel data
+      const parts = [b.subarray(0, 2), ...head];
+      if (orient !== 1) {
+        // EXIF goes right after the JFIF header (APP0) when there is one
+        const at = parts.length > 1 && parts[1][1] === 0xe0 ? 2 : 1;
+        parts.splice(at, 0, orientationSegment(orient));
+      }
+      parts.push(b.subarray(i));
+      return Buffer.concat(parts);
+    }
     const end = i + 2 + b.readUInt16BE(i + 2);
     if (end > b.length) return null;
-    if (!((marker >= 0xe1 && marker <= 0xef) || marker === 0xfe)) out.push(b.subarray(i, end));
+    if (marker === 0xe1 && end - i - 4 >= 6) {
+      const o = exifOrientation(b.subarray(i + 4, end));
+      if (o !== 1) orient = o;
+    }
+    if (!((marker >= 0xe1 && marker <= 0xef) || marker === 0xfe)) head.push(b.subarray(i, end));
     i = end;
   }
   return null;
