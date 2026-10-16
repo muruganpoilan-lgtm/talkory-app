@@ -18,6 +18,7 @@ FIREBASE_API_KEY="$(strip_ws "${FIREBASE_API_KEY:-}")"
 FIREBASE_APP_ID="$(strip_ws "${FIREBASE_APP_ID:-}")"
 FIREBASE_SENDER_ID="$(strip_ws "${FIREBASE_SENDER_ID:-}")"
 FIREBASE_PROJECT_ID="$(strip_ws "${FIREBASE_PROJECT_ID:-}")"
+FIREBASE_USER_APP_ID="$(strip_ws "${FIREBASE_USER_APP_ID:-}")" # the Talkory (user) Android app has its own Firebase app id
 
 if [[ -z "$SKIP_FLUTTER" ]] && ! command -v flutter >/dev/null; then
   echo "Flutter SDK not found. Install it (https://docs.flutter.dev/get-started/install), run 'flutter doctor', then try again."; exit 1
@@ -96,8 +97,10 @@ build_app() { # project_name label "PERMISSIONS" "ios modes" needs_firebase(yes|
   fi
   [[ -f "$dir/android/key.properties" ]] || echo "NOTE: no android/key.properties, so this build is debug-signed: fine for testing, not for Google Play (see BUILD.md)."
   [[ -n "$SKIP_FLUTTER" ]] && return 0
+  local app_id="${FIREBASE_APP_ID:-}"
+  [[ "$name" == talkory_user && -n "$FIREBASE_USER_APP_ID" ]] && app_id="$FIREBASE_USER_APP_ID"
   local defs=(--dart-define=API_URL="$API_URL" --dart-define=SENTRY_DSN="$SENTRY_DSN"
-    --dart-define=FIREBASE_API_KEY="${FIREBASE_API_KEY:-}" --dart-define=FIREBASE_APP_ID="${FIREBASE_APP_ID:-}"
+    --dart-define=FIREBASE_API_KEY="${FIREBASE_API_KEY:-}" --dart-define=FIREBASE_APP_ID="${app_id}"
     --dart-define=FIREBASE_SENDER_ID="${FIREBASE_SENDER_ID:-}" --dart-define=FIREBASE_PROJECT_ID="${FIREBASE_PROJECT_ID:-}")
   (cd "$dir" && flutter pub get && flutter build apk --release "${defs[@]}" && { [[ -n "${APK_ONLY:-}" ]] || flutter build appbundle --release "${defs[@]}"; })
   mkdir -p dist
@@ -106,7 +109,7 @@ build_app() { # project_name label "PERMISSIONS" "ios modes" needs_firebase(yes|
 }
 
 COMMON="INTERNET ACCESS_NETWORK_STATE RECORD_AUDIO MODIFY_AUDIO_SETTINGS BLUETOOTH_CONNECT"
-build_app talkory_user    "Talkory"         "$COMMON"                                                                                    "audio"                          no
+build_app talkory_user    "Talkory"         "$COMMON POST_NOTIFICATIONS"                                                                 "audio"                          no
 build_app talkory_partner "Talkory Partner" "$COMMON POST_NOTIFICATIONS USE_FULL_SCREEN_INTENT FOREGROUND_SERVICE FOREGROUND_SERVICE_MICROPHONE WAKE_LOCK VIBRATE CAMERA" "audio remote-notification voip" yes
 
 echo; echo "Done. dist/*.apk installs on a phone for testing; dist/*.aab is what you upload to Google Play."

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:talkory_core/talkory_core.dart';
 import 'home_screen.dart';
+import 'push_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await UserPush.instance.init();
   final api = Api();
   await api.load();
   runApp(TalkoryApp(api: api));
@@ -23,10 +25,12 @@ class _TalkoryAppState extends State<TalkoryApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Talkory',
+      scaffoldMessengerKey: messengerKey,
       debugShowCheckedModeBanner: false,
       theme: talkoryTheme(const Color(0xFF5B3DF5)),
       home: _loggedIn
           ? HomeScreen(api: widget.api, onLogout: () async {
+              await UserPush.instance.stop();
               await widget.api.logout();
               setState(() => _loggedIn = false);
             })

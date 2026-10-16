@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:talkory_core/talkory_core.dart';
 import 'call_tab.dart';
 import 'profile_tab.dart';
+import 'push_service.dart';
 import 'wallet_screen.dart';
 
 /// Bottom-tab shell: Call (find hosts), Chat and Profile.
@@ -35,6 +36,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }).catchError((_) {});
     _timer = Timer.periodic(const Duration(seconds: 20), (_) => _loadUnread());
     _ringPoll = Timer.periodic(const Duration(seconds: 3), (_) => _checkIncoming());
+    WidgetsBinding.instance.addPostFrameCallback((_) => UserPush.instance.start(widget.api));
   }
 
   /// A host is calling this user: show Accept / Decline, ring and vibrate until answered (max 20s).

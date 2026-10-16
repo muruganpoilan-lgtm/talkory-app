@@ -40,6 +40,7 @@ jobs:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
           FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+          FIREBASE_USER_APP_ID: ${{ secrets.FIREBASE_USER_APP_ID }}
           FIREBASE_SENDER_ID: ${{ secrets.FIREBASE_SENDER_ID }}
           FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
         run: bash scripts/build-apps.sh

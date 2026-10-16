@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const { pool, redis, requireAuth } = require('./db');
+const push = require('./push');
 
 const LANGUAGES = ['Hindi', 'English', 'Tamil', 'Telugu', 'Bengali', 'Marathi', 'Odia', 'Bhojpuri', 'Malayalam', 'Kannada', 'Gujarati', 'Punjabi', 'Urdu', 'Assamese']; // keep in sync with kLanguages in talkory_core/api.dart
 const MIN_RATE = 5, MAX_RATE = 200; // rupees per minute
@@ -49,6 +50,15 @@ router.post('/online', requireAuth(['partner']), async (req, res) => {
   if (online) await redis.sadd('partners:online', req.auth.id);
   else await redis.srem('partners:online', req.auth.id);
   res.json({ online });
+  if (online) {
+    // Tell users this host is online, at most once every 30 minutes per host (so toggling does not spam anyone)
+    try {
+      if (await redis.set(`hostnotif:${req.auth.id}`, '1', 'EX', 1800, 'NX')) {
+        const name = (await pool.query('SELECT display_name FROM accounts WHERE id=$1', [req.auth.id])).rows[0]?.display_name;
+        push.notifyHostOnline(req.auth.id, name).catch((e) => console.error('[push] host-online:', e.message));
+      }
+    } catch (e) { console.error('[push] host-online:', e.message); }
+  }
 });
 
 // Browse online partners (user app). Never returns phone numbers.

@@ -82,4 +82,30 @@ async function notifyMessage(accountId, fromName) {
   })));
 }
 
-module.exports = { notifyIncomingCall, notifyCallCancelled, notifyMessage };
+// A host just went online: tell every user's phone. Plain notification, no call data.
+async function notifyHostOnline(hostId, hostName) {
+  if (!enabled) return;
+  const first = String(hostName || 'A host').split(/\s+/)[0].slice(0, 30);
+  const { rows } = await pool.query(
+    `SELECT DISTINCT d.push_token FROM devices d JOIN accounts a ON a.id=d.account_id
+      WHERE a.role='user' AND a.id<>$1 LIMIT 20000`, [hostId]);
+  const tokens = rows.map((r) => r.push_token);
+  for (let i = 0; i < tokens.length; i += 500) {
+    const chunk = tokens.slice(i, i + 500);
+    try {
+      const res = await admin.messaging().sendEachForMulticast({
+        tokens: chunk,
+        notification: { title: `${first} is online now`, body: 'Say hello! Tap to open Talkory.' },
+        data: { type: 'host_online', hostId: String(hostId) },
+        android: { priority: 'normal', ttl: 60 * 60 * 1000 },
+      });
+      const dead = [];
+      res.responses.forEach((r, k) => { if (!r.success && DEAD_TOKEN_CODES.includes(r.error?.code)) dead.push(chunk[k]); });
+      if (dead.length) await pool.query('DELETE FROM devices WHERE push_token = ANY($1)', [dead]);
+    } catch (e) {
+      console.error('[push] host-online send failed:', e.code || e.message);
+    }
+  }
+}
+
+module.exports = { notifyIncomingCall, notifyCallCancelled, notifyMessage, notifyHostOnline };
