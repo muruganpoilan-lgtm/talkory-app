@@ -37,6 +37,8 @@ class _HomeScreenState extends State<HomeScreen> {
     _timer = Timer.periodic(const Duration(seconds: 20), (_) => _loadUnread());
     _ringPoll = Timer.periodic(const Duration(seconds: 3), (_) => _checkIncoming());
     WidgetsBinding.instance.addPostFrameCallback((_) => UserPush.instance.start(widget.api));
+    // A few seconds later, so the location box does not collide with the notification box.
+    Future.delayed(const Duration(seconds: 4), () { if (mounted) LocationShare.share(widget.api); });
   }
 
   /// A host is calling this user: show Accept / Decline, ring and vibrate until answered (max 20s).
@@ -142,7 +144,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
-        top: _tab != 0, // the Call tab draws its gradient header under the status bar
+        top: _tab == 2, // the Call and Chat tabs draw their royal header under the status bar
         child: IndexedStack(index: _tab, children: [
           CallTab(api: widget.api, balance: _balance, onWallet: openWallet, onBalanceChanged: loadBalance, onLogout: widget.onLogout, preferredLanguage: _language),
           // Only build the chat inbox while it is selected so it reloads each time it is opened

@@ -155,3 +155,44 @@ class SoftCard extends StatelessWidget {
         ),
       );
 }
+
+/// White rounded "search names" field with a clear (x) button, used at the top of the Call and Chat pages.
+class NameSearchField extends StatelessWidget {
+  const NameSearchField({super.key, required this.controller, required this.onChanged, this.hint = 'Search names'});
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+  final String hint;
+
+  @override
+  Widget build(BuildContext context) => Material(
+        color: Colors.white,
+        elevation: 4,
+        shadowColor: const Color(0x551E0A56),
+        borderRadius: BorderRadius.circular(16),
+        child: ValueListenableBuilder<TextEditingValue>(
+          valueListenable: controller,
+          builder: (context, value, _) => TextField(
+            controller: controller,
+            onChanged: onChanged,
+            textInputAction: TextInputAction.search,
+            decoration: InputDecoration(
+              hintText: hint,
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: value.text.isEmpty
+                  ? null
+                  : IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () {
+                        controller.clear();
+                        onChanged('');
+                      },
+                    ),
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+              contentPadding: const EdgeInsets.symmetric(vertical: 14),
+            ),
+          ),
+        ),
+      );
+}

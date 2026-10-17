@@ -61,6 +61,21 @@ router.post('/online', requireAuth(['partner']), async (req, res) => {
   }
 });
 
+// "Best friends" who are online right now: hosts this user has called before (answered or missed). Newest first.
+router.get('/best-friends', requireAuth(['user']), async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT a.id, a.display_name, a.avatar_url, p.tagline, p.intro_url, p.bio, p.languages, p.rate_per_min, p.rating_avg, p.rating_count
+       FROM (SELECT partner_id, MAX(created_at) AS last_called FROM calls
+              WHERE user_id=$1 AND status IN ('ended','missed') GROUP BY partner_id) f
+       JOIN partner_profiles p ON p.account_id = f.partner_id
+       JOIN accounts a ON a.id = f.partner_id
+      WHERE p.is_online AND p.kyc='approved' AND NOT a.is_blocked
+        AND NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id=a.id AND b.blocked_id=$1) OR (b.blocker_id=$1 AND b.blocked_id=a.id))
+      ORDER BY f.last_called DESC LIMIT 5`, [req.auth.id]);
+  const busy = await Promise.all(rows.map((r) => redis.exists(`partner:busy:${r.id}`)));
+  res.json(rows.map((r, i) => ({ ...r, busy: !!busy[i], verified: true })));
+});
+
 // Browse online partners (user app). Never returns phone numbers.
 router.get('/', requireAuth(['user']), async (req, res) => {
   const lang = req.query.language;

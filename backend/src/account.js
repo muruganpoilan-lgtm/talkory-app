@@ -45,7 +45,7 @@ async function deleteAccount(id, { force = false } = {}) {
       'SELECT a.avatar_url, p.avatar_pending, p.intro_url, p.intro_pending FROM accounts a LEFT JOIN partner_profiles p ON p.account_id=a.id WHERE a.id=$1', [id])).rows[0];
     avatarFiles = [[AVATAR_PUBLIC, av.avatar_url], [AVATAR_PENDING, av.avatar_pending], [INTRO_PUBLIC, av.intro_url], [INTRO_PENDING, av.intro_pending]];
     await client.query(
-      `UPDATE accounts SET phone='deleted:'||id::text, display_name='Deleted user', avatar_url=NULL,
+      `UPDATE accounts SET phone='deleted:'||id::text, display_name='Deleted user', avatar_url=NULL, location_lat=NULL, location_lng=NULL, location_at=NULL,
               is_blocked=true, deleted_at=now(), gst_number=NULL WHERE id=$1`, [id]);
     await client.query(
       `UPDATE partner_profiles SET bio=NULL, languages='{}', is_online=false, upi_id=NULL, kyc_note=NULL, avatar_pending=NULL, avatar_status=NULL, avatar_note=NULL, intro_pending=NULL, intro_status=NULL, intro_note=NULL, intro_url=NULL, tagline=NULL WHERE account_id=$1`, [id]);
@@ -90,6 +90,16 @@ router.put('/gst', requireAuth(['user']), async (req, res) => {
   if (g && !GSTIN.test(g)) return res.status(400).json({ error: 'That does not look like a valid 15-character GST number' });
   await pool.query('UPDATE accounts SET gst_number=$1 WHERE id=$2', [g || null, req.auth.id]);
   res.json({ gstNumber: g });
+});
+
+// Approximate position (rounded to 2 decimals, about 1 km), sent by the app while it is open and the person allowed location.
+router.put('/location', requireAuth(['user', 'partner']), async (req, res) => {
+  const lat = Number(req.body.lat), lng = Number(req.body.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180)
+    return res.status(400).json({ error: 'invalid location' });
+  await pool.query('UPDATE accounts SET location_lat=$1, location_lng=$2, location_at=now() WHERE id=$3',
+    [Math.round(lat * 100) / 100, Math.round(lng * 100) / 100, req.auth.id]);
+  res.json({ ok: true });
 });
 
 router.post('/delete', requireAuth(['user', 'partner']), async (req, res) => {

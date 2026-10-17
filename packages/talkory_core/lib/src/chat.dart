@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'api.dart';
 import 'call_screen.dart';
 import 'post_call_screen.dart';
 import 'ringer.dart';
+import 'theme.dart';
 import 'widgets.dart';
 
 /// Chat inbox, shared by both apps. [isUser] controls the hint text (users pay per message, hosts reply free).
@@ -21,6 +23,8 @@ class _ChatTabState extends State<ChatTab> {
   List<Map<String, dynamic>>? _threads;
   String? _error;
   Timer? _timer;
+  final _search = TextEditingController();
+  String _query = '';
 
   @override
   void initState() {
@@ -32,6 +36,7 @@ class _ChatTabState extends State<ChatTab> {
   @override
   void dispose() {
     _timer?.cancel();
+    _search.dispose();
     super.dispose();
   }
 
@@ -60,64 +65,71 @@ class _ChatTabState extends State<ChatTab> {
   @override
   Widget build(BuildContext context) {
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
-    return Column(children: [
-      Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-        child: Align(alignment: Alignment.centerLeft, child: Text('Chats', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold))),
-      ),
-      Expanded(
-        child: RefreshIndicator(
-          onRefresh: _load,
-          child: _threads == null
-              ? ListView(children: [
-                  Padding(padding: const EdgeInsets.all(32), child: Center(child: _error == null ? const CircularProgressIndicator() : Text(_error!))),
-                ])
-              : _threads!.isEmpty
-                  ? ListView(children: [
-                      Padding(
-                        padding: const EdgeInsets.all(32),
-                        child: Text(
-                          widget.isUser
-                              ? 'No chats yet. Open a host on the Call tab and tap the chat button to say hello.\nEach message costs ${formatCoins(kMessageCostPaise)} coins.'
-                              : 'No chats yet. When a user messages you, it shows up here and you can reply free.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: muted),
-                        ),
-                      ),
-                    ])
-                  : ListView.separated(
-                      itemCount: _threads!.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1, indent: 80),
-                      itemBuilder: (_, i) {
-                        final t = _threads![i];
-                        final unread = (t['unread'] ?? 0) as int;
-                        return ListTile(
-                          leading: ProfileAvatar(baseUrl: widget.api.baseUrl, name: t['name'] as String, url: t['avatar_url'] as String?, radius: 26, female: widget.isUser),
-                          title: Text(t['name'] as String, style: TextStyle(fontWeight: unread > 0 ? FontWeight.bold : FontWeight.w500)),
-                          subtitle: Text(t['last_body'] as String, maxLines: 1, overflow: TextOverflow.ellipsis),
-                          trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
-                            Text(_ago(t['last_at'] as String?), style: TextStyle(color: muted, fontSize: 12)),
-                            const SizedBox(height: 4),
-                            if (unread > 0)
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                                decoration: BoxDecoration(color: Colors.green.shade600, borderRadius: BorderRadius.circular(10)),
-                                child: Text('$unread', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
-                              ),
-                          ]),
-                          onTap: () async {
-                            await Navigator.of(context).push(MaterialPageRoute(
-                              builder: (_) => ChatScreen(api: widget.api, otherId: t['id'] as String, otherName: t['name'] as String, isUser: widget.isUser),
-                            ));
-                            widget.onBalanceChanged?.call();
-                            _load();
-                          },
-                        );
-                      },
-                    ),
+    final top = MediaQuery.of(context).padding.top;
+    final shown = _threads?.where((t) => _query.isEmpty || (t['name'] as String).toLowerCase().contains(_query)).toList();
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Column(children: [
+        RoyalBox(
+          padding: EdgeInsets.fromLTRB(16, top + 12, 16, 18),
+          child: NameSearchField(controller: _search, onChanged: (v) => setState(() => _query = v.trim().toLowerCase())),
         ),
-      ),
-    ]);
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: _load,
+            child: shown == null
+                ? ListView(children: [
+                    Padding(padding: const EdgeInsets.all(32), child: Center(child: _error == null ? const CircularProgressIndicator() : Text(_error!))),
+                  ])
+                : shown.isEmpty
+                    ? ListView(children: [
+                        Padding(
+                          padding: const EdgeInsets.all(32),
+                          child: Text(
+                            _threads!.isNotEmpty
+                                ? 'No chats match "${_search.text.trim()}".'
+                                : widget.isUser
+                                    ? 'No chats yet. Open a host on the Call tab and tap the chat button to say hello.\nEach message costs ${formatCoins(kMessageCostPaise)} coins.'
+                                    : 'No chats yet. When a user messages you, it shows up here and you can reply free.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: muted),
+                          ),
+                        ),
+                      ])
+                    : ListView.separated(
+                        itemCount: shown.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1, indent: 80),
+                        itemBuilder: (_, i) {
+                          final t = shown[i];
+                          final unread = (t['unread'] ?? 0) as int;
+                          return ListTile(
+                            leading: ProfileAvatar(baseUrl: widget.api.baseUrl, name: t['name'] as String, url: t['avatar_url'] as String?, radius: 26, female: widget.isUser),
+                            title: Text(t['name'] as String, style: TextStyle(fontWeight: unread > 0 ? FontWeight.bold : FontWeight.w500)),
+                            subtitle: Text(t['last_body'] as String, maxLines: 1, overflow: TextOverflow.ellipsis),
+                            trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
+                              Text(_ago(t['last_at'] as String?), style: TextStyle(color: muted, fontSize: 12)),
+                              const SizedBox(height: 4),
+                              if (unread > 0)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                  decoration: BoxDecoration(color: Colors.green.shade600, borderRadius: BorderRadius.circular(10)),
+                                  child: Text('$unread', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                                ),
+                            ]),
+                            onTap: () async {
+                              await Navigator.of(context).push(MaterialPageRoute(
+                                builder: (_) => ChatScreen(api: widget.api, otherId: t['id'] as String, otherName: t['name'] as String, isUser: widget.isUser),
+                              ));
+                              widget.onBalanceChanged?.call();
+                              _load();
+                            },
+                          );
+                        },
+                      ),
+          ),
+        ),
+      ]),
+    );
   }
 }
 

@@ -51,6 +51,7 @@ if os.path.exists(pl):
     with open(pl, 'rb') as f: data = plistlib.load(f)
     data.setdefault('NSMicrophoneUsageDescription', 'The microphone is used so you can talk during calls.')
     data.setdefault('NSCameraUsageDescription', 'The camera is used to take your profile and verification photos.')
+    data.setdefault('NSLocationWhenInUseUsageDescription', 'Your approximate location helps us improve Talkory for your area.')
     data.setdefault('NSPhotoLibraryUsageDescription', 'Choose a photo for your profile or verification.')
     data['CFBundleDisplayName'] = label
     if modes: data['UIBackgroundModes'] = sorted(set(data.get('UIBackgroundModes', [])) | set(modes))
@@ -108,7 +109,7 @@ build_app() { # project_name label "PERMISSIONS" "ios modes" needs_firebase(yes|
   [[ -f "$dir/build/app/outputs/bundle/release/app-release.aab" ]] && cp "$dir/build/app/outputs/bundle/release/app-release.aab" "dist/$label.aab" || true
 }
 
-COMMON="INTERNET ACCESS_NETWORK_STATE RECORD_AUDIO MODIFY_AUDIO_SETTINGS BLUETOOTH_CONNECT"
+COMMON="INTERNET ACCESS_NETWORK_STATE RECORD_AUDIO MODIFY_AUDIO_SETTINGS BLUETOOTH_CONNECT ACCESS_COARSE_LOCATION ACCESS_FINE_LOCATION"
 build_app talkory_user    "Talkory"         "$COMMON POST_NOTIFICATIONS"                                                                 "audio"                          no
 build_app talkory_partner "Talkory Partner" "$COMMON POST_NOTIFICATIONS USE_FULL_SCREEN_INTENT FOREGROUND_SERVICE FOREGROUND_SERVICE_MICROPHONE WAKE_LOCK VIBRATE CAMERA" "audio remote-notification voip" yes
 

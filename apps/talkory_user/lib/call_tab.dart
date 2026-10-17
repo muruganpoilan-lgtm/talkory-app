@@ -28,6 +28,28 @@ class _CallTabState extends State<CallTab> {
   Timer? _debounce;
   late String? _language = widget.preferredLanguage;
   late Future<List<Partner>> _future = _load();
+  Timer? _friendTimer;
+  List<Partner> _friends = [];
+  final Set<String> _dismissed = {}; // best friends whose banner was closed during this visit
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFriends();
+    _friendTimer = Timer.periodic(const Duration(seconds: 20), (_) => _loadFriends());
+  }
+
+  Future<void> _loadFriends() async {
+    try {
+      final f = await widget.api.bestFriendsOnline();
+      if (mounted) {
+        setState(() {
+          _friends = f;
+          _dismissed.removeWhere((id) => !f.any((p) => p.id == id)); // went offline: show the banner again when they return
+        });
+      }
+    } catch (_) {}
+  }
 
   @override
   void didUpdateWidget(CallTab old) {
@@ -49,6 +71,7 @@ class _CallTabState extends State<CallTab> {
   @override
   void dispose() {
     _debounce?.cancel();
+    _friendTimer?.cancel();
     _search.dispose();
     super.dispose();
   }
@@ -94,70 +117,37 @@ class _CallTabState extends State<CallTab> {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final top = MediaQuery.of(context).padding.top;
+    final friend = _friends.where((f) => !_dismissed.contains(f.id)).firstOrNull;
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: Column(
       children: [
-        SizedBox(
-          height: top + 190,
-          child: Stack(children: [
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              height: top + 160,
-              child: RoyalBox(
-                padding: EdgeInsets.fromLTRB(20, top + 14, 20, 0),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [
-                    const Text('Talkory', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
-                    const Spacer(),
-                    InkWell(
-                      onTap: widget.onWallet,
-                      borderRadius: BorderRadius.circular(999),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                        decoration: BoxDecoration(color: kGold, borderRadius: BorderRadius.circular(999)),
-                        child: Row(mainAxisSize: MainAxisSize.min, children: [
-                          const Icon(Icons.monetization_on, size: 18, color: kRoyalDeep),
-                          const SizedBox(width: 6),
-                          Text(widget.balance == null ? '—' : '${formatCoins(widget.balance!)} coins',
-                              style: const TextStyle(color: kRoyalDeep, fontWeight: FontWeight.w800)),
-                        ]),
-                      ),
-                    ),
+        RoyalBox(
+          padding: EdgeInsets.fromLTRB(16, top + 12, 16, 20),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Expanded(child: NameSearchField(controller: _search, onChanged: _onSearchChanged)),
+              const SizedBox(width: 10),
+              InkWell(
+                onTap: widget.onWallet,
+                borderRadius: BorderRadius.circular(999),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(color: kGold, borderRadius: BorderRadius.circular(999)),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.monetization_on, size: 18, color: kRoyalDeep),
+                    const SizedBox(width: 6),
+                    Text(widget.balance == null ? '—' : formatCoins(widget.balance!),
+                        style: const TextStyle(color: kRoyalDeep, fontWeight: FontWeight.w800)),
                   ]),
-                  const SizedBox(height: 14),
-                  const Text('Talk to someone\nwho listens', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w600, height: 1.25)),
-                ]),
-              ),
-            ),
-            Positioned(
-              left: 20,
-              right: 20,
-              top: top + 134,
-              child: Material(
-                color: Colors.white,
-                elevation: 6,
-                shadowColor: scheme.primary.withOpacity(0.35),
-                borderRadius: BorderRadius.circular(18),
-                child: TextField(
-                  controller: _search,
-                  onChanged: _onSearchChanged,
-                  textInputAction: TextInputAction.search,
-                  decoration: InputDecoration(
-                    hintText: 'Search by name',
-                    prefixIcon: const Icon(Icons.search),
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: BorderSide.none),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
                 ),
               ),
-            ),
+            ]),
+            const SizedBox(height: 16),
+            const Text('Talkory', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
+            const SizedBox(height: 2),
+            const Text('Talk to someone who listens', style: TextStyle(color: Colors.white70, fontSize: 14)),
           ]),
         ),
         SizedBox(
@@ -216,8 +206,56 @@ class _CallTabState extends State<CallTab> {
             ),
           ),
         ),
+        if (friend != null) _bestFriendBanner(friend),
       ],
     ));
+  }
+
+  /// "Call Your Best Friend X": shown while a host this user called before is online.
+  Widget _bestFriendBanner(Partner f) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(colors: [kRoyalDeep, kRoyal, Color(0xFF7A3FD0)]),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+        boxShadow: [BoxShadow(color: Color(0x551E0A56), blurRadius: 16, offset: Offset(0, -4))],
+      ),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 10, 6, 12),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+        child: Row(children: [
+          Column(mainAxisSize: MainAxisSize.min, children: [
+            ProfileAvatar(baseUrl: widget.api.baseUrl, name: f.name, url: f.avatarUrl, radius: 28),
+            const SizedBox(height: 4),
+            SizedBox(width: 78, child: Text(f.name, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w700, color: kInk))),
+          ]),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+              Text('Call Your Best Friend ${f.name} ❤', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: kInk)),
+              if (_friends.length > 1) Text('+${_friends.length - 1} more best friend${_friends.length > 2 ? 's' : ''} online', style: const TextStyle(fontSize: 12, color: Colors.black54)),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(backgroundColor: kRoyal),
+                  onPressed: f.busy ? null : () => _call(f),
+                  icon: const Icon(Icons.call, size: 18),
+                  label: Text(f.busy ? 'On another call' : 'Call Now', style: const TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ]),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close, size: 20),
+            color: Colors.black45,
+            tooltip: 'Hide',
+            onPressed: () => setState(() => _dismissed.add(f.id)),
+          ),
+        ]),
+      ),
+    );
   }
 }
 

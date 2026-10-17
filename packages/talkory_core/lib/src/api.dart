@@ -126,6 +126,12 @@ class Api {
     return data.map((e) => Partner.fromJson(e)).toList();
   }
 
+  /// Hosts this user has called before (answered or missed) who are online right now, most recent first.
+  Future<List<Partner>> bestFriendsOnline() async {
+    final data = await _send('GET', '/partners/best-friends') as List;
+    return data.map((e) => Partner.fromJson(e)).toList();
+  }
+
   Future<CallSession> startCall(String partnerId) async =>
       CallSession.fromJson(await _send('POST', '/calls', {'partnerId': partnerId}));
 
@@ -221,6 +227,9 @@ class Api {
 
   /// {role, displayName, phone, avatarUrl, supportEmail}
   Future<Map<String, dynamic>> accountMe() async => Map<String, dynamic>.from(await _send('GET', '/account/me'));
+
+  /// Approximate position, shared only after the person allowed location in the phone's permission box.
+  Future<void> saveLocation(double lat, double lng) => _send('PUT', '/account/location', {'lat': lat, 'lng': lng});
 
   Future<void> setGst(String gstin) => _send('PUT', '/account/gst', {'gstNumber': gstin});
 

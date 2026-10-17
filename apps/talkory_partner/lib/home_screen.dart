@@ -40,6 +40,8 @@ class _HomeScreenState extends State<HomeScreen> {
     _timer = Timer.periodic(const Duration(seconds: 20), (_) => _loadUnread());
     // Registers this phone for call alerts and listens for accept/decline from the call screen.
     WidgetsBinding.instance.addPostFrameCallback((_) => PushService.instance.start(widget.api).catchError((_) {}));
+    // A few seconds later, so the location box does not collide with the notification box.
+    Future.delayed(const Duration(seconds: 4), () { if (mounted) LocationShare.share(widget.api); });
   }
 
   @override
@@ -52,7 +54,7 @@ class _HomeScreenState extends State<HomeScreen> {
       PartnerProfileTab(api: widget.api, onLogout: widget.onLogout),
     ];
     return Scaffold(
-      body: SafeArea(top: _tab == 2, child: tabs[_tab]),
+      body: SafeArea(top: false, child: tabs[_tab]),
       bottomNavigationBar: FloatingNav(
           child: NavigationBar(
         selectedIndex: _tab,

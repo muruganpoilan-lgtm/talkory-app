@@ -46,6 +46,13 @@ router.post('/accounts/:id/delete', async (req, res) => {
   }
 });
 
+router.get('/locations', async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT id, display_name, role, location_lat AS lat, location_lng AS lng, location_at
+       FROM accounts WHERE location_at IS NOT NULL AND deleted_at IS NULL ORDER BY location_at DESC LIMIT 200`);
+  res.json(rows);
+});
+
 router.get('/reports', async (req, res) => {
   const { rows } = await pool.query(
     `SELECT r.id, r.reason, r.call_id, r.created_at, r.status, rep.display_name AS reporter,
