@@ -8,6 +8,12 @@ async function finishCall(callId, status, from = ['ringing', 'active']) {
     [status, callId, from]);
   if (rows[0]) {
     await redis.del(`partner:busy:${rows[0].partner_id}`);
+    // A call nobody picked up means the host is not really there (app closed, phone off, no signal):
+    // take them offline so users stop seeing a green dot. They switch back on when they return.
+    if (status === 'missed' && rows[0].initiated_by !== 'partner') {
+      await pool.query('UPDATE partner_profiles SET is_online=false WHERE account_id=$1', [rows[0].partner_id]);
+      await redis.srem('partners:online', rows[0].partner_id);
+    }
     // Never answered: stop the partner's phone from ringing
     if (!rows[0].started_at && rows[0].initiated_by !== 'partner') push.notifyCallCancelled(rows[0].partner_id, callId).catch(() => {});
   }
