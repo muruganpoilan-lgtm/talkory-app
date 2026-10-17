@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds both Talkory apps (installable APK + Play Store bundle). Run from anywhere; needs the Flutter SDK + Android SDK.
+# Builds the three Talkory apps (user, partner, admin) (installable APK + Play Store bundle). Run from anywhere; needs the Flutter SDK + Android SDK.
 # Set APK_ONLY=1 to skip the Play Store bundle. Output: dist/Talkory.apk and "dist/Talkory Partner.apk".
 # Usage:  API_URL=https://api.yourdomain.com [SENTRY_DSN=...] [ORG=com.yourcompany] bash scripts/build-apps.sh
 set -euo pipefail
@@ -50,7 +50,7 @@ pl = os.path.join(d, 'ios/Runner/Info.plist')
 if os.path.exists(pl):
     with open(pl, 'rb') as f: data = plistlib.load(f)
     data.setdefault('NSMicrophoneUsageDescription', 'The microphone is used so you can talk during calls.')
-    data.setdefault('NSCameraUsageDescription', 'The camera is used to take your profile and verification photos.')
+    data.setdefault('NSCameraUsageDescription', 'The camera is used for profile and verification photos and for video calls from the Talkory team.')
     data.setdefault('NSLocationWhenInUseUsageDescription', 'Your approximate location helps us improve Talkory for your area.')
     data.setdefault('NSPhotoLibraryUsageDescription', 'Choose a photo for your profile or verification.')
     data['CFBundleDisplayName'] = label
@@ -110,8 +110,9 @@ build_app() { # project_name label "PERMISSIONS" "ios modes" needs_firebase(yes|
 }
 
 COMMON="INTERNET ACCESS_NETWORK_STATE RECORD_AUDIO MODIFY_AUDIO_SETTINGS BLUETOOTH_CONNECT ACCESS_COARSE_LOCATION ACCESS_FINE_LOCATION"
-build_app talkory_user    "Talkory"         "$COMMON POST_NOTIFICATIONS"                                                                 "audio"                          no
+build_app talkory_user    "Talkory"         "$COMMON POST_NOTIFICATIONS CAMERA"                                                                 "audio"                          no
 build_app talkory_partner "Talkory Partner" "$COMMON POST_NOTIFICATIONS USE_FULL_SCREEN_INTENT FOREGROUND_SERVICE FOREGROUND_SERVICE_MICROPHONE WAKE_LOCK VIBRATE CAMERA" "audio remote-notification voip" yes
+build_app talkory_admin   "Talkory Admin"   "INTERNET ACCESS_NETWORK_STATE RECORD_AUDIO MODIFY_AUDIO_SETTINGS BLUETOOTH_CONNECT CAMERA" "" no
 
 echo; echo "Done. dist/*.apk installs on a phone for testing; dist/*.aab is what you upload to Google Play."
 echo "iPhone builds need a Mac: see BUILD.md and IOS_VOIP.md."

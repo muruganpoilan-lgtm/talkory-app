@@ -1,0 +1,394 @@
+import 'dart:typed_data';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/material.dart';
+import 'package:talkory_core/talkory_core.dart';
+
+String _rs(num paise) => '₹${(paise / 100).toStringAsFixed(2)}';
+String _when(dynamic d) {
+  final t = DateTime.tryParse('$d')?.toLocal();
+  if (t == null) return '';
+  return '${t.day.toString().padLeft(2, '0')}/${t.month.toString().padLeft(2, '0')} ${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+}
+
+/// One thing an admin can tap on a row. Returns true when the list should reload.
+class _Act {
+  _Act(this.label, this.run, {this.color});
+  final String label;
+  final Future<bool> Function(BuildContext c, Api api, Map r) run;
+  final Color? color;
+}
+
+class _Spec {
+  _Spec(this.title, this.url, this.head, this.sub, this.acts);
+  final String title, url;
+  final String Function(Map r) head, sub;
+  final List<_Act> Function(Map r) acts;
+}
+
+Future<bool> _confirm(BuildContext c, String msg) async =>
+    await showDialog<bool>(
+      context: c,
+      builder: (d) => AlertDialog(content: Text(msg), actions: [
+        TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Cancel')),
+        FilledButton(onPressed: () => Navigator.pop(d, true), child: const Text('Yes')),
+      ]),
+    ) ??
+    false;
+
+Future<String?> _ask(BuildContext c, String title, String initial) {
+  final ctl = TextEditingController(text: initial);
+  return showDialog<String>(
+    context: c,
+    builder: (d) => AlertDialog(
+      title: Text(title),
+      content: TextField(controller: ctl, maxLines: 3, minLines: 1),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(d), child: const Text('Cancel')),
+        FilledButton(onPressed: () => Navigator.pop(d, ctl.text.trim()), child: const Text('OK')),
+      ],
+    ),
+  );
+}
+
+void _toast(BuildContext c, String m) => ScaffoldMessenger.of(c).showSnackBar(SnackBar(content: Text(m)));
+
+/// Runs a server call, shows any error, and tells the list whether to reload.
+Future<bool> _do(BuildContext c, Future<dynamic> Function() f) async {
+  try {
+    await f();
+    return true;
+  } on ApiException catch (e) {
+    if (c.mounted) _toast(c, e.message);
+  } catch (_) {
+    if (c.mounted) _toast(c, 'Network error');
+  }
+  return false;
+}
+
+Future<void> _showImages(BuildContext c, Api api, List<String> paths) async {
+  try {
+    final imgs = <Uint8List>[];
+    for (final p in paths) {
+      imgs.add(Uint8List.fromList(await api.adminBytes(p)));
+    }
+    if (!c.mounted) return;
+    await showDialog(
+      context: c,
+      builder: (d) => Dialog(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(12),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            for (final b in imgs) Padding(padding: const EdgeInsets.only(bottom: 12), child: Image.memory(b)),
+            TextButton(onPressed: () => Navigator.pop(d), child: const Text('Close')),
+          ]),
+        ),
+      ),
+    );
+  } catch (_) {
+    if (c.mounted) _toast(c, 'File not found');
+  }
+}
+
+Future<void> _playAudio(BuildContext c, Api api, String path) async {
+  final player = AudioPlayer();
+  try {
+    final b = Uint8List.fromList(await api.adminBytes(path));
+    await player.play(BytesSource(b));
+    if (!c.mounted) return;
+    await showDialog(
+      context: c,
+      builder: (d) => AlertDialog(
+        title: const Text('Playing voice intro'),
+        actions: [TextButton(onPressed: () => Navigator.pop(d), child: const Text('Close'))],
+      ),
+    );
+  } catch (_) {
+    if (c.mounted) _toast(c, 'Audio not found');
+  } finally {
+    await player.dispose();
+  }
+}
+
+List<_Spec> _specs() {
+  _Act approve(String url) => _Act('Approve', (c, api, r) => _do(c, () => api.adminPost(url.replaceAll('{id}', '${r['id']}'), {'status': 'approved'})), color: Colors.green);
+  _Act reject(String url, String prompt, String initial) => _Act('Reject', (c, api, r) async {
+        final note = await _ask(c, prompt, initial);
+        if (note == null || !c.mounted) return false;
+        return _do(c, () => api.adminPost(url.replaceAll('{id}', '${r['id']}'), {'status': 'rejected', 'note': note}));
+      }, color: Colors.red);
+
+  return [
+    _Spec('Video', '/admin/video-calls/accounts', (r) => '${r['display_name']}', (r) => '${r['role']} · ${r['phone']}', (r) => [
+          _Act('Video call', (c, api, r) async {
+            if (!await _confirm(c, 'Start a video call with ${r['display_name']}?')) return false;
+            try {
+              final s = await api.adminStartVideo('${r['id']}');
+              if (!c.mounted) return false;
+              await Navigator.of(c).push(MaterialPageRoute(builder: (_) => AdminVideoScreen(api: api, session: s, asAdmin: true)));
+            } on ApiException catch (e) {
+              if (c.mounted) _toast(c, e.message);
+            }
+            return false;
+          }, color: Colors.green),
+        ]),
+    _Spec('Payouts', '/partner/admin/payouts', (r) => '${r['display_name']}  ${_rs(r['amount'] as num)}',
+        (r) => 'UPI ${r['upi_id']} · ${_when(r['requested_at'])}${r['kyc'] != 'approved' ? ' · KYC ${r['kyc']}' : ''}', (r) => [
+          _Act('Mark paid', (c, api, r) async {
+            if (!await _confirm(c, 'Confirm you have sent ${_rs(r['amount'] as num)} to ${r['upi_id']}?')) return false;
+            if (!c.mounted) return false;
+            final ref = await _ask(c, 'Payment reference (UPI transaction id)', '');
+            if (ref == null || !c.mounted) return false;
+            return _do(c, () => api.adminPost('/partner/admin/payouts/${r['id']}/paid', {'reference': ref}));
+          }, color: Colors.green),
+          _Act('Reject', (c, api, r) async {
+            if (!await _confirm(c, 'Reject and refund the partner wallet?')) return false;
+            if (!c.mounted) return false;
+            return _do(c, () => api.adminPost('/partner/admin/payouts/${r['id']}/reject', {}));
+          }, color: Colors.red),
+        ]),
+    _Spec('KYC', '/admin/kyc', (r) => '${r['display_name']}', (r) => '${((r['languages'] as List?) ?? []).join(', ')} · ${_rs(r['rate_per_min'] as num)}/min\n${r['bio'] ?? ''}', (r) => [
+          _Act('Documents', (c, api, r) async {
+            await _showImages(c, api, ['/admin/kyc/${r['id']}/document/id_front', '/admin/kyc/${r['id']}/document/selfie']);
+            return false;
+          }),
+          approve('/admin/kyc/{id}'),
+          reject('/admin/kyc/{id}', 'Reason the partner will see', 'Photo unclear, please resubmit'),
+        ]),
+    _Spec('Reports', '/admin/reports', (r) => '${r['reported']} (${r['reported_role']}${r['is_blocked'] == true ? ', blocked' : ''})',
+        (r) => '${r['reason']}\nby ${r['reporter']} · ${r['total_reports']} reports · ${_when(r['created_at'])}', (r) => [
+          _Act('Dismiss', (c, api, r) => _do(c, () => api.adminPost('/admin/reports/${r['id']}/resolve', {'block': false}))),
+          _Act('Block account', (c, api, r) async {
+            if (!await _confirm(c, 'Block ${r['reported']}? They can no longer log in.')) return false;
+            if (!c.mounted) return false;
+            return _do(c, () => api.adminPost('/admin/reports/${r['id']}/resolve', {'block': true}));
+          }, color: Colors.red),
+        ]),
+    _Spec('Intros', '/admin/intros', (r) => '${r['display_name']}', (r) => 'Voice intro waiting for approval', (r) => [
+          _Act('Listen', (c, api, r) async {
+            await _playAudio(c, api, '/admin/intros/${r['id']}/audio');
+            return false;
+          }),
+          approve('/admin/intros/{id}'),
+          reject('/admin/intros/{id}', 'Reason the host will see', 'Please re-record: clear voice, no contact details'),
+        ]),
+    _Spec('Photos', '/admin/avatars', (r) => '${r['display_name']}', (r) => 'Profile photo waiting for approval', (r) => [
+          _Act('View photo', (c, api, r) async {
+            await _showImages(c, api, ['/admin/avatars/${r['id']}/image']);
+            return false;
+          }),
+          approve('/admin/avatars/{id}'),
+          reject('/admin/avatars/{id}', 'Reason the host will see', 'Please use a clear photo of yourself with no text or contact details'),
+        ]),
+    _Spec('Support', '/admin/tickets', (r) => '${r['needs_reply'] == true ? '● ' : ''}${r['subject']}',
+        (r) => '${r['display_name']} (${r['role']}, ${r['phone']})\n${(r['last_body'] ?? '').toString().replaceAll('\n', ' ')}', (r) => [
+          _Act('Open & reply', (c, api, r) async {
+            await Navigator.of(c).push(MaterialPageRoute(builder: (_) => _TicketScreen(api: api, id: '${r['id']}')));
+            return true;
+          }),
+          _Act('Close', (c, api, r) async {
+            if (!await _confirm(c, 'Close this ticket?')) return false;
+            if (!c.mounted) return false;
+            return _do(c, () => api.adminPost('/admin/tickets/${r['id']}/close', {}));
+          }, color: Colors.red),
+        ]),
+    _Spec('Locations', '/admin/locations', (r) => '${r['display_name']} (${r['role']})', (r) => '${r['lat']}, ${r['lng']} · ${_when(r['location_at'])}', (r) => []),
+  ];
+}
+
+class AdminHome extends StatefulWidget {
+  const AdminHome({super.key, required this.api, required this.onLogout});
+  final Api api;
+  final VoidCallback onLogout;
+  @override
+  State<AdminHome> createState() => _AdminHomeState();
+}
+
+class _AdminHomeState extends State<AdminHome> {
+  final _tabs = _specs();
+  int _i = 0;
+  int _reload = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Talkory Admin'),
+        actions: [IconButton(onPressed: widget.onLogout, icon: const Icon(Icons.logout), tooltip: 'Log out')],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(52),
+          child: SizedBox(
+            height: 52,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              itemCount: _tabs.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (_, i) => ChoiceChip(label: Text(_tabs[i].title), selected: i == _i, onSelected: (_) => setState(() => _i = i)),
+            ),
+          ),
+        ),
+      ),
+      body: _TabList(key: ValueKey('$_i-$_reload'), api: widget.api, spec: _tabs[_i], onChanged: () => setState(() => _reload++)),
+    );
+  }
+}
+
+class _TabList extends StatefulWidget {
+  const _TabList({super.key, required this.api, required this.spec, required this.onChanged});
+  final Api api;
+  final _Spec spec;
+  final VoidCallback onChanged;
+  @override
+  State<_TabList> createState() => _TabListState();
+}
+
+class _TabListState extends State<_TabList> {
+  List? _rows;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final d = await widget.api.adminGet(widget.spec.url);
+      if (mounted) setState(() => _rows = d as List);
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Network error');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_error != null) return Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(_error!, style: const TextStyle(color: Colors.red))));
+    final rows = _rows;
+    if (rows == null) return const Center(child: CircularProgressIndicator());
+    if (rows.isEmpty) return const Center(child: Text('Nothing here right now'));
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(12),
+        itemCount: rows.length,
+        itemBuilder: (_, i) {
+          final r = Map<String, dynamic>.from(rows[i] as Map);
+          final acts = widget.spec.acts(r);
+          return Card(
+            margin: const EdgeInsets.only(bottom: 10),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(widget.spec.head(r), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 4),
+                Text(widget.spec.sub(r), style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                if (acts.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Wrap(spacing: 8, runSpacing: 4, children: [
+                    for (final a in acts)
+                      OutlinedButton(
+                        style: a.color == null ? null : OutlinedButton.styleFrom(foregroundColor: a.color),
+                        onPressed: () async {
+                          if (await a.run(context, widget.api, r)) widget.onChanged();
+                        },
+                        child: Text(a.label),
+                      ),
+                  ]),
+                ],
+              ]),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// A support ticket: the conversation and a reply box.
+class _TicketScreen extends StatefulWidget {
+  const _TicketScreen({required this.api, required this.id});
+  final Api api;
+  final String id;
+  @override
+  State<_TicketScreen> createState() => _TicketScreenState();
+}
+
+class _TicketScreenState extends State<_TicketScreen> {
+  Map? _t;
+  List _msgs = [];
+  final _reply = TextEditingController();
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final d = await widget.api.adminGet('/admin/tickets/${widget.id}') as Map;
+      if (mounted) setState(() {
+            _t = d['ticket'] as Map;
+            _msgs = d['messages'] as List;
+          });
+    } catch (_) {
+      if (mounted) _toast(context, 'Could not load the ticket');
+    }
+  }
+
+  Future<void> _send() async {
+    final body = _reply.text.trim();
+    if (body.isEmpty) return;
+    setState(() => _busy = true);
+    final ok = await _do(context, () => widget.api.adminPost('/admin/tickets/${widget.id}/reply', {'body': body}));
+    if (ok) _reply.clear();
+    if (mounted) setState(() => _busy = false);
+    if (ok) await _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = _t;
+    return Scaffold(
+      appBar: AppBar(title: Text(t == null ? 'Ticket' : '${t['subject']}')),
+      body: t == null
+          ? const Center(child: CircularProgressIndicator())
+          : Column(children: [
+              Padding(padding: const EdgeInsets.all(12), child: Text('${t['display_name']} (${t['role']}, ${t['phone']}) · ${t['status']}')),
+              Expanded(
+                child: ListView(padding: const EdgeInsets.all(12), children: [
+                  for (final m in _msgs)
+                    Align(
+                      alignment: m['from_admin'] == true ? Alignment.centerRight : Alignment.centerLeft,
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.all(10),
+                        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.8),
+                        decoration: BoxDecoration(
+                          color: m['from_admin'] == true ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text('${m['body']}', style: TextStyle(color: m['from_admin'] == true ? Colors.white : null)),
+                      ),
+                    ),
+                ]),
+              ),
+              if (t['status'] == 'open')
+                SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Row(children: [
+                      Expanded(child: TextField(controller: _reply, minLines: 1, maxLines: 4, decoration: const InputDecoration(hintText: 'Type your reply', border: OutlineInputBorder()))),
+                      const SizedBox(width: 8),
+                      IconButton.filled(onPressed: _busy ? null : _send, icon: const Icon(Icons.send)),
+                    ]),
+                  ),
+                ),
+            ]),
+    );
+  }
+}

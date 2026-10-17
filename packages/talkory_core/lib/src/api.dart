@@ -135,7 +135,7 @@ class Api {
   Future<CallSession> startCall(String partnerId) async =>
       CallSession.fromJson(await _send('POST', '/calls', {'partnerId': partnerId}));
 
-  /// {available: bool, seconds: 120, nextAt: ISO time or null}: the free 2-minute call (one every 3 hours)
+  /// {available: bool, seconds: 120, nextAt: ISO time or null}: the free 2-minute call (one every 2 hours)
   Future<Map<String, dynamic>> freeCallStatus() async => Map<String, dynamic>.from(await _send('GET', '/calls/free-status') as Map);
 
   // ---- host-started calls
@@ -162,6 +162,26 @@ class Api {
   /// Returns {id, user_name} or null.
   Future<Map<String, dynamic>?> incomingCall() async =>
       (await _send('GET', '/calls/incoming')) as Map<String, dynamic>?;
+
+  // ---- admin app: generic calls to the admin endpoints, and starting video calls
+  Future<dynamic> adminGet(String path) => _send('GET', path);
+  Future<dynamic> adminPost(String path, [Map<String, dynamic>? body]) => _send('POST', path, body);
+  Future<List<int>> adminBytes(String path) async {
+    final res = await http.get(Uri.parse('$baseUrl$path'), headers: {if (token != null) 'Authorization': 'Bearer $token'});
+    if (res.statusCode >= 400) throw ApiException(res.statusCode, 'File not found');
+    return res.bodyBytes;
+  }
+  Future<CallSession> adminStartVideo(String accountId) async =>
+      CallSession.fromJson(await _send('POST', '/admin/video-calls', {'accountId': accountId}));
+  Future<String> adminVideoStatus(String id) async => (await _send('GET', '/admin/video-calls/$id') as Map)['status'] as String;
+  Future<void> adminEndVideo(String id) => _send('POST', '/admin/video-calls/$id/end');
+
+  // ---- video calls started by the Talkory team from the admin panel (apps can only answer them)
+  Future<Map<String, dynamic>?> adminCallIncoming() async => (await _send('GET', '/admin-calls/incoming')) as Map<String, dynamic>?;
+  Future<CallSession> acceptAdminCall(String id) async => CallSession.fromJson(await _send('POST', '/admin-calls/$id/accept'));
+  Future<void> rejectAdminCall(String id) => _send('POST', '/admin-calls/$id/reject');
+  Future<void> endAdminCall(String id) => _send('POST', '/admin-calls/$id/end');
+  Future<String> adminCallStatus(String id) async => (await _send('GET', '/admin-calls/$id/status') as Map)['status'] as String;
 
   Future<CallSession> acceptCall(String id) async =>
       CallSession.fromJson(await _send('POST', '/calls/$id/accept'));

@@ -279,7 +279,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   bool _calling = false;
 
-  /// Host only: ring this user. The first call to a user in any 3 hours is free for 2 minutes, then normal rates apply.
+  /// Host only: ring this user. The first call to a user in any 2 hours is free for 2 minutes, then normal rates apply.
   Future<void> _callUser() async {
     if (_calling) return;
     _calling = true;
