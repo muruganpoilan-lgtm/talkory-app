@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 import 'package:talkory_core/talkory_core.dart';
 
@@ -85,13 +86,15 @@ class _WalletScreenState extends State<WalletScreen> {
       _ => (Icons.tune, 'Adjustment'),
     };
     final sub = [_when(it['at']), if (kind == 'call') _dur((it['seconds'] ?? 0) as int), if (kind == 'chat') '${it['seconds']} message${it['seconds'] == 1 ? '' : 's'}'].join('  ·  ');
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: Icon(icon),
-      title: Text(title),
-      subtitle: Text(sub),
-      trailing: Text('${amount >= 0 ? '+' : '−'}${formatCoins(amount.abs())} coins',
-          style: TextStyle(fontWeight: FontWeight.w600, color: amount >= 0 ? Colors.green : null)),
+    return SoftCard(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      child: ListTile(
+        leading: CircleAvatar(backgroundColor: const Color(0xFFEDE6FB), foregroundColor: kRoyal, child: Icon(icon, size: 20)),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: Text(sub),
+        trailing: Text('${amount >= 0 ? '+' : '−'}${formatCoins(amount.abs())}',
+            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: amount >= 0 ? Colors.green.shade700 : kInk)),
+      ),
     );
   }
 
@@ -144,52 +147,76 @@ class _WalletScreenState extends State<WalletScreen> {
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
+    final top = MediaQuery.of(context).padding.top;
     return Scaffold(
-      appBar: AppBar(title: const Text('Wallet')),
-      body: ListView(
-        padding: const EdgeInsets.all(24),
-        children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
+      body: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.light,
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            RoyalBox(
+              padding: EdgeInsets.fromLTRB(8, top + 8, 20, 34),
               child: Column(
                 children: [
-                  Text('Balance', style: text.labelLarge),
-                  const SizedBox(height: 8),
+                  Row(children: [
+                    IconButton(icon: const Icon(Icons.arrow_back), color: Colors.white, onPressed: () => Navigator.maybePop(context)),
+                    const Text('Wallet', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
+                  ]),
+                  const SizedBox(height: 12),
+                  const Text('Balance', style: TextStyle(color: Colors.white70, fontSize: 14)),
+                  const SizedBox(height: 6),
                   Text(_balance == null ? '—' : '${formatCoins(_balance!)} coins',
-                      style: text.displaySmall?.copyWith(fontWeight: FontWeight.bold)),
+                      style: const TextStyle(color: kGold, fontSize: 40, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
                 ],
               ),
             ),
-          ),
-          const SizedBox(height: 24),
-          Text('Add coins  (1 coin = ₹1)', style: text.titleMedium),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            children: [
-              for (final a in _presets)
-                ChoiceChip(label: Text('$a coins'), selected: _amount == a, onSelected: (_) => setState(() => _amount = a)),
-            ],
-          ),
-          const SizedBox(height: 24),
-          FilledButton(
-            onPressed: _busy ? null : _pay,
-            child: _busy
-                ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                : Text('Pay ₹$_amount'),
-          ),
-          const SizedBox(height: 32),
-          Text('Activity', style: text.titleMedium),
-          if (_items.isEmpty && !_loadingMore)
-            const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: Text('No activity yet')),
-          for (final it in _items) _activityTile(it),
-          if (_more)
-            TextButton(
-              onPressed: _loadingMore ? null : () => _loadHistory(page: _page + 1),
-              child: Text(_loadingMore ? 'Loading…' : 'Load more'),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Add coins  (1 coin = ₹1)', style: text.titleMedium?.copyWith(fontWeight: FontWeight.w700, color: kInk)),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final a in _presets)
+                        ChoiceChip(
+                          label: Text('$a coins'),
+                          selected: _amount == a,
+                          selectedColor: const Color(0xFFE6DAFB),
+                          onSelected: (_) => setState(() => _amount = a),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(backgroundColor: kRoyal, minimumSize: const Size(0, 50)),
+                      onPressed: _busy ? null : _pay,
+                      child: _busy
+                          ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : Text('Pay ₹$_amount', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  Text('Activity', style: text.titleMedium?.copyWith(fontWeight: FontWeight.w700, color: kInk)),
+                  const SizedBox(height: 4),
+                  if (_items.isEmpty && !_loadingMore)
+                    const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: Text('No activity yet')),
+                  for (final it in _items) _activityTile(it),
+                  if (_more)
+                    TextButton(
+                      onPressed: _loadingMore ? null : () => _loadHistory(page: _page + 1),
+                      child: Text(_loadingMore ? 'Loading…' : 'Load more'),
+                    ),
+                ],
+              ),
             ),
-        ],
+          ],
+        ),
       ),
     );
   }

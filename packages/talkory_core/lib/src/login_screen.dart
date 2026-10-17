@@ -1,7 +1,9 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'api.dart';
 import 'legal.dart';
+import 'theme.dart';
 
 /// Phone + OTP login shared by both apps. [role] is 'user' or 'partner'.
 class LoginScreen extends StatefulWidget {
@@ -62,14 +64,25 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final top = MediaQuery.of(context).padding.top;
     return Scaffold(
-      body: SafeArea(
+      body: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.light,
         child: ListView(
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.zero,
           children: [
-            const SizedBox(height: 48),
-            Text(widget.title, style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 32),
+            RoyalBox(
+              padding: EdgeInsets.fromLTRB(24, top + 56, 24, 40),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(widget.title, style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
+                const SizedBox(height: 8),
+                const Text('Sign in with your phone number', style: TextStyle(color: kGold, fontSize: 15, fontWeight: FontWeight.w600)),
+              ]),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            const SizedBox(height: 8),
             TextField(
               controller: _phone,
               enabled: !_otpSent,
@@ -120,6 +133,8 @@ class _LoginScreenState extends State<LoginScreen> {
               child: _busy
                   ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
                   : Text(_otpSent ? 'Verify & continue' : 'Send OTP'),
+            ),
+              ]),
             ),
           ],
         ),
