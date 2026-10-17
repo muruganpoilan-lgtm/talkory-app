@@ -33,6 +33,8 @@ services:
       TWILIO_ACCOUNT_SID: "${TWILIO_ACCOUNT_SID:-}"
       TWILIO_AUTH_TOKEN: "${TWILIO_AUTH_TOKEN:-}"
       TWILIO_VERIFY_SID: "${TWILIO_VERIFY_SID:-}"
+      MSG91_AUTH_KEY: "${MSG91_AUTH_KEY:-}"
+      MSG91_TEMPLATE_ID: "${MSG91_TEMPLATE_ID:-}"
       SUPPORT_EMAIL: "${SUPPORT_EMAIL:-}"      # shown on the apps' Customer Support button
       FIREBASE_SERVICE_ACCOUNT_B64: "${FIREBASE_SERVICE_ACCOUNT_B64:-}"   # the Firebase service-account key file, base64 on one line (see BUILD.md)
     volumes:
