@@ -52,11 +52,51 @@ const TABS={
  locations:{url:'/admin/locations',cols:['Name','Role','Approx. location','Updated'],
   row:r=>[esc(r.display_name),esc(r.role),'<a href="https://www.google.com/maps?q='+encodeURIComponent(r.lat+','+r.lng)+'" target="_blank" rel="noopener">'+esc(r.lat)+', '+esc(r.lng)+'</a>',when(r.location_at)],
   acts:r=>[]},
+ video:{url:'/admin/video-calls/accounts',cols:['Name','Role','Phone'],
+  row:r=>[esc(r.display_name),esc(r.role),esc(r.phone)],
+  acts:r=>[['Video call','ok',null,()=>videoCall(r)]]},
  support:{url:'/admin/tickets',cols:['Customer','Subject','Last message','Updated'],
   row:r=>[esc(r.display_name)+' <span class="mut">('+r.role+', '+esc(r.phone)+')</span>',(r.needs_reply?'<b class="err">● </b>':'')+esc(r.subject),esc((r.last_body||'').slice(0,120)),when(r.updated_at)],
   acts:r=>[['Open & reply','',null,()=>openTicket(r.id)],['Close','bad','/admin/tickets/'+r.id+'/close',()=>({}),'Close this ticket?']]},
  photos:{url:'/admin/avatars',cols:['Host'],row:r=>[esc(r.display_name)],
   acts:r=>[['View photo','',null,()=>viewPhoto(r.id)],['Approve','ok','/admin/avatars/'+r.id,()=>({status:'approved'})],['Reject','bad','/admin/avatars/'+r.id,()=>({status:'rejected',note:prompt('Reason the host will see:','Please use a clear photo of yourself with no text or contact details')||''})]]}};
+
+let agoraLoaded=null;
+function loadAgora(){return agoraLoaded||(agoraLoaded=new Promise((ok,no)=>{const s=document.createElement('script');
+  s.src='https://download.agora.io/sdk/release/AgoraRTC_N-4.22.0.js';s.onload=ok;s.onerror=()=>{agoraLoaded=null;no(Error('Could not load the video library'))};document.head.appendChild(s)}))}
+async function videoCall(r){
+  if(!confirm('Start a video call with '+r.display_name+'? Your camera and microphone will turn on.'))return;
+  const d=document.createElement('dialog');d.style.cssText='width:min(760px,96vw)';
+  d.innerHTML=`<h3 style="margin:0 0 4px">Video call: ${esc(r.display_name)}</h3><div class="mut" id="vs">Starting…</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0"><div id="rv" style="background:#000;aspect-ratio:4/3;border-radius:10px"></div><div id="lv" style="background:#000;aspect-ratio:4/3;border-radius:10px"></div></div>
+<p style="display:flex;gap:8px;justify-content:flex-end;margin:0"><button id="mu">Mute</button><button id="cm">Camera off</button><button class="bad" id="en">End call</button></p>`;
+  document.body.appendChild(d);d.showModal();
+  const st=t=>{d.querySelector('#vs').textContent=t};
+  let client,mic,cam,poll,done=false,callId=null;
+  const finish=async(msg)=>{if(done)return;done=true;clearInterval(poll);
+    try{mic&&mic.close();cam&&cam.close();client&&await client.leave()}catch(_){}
+    if(callId)try{await api('/admin/video-calls/'+callId+'/end',{})}catch(_){}
+    if(msg){st(msg);await new Promise(x=>setTimeout(x,1500))}d.close();d.remove()};
+  d.querySelector('#en').onclick=()=>finish('Call ended');
+  d.addEventListener('cancel',e=>{e.preventDefault();finish()});
+  try{
+    await loadAgora();
+    const s=await api('/admin/video-calls',{accountId:r.id});callId=s.callId;
+    client=AgoraRTC.createClient({mode:'rtc',codec:'vp8'});
+    client.on('user-published',async(u,type)=>{await client.subscribe(u,type);
+      if(type==='video'){u.videoTrack.play('rv')}if(type==='audio'){u.audioTrack.play()}});
+    client.on('user-left',()=>finish('The other person left'));
+    await client.join(s.appId,s.channel,s.token,s.uid);
+    [mic,cam]=await AgoraRTC.createMicrophoneAndCameraTracks();
+    cam.play('lv');await client.publish([mic,cam]);st('Ringing…');
+    d.querySelector('#mu').onclick=async e=>{const m=!mic.muted;await mic.setMuted(m);e.target.textContent=m?'Unmute':'Mute'};
+    d.querySelector('#cm').onclick=async e=>{const m=!cam.muted;await cam.setMuted(m);e.target.textContent=m?'Camera on':'Camera off'};
+    poll=setInterval(async()=>{try{const x=await api('/admin/video-calls/'+callId);
+      if(x.status==='active')st('Connected');
+      else if(x.status==='rejected')finish('Declined');
+      else if(x.status==='missed')finish('No answer');
+      else if(x.status==='ended')finish('Call ended')}catch(_){}},2000);
+  }catch(e){alert(e.message);finish()}}
 async function openTicket(id){
   const d=document.createElement('dialog');d.style.cssText='width:min(560px,94vw)';document.body.appendChild(d);
   const draw=async()=>{

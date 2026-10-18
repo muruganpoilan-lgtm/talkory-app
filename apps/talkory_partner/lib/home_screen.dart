@@ -29,6 +29,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    AdminCallWatcher.instance.stop();
     _timer?.cancel();
     super.dispose();
   }
@@ -39,7 +40,10 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadUnread();
     _timer = Timer.periodic(const Duration(seconds: 20), (_) => _loadUnread());
     // Registers this phone for call alerts and listens for accept/decline from the call screen.
-    WidgetsBinding.instance.addPostFrameCallback((_) => PushService.instance.start(widget.api).catchError((_) {}));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      PushService.instance.start(widget.api).catchError((_) {});
+      AdminCallWatcher.instance.start(context, widget.api);
+    });
     // A few seconds later, so the location box does not collide with the notification box.
     Future.delayed(const Duration(seconds: 4), () { if (mounted) LocationShare.share(widget.api); });
   }

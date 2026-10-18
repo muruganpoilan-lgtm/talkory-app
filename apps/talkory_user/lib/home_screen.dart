@@ -36,7 +36,10 @@ class _HomeScreenState extends State<HomeScreen> {
     }).catchError((_) {});
     _timer = Timer.periodic(const Duration(seconds: 20), (_) => _loadUnread());
     _ringPoll = Timer.periodic(const Duration(seconds: 3), (_) => _checkIncoming());
-    WidgetsBinding.instance.addPostFrameCallback((_) => UserPush.instance.start(widget.api));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      UserPush.instance.start(widget.api);
+      AdminCallWatcher.instance.start(context, widget.api);
+    });
     // A few seconds later, so the location box does not collide with the notification box.
     Future.delayed(const Duration(seconds: 4), () { if (mounted) LocationShare.share(widget.api); });
   }
@@ -104,6 +107,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    AdminCallWatcher.instance.stop();
     _ringPoll?.cancel();
     _timer?.cancel();
     super.dispose();

@@ -46,6 +46,9 @@ app.use('/admin/intros', intros.admin);
 app.use('/admin/avatars', avatars.admin);
 const tickets = require('./tickets');
 app.use('/admin/tickets', tickets.admin);
+const adminCalls = require('./admincalls');
+app.use('/admin/video-calls', adminCalls.admin);
+app.use('/admin-calls', adminCalls.app);
 app.use('/admin', require('./admin'));
 app.use('/panel', express.static(path.join(__dirname, '../admin'))); // admin web panel
 app.use('/chat', require('./chat').router);

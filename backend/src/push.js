@@ -82,6 +82,16 @@ async function notifyMessage(accountId, fromName) {
   })));
 }
 
+// The Talkory team is video calling this person from the admin panel. A plain notification; tapping it opens the app, which then rings.
+async function notifyAdminVideoCall(accountId) {
+  if (!enabled) return;
+  await Promise.all((await devicesOf(accountId)).map((d) => sendFcm(d, {
+    notification: { title: 'Talkory is calling you', body: 'Open the app to answer the video call' },
+    data: { type: 'admin_video_call' },
+    android: { priority: 'high', ttl: 40000 },
+  })));
+}
+
 // A host just went online: tell every user's phone. Plain notification, no call data.
 async function notifyHostOnline(hostId, hostName) {
   if (!enabled) return;
@@ -108,4 +118,4 @@ async function notifyHostOnline(hostId, hostName) {
   }
 }
 
-module.exports = { notifyIncomingCall, notifyCallCancelled, notifyMessage, notifyHostOnline };
+module.exports = { notifyIncomingCall, notifyCallCancelled, notifyMessage, notifyHostOnline, notifyAdminVideoCall };

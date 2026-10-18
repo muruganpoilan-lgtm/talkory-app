@@ -147,7 +147,7 @@ class _CallScreenState extends State<CallScreen> {
               Text(widget.peerName, style: Theme.of(context).textTheme.headlineSmall),
               const SizedBox(height: 8),
               Text(_connected ? _clock : 'Ringing…', style: Theme.of(context).textTheme.titleMedium),
-              if (_secondsLeft != null && (_free || _secondsLeft! <= 60)) ...[
+              if (_secondsLeft != null && !_free && _secondsLeft! <= 60) ...[
                 const SizedBox(height: 24),
                 Container(
                   margin: const EdgeInsets.symmetric(horizontal: 24),
