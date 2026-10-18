@@ -211,50 +211,39 @@ class _CallTabState extends State<CallTab> {
     ));
   }
 
-  /// "Call Your Best Friend X": shown while a host this user called before is online.
+  /// Slim "best friend is online" bar: shown while a host this user called before is online.
   Widget _bestFriendBanner(Partner f) {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(colors: [kRoyalDeep, kRoyal, Color(0xFF7A3FD0)]),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
-        boxShadow: [BoxShadow(color: Color(0x551E0A56), blurRadius: 16, offset: Offset(0, -4))],
+      margin: const EdgeInsets.fromLTRB(14, 0, 14, 6),
+      padding: const EdgeInsets.fromLTRB(10, 6, 2, 6),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(colors: [kRoyalDeep, kRoyal, Color(0xFF7A3FD0)]),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [BoxShadow(color: Color(0x441E0A56), blurRadius: 10, offset: Offset(0, 3))],
       ),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(12, 10, 6, 12),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
-        child: Row(children: [
-          Column(mainAxisSize: MainAxisSize.min, children: [
-            ProfileAvatar(baseUrl: widget.api.baseUrl, name: f.name, url: f.avatarUrl, radius: 28),
-            const SizedBox(height: 4),
-            SizedBox(width: 78, child: Text(f.name, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w700, color: kInk))),
+      child: Row(children: [
+        ProfileAvatar(baseUrl: widget.api.baseUrl, name: f.name, url: f.avatarUrl, radius: 18),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            Text('Best friend ${f.name} is online ❤', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Colors.white)),
+            if (_friends.length > 1) Text('+${_friends.length - 1} more online', style: const TextStyle(fontSize: 11, color: Colors.white70)),
           ]),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-              Text('Call Your Best Friend ${f.name} ❤', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: kInk)),
-              if (_friends.length > 1) Text('+${_friends.length - 1} more best friend${_friends.length > 2 ? 's' : ''} online', style: const TextStyle(fontSize: 12, color: Colors.black54)),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  style: FilledButton.styleFrom(backgroundColor: kRoyal),
-                  onPressed: f.busy ? null : () => _call(f),
-                  icon: const Icon(Icons.call, size: 18),
-                  label: Text(f.busy ? 'On another call' : 'Call Now', style: const TextStyle(fontWeight: FontWeight.w700)),
-                ),
-              ),
-            ]),
-          ),
-          IconButton(
-            icon: const Icon(Icons.close, size: 20),
-            color: Colors.black45,
-            tooltip: 'Hide',
-            onPressed: () => setState(() => _dismissed.add(f.id)),
-          ),
-        ]),
-      ),
+        ),
+        const SizedBox(width: 6),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: kGold, foregroundColor: kInk, padding: const EdgeInsets.symmetric(horizontal: 14), minimumSize: const Size(0, 34), visualDensity: VisualDensity.compact),
+          onPressed: f.busy ? null : () => _call(f),
+          child: Text(f.busy ? 'Busy' : 'Call', style: const TextStyle(fontWeight: FontWeight.w800)),
+        ),
+        IconButton(
+          icon: const Icon(Icons.close, size: 18),
+          color: Colors.white70,
+          visualDensity: VisualDensity.compact,
+          tooltip: 'Hide',
+          onPressed: () => setState(() => _dismissed.add(f.id)),
+        ),
+      ]),
     );
   }
 }
