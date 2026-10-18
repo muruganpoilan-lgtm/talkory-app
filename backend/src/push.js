@@ -118,4 +118,30 @@ async function notifyHostOnline(hostId, hostName) {
   }
 }
 
-module.exports = { notifyIncomingCall, notifyCallCancelled, notifyMessage, notifyHostOnline, notifyAdminVideoCall };
+// An admin arranged a meeting (or started one). A plain notification to everyone invited; tapping it opens the app, which then offers to join.
+async function notifyMeeting(accountIds, { title, body }) {
+  if (!enabled || !accountIds.length) return;
+  const tokens = [];
+  for (let i = 0; i < accountIds.length; i += 5000) {
+    const { rows } = await pool.query('SELECT DISTINCT push_token FROM devices WHERE account_id = ANY($1)', [accountIds.slice(i, i + 5000)]);
+    tokens.push(...rows.map((r) => r.push_token));
+  }
+  for (let i = 0; i < tokens.length; i += 500) {
+    const chunk = tokens.slice(i, i + 500);
+    try {
+      const res = await admin.messaging().sendEachForMulticast({
+        tokens: chunk,
+        notification: { title, body },
+        data: { type: 'meeting' },
+        android: { priority: 'high', ttl: 60 * 60 * 1000 },
+      });
+      const dead = [];
+      res.responses.forEach((r, k) => { if (!r.success && DEAD_TOKEN_CODES.includes(r.error?.code)) dead.push(chunk[k]); });
+      if (dead.length) await pool.query('DELETE FROM devices WHERE push_token = ANY($1)', [dead]);
+    } catch (e) {
+      console.error('[push] meeting send failed:', e.code || e.message);
+    }
+  }
+}
+
+module.exports = { notifyIncomingCall, notifyCallCancelled, notifyMessage, notifyHostOnline, notifyAdminVideoCall, notifyMeeting };

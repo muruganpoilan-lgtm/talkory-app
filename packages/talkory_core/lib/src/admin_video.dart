@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'api.dart';
+import 'meeting.dart';
 import 'ringer.dart';
 
 /// Watches for a video call from the Talkory team (started in the admin panel) and shows Accept / Decline.
@@ -15,6 +16,9 @@ class AdminCallWatcher {
   Timer? _timer;
   bool _busy = false;
   final Set<String> _seen = {};
+  final Set<String> _seenMeetings = {};
+  final Map<String, DateTime> _snoozed = {};
+  int _tick = 0;
 
   void start(BuildContext context, Api api) {
     _timer?.cancel();
@@ -31,12 +35,53 @@ class AdminCallWatcher {
     try {
       final c = await api.adminCallIncoming();
       final id = c?['id'] as String?;
-      if (id == null || !_seen.add(id) || !context.mounted) return;
-      _busy = true;
-      await _ring(context, api, id);
+      if (id != null && _seen.add(id) && context.mounted) {
+        _busy = true;
+        await _ring(context, api, id);
+        return;
+      }
+      // Meetings arranged by the team: look every ~9 seconds
+      if (++_tick % 3 == 0 && context.mounted) await _checkMeetings(context, api);
     } catch (_) {
     } finally {
       _busy = false;
+    }
+  }
+
+
+  Future<void> _checkMeetings(BuildContext context, Api api) async {
+    final list = await api.liveMeetings();
+    for (final m in list) {
+      final id = (m as Map)['id'] as String;
+      final snooze = _snoozed[id];
+      if (_seenMeetings.contains(id) || (snooze != null && DateTime.now().isBefore(snooze)) || !context.mounted) continue;
+      _busy = true;
+      final title = '${m['title'] ?? 'Meeting'}';
+      final join = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dctx) => AlertDialog(
+          title: const Text('Video meeting'),
+          content: Text('The Talkory team has started a meeting: $title'),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(dctx).pop(false), child: const Text('Later')),
+            FilledButton(onPressed: () => Navigator.of(dctx).pop(true), child: const Text('Join')),
+          ],
+        ),
+      );
+      if (join != true || !context.mounted) {
+        _snoozed[id] = DateTime.now().add(const Duration(minutes: 10));
+        return;
+      }
+      try {
+        final session = await api.joinMeeting(id);
+        if (!context.mounted) return;
+        _seenMeetings.add(id);
+        await Navigator.of(context).push(MaterialPageRoute(builder: (_) => MeetingScreen(api: api, session: session, title: title)));
+      } on ApiException catch (e) {
+        if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      }
+      return;
     }
   }
 

@@ -109,6 +109,150 @@ Future<void> _playAudio(BuildContext c, Api api, String path) async {
   }
 }
 
+
+String _audience(String a) => switch (a) {
+      'everyone' => 'everyone',
+      'users' => 'all users',
+      'partners' => 'all hosts',
+      _ => 'selected people',
+    };
+
+/// Pick people to invite (used for "Selected people").
+class _PickPeople extends StatefulWidget {
+  const _PickPeople({required this.api});
+  final Api api;
+  @override
+  State<_PickPeople> createState() => _PickPeopleState();
+}
+
+class _PickPeopleState extends State<_PickPeople> {
+  List _all = [];
+  final Set<String> _sel = {};
+  String _q = '';
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.api.adminGet('/admin/meetings/accounts').then((d) {
+      if (mounted) setState(() => _all = d as List);
+    }).catchError((_) {
+      if (mounted) setState(() => _error = 'Could not load people');
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = _all.where((a) => '${a['display_name']} ${a['phone']}'.toLowerCase().contains(_q.toLowerCase())).toList();
+    return Scaffold(
+      appBar: AppBar(title: Text('Invite people (${_sel.length})'), actions: [
+        TextButton(onPressed: _sel.isEmpty ? null : () => Navigator.pop(context, _sel.toList()), child: const Text('Done')),
+      ]),
+      body: _error != null
+          ? Center(child: Text(_error!))
+          : Column(children: [
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: TextField(decoration: const InputDecoration(hintText: 'Search name or phone', border: OutlineInputBorder(), prefixIcon: Icon(Icons.search)), onChanged: (v) => setState(() => _q = v)),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: rows.length,
+                  itemBuilder: (_, i) {
+                    final a = rows[i] as Map;
+                    final id = '${a['id']}';
+                    return CheckboxListTile(
+                      value: _sel.contains(id),
+                      title: Text('${a['display_name']}'),
+                      subtitle: Text('${a['role'] == 'partner' ? 'Host' : 'User'} · ${a['phone']}'),
+                      onChanged: (v) => setState(() => v == true ? _sel.add(id) : _sel.remove(id)),
+                    );
+                  },
+                ),
+              ),
+            ]),
+    );
+  }
+}
+
+/// New meeting: title, who to invite, and now or later. Returns true when something was created.
+Future<bool> _newMeeting(BuildContext context, Api api) async {
+  final title = TextEditingController();
+  var audience = 'everyone';
+  DateTime? at;
+  List<String> picked = [];
+  final go = await showDialog<bool>(
+    context: context,
+    builder: (d) => StatefulBuilder(
+      builder: (d, set) => AlertDialog(
+        title: const Text('New video meeting'),
+        content: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            TextField(controller: title, maxLength: 80, decoration: const InputDecoration(labelText: 'Meeting title')),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              initialValue: audience,
+              decoration: const InputDecoration(labelText: 'Invite'),
+              items: const [
+                DropdownMenuItem(value: 'everyone', child: Text('Everyone (users and hosts)')),
+                DropdownMenuItem(value: 'users', child: Text('All users')),
+                DropdownMenuItem(value: 'partners', child: Text('All hosts')),
+                DropdownMenuItem(value: 'selected', child: Text('Selected people')),
+              ],
+              onChanged: (v) => set(() => audience = v ?? 'everyone'),
+            ),
+            if (audience == 'selected')
+              TextButton.icon(
+                icon: const Icon(Icons.group_add),
+                label: Text(picked.isEmpty ? 'Choose people' : '${picked.length} chosen · change'),
+                onPressed: () async {
+                  final r = await Navigator.of(context).push<List<String>>(MaterialPageRoute(builder: (_) => _PickPeople(api: api)));
+                  if (r != null) set(() => picked = r);
+                },
+              ),
+            const SizedBox(height: 8),
+            Text(at == null ? 'Starts: right now' : 'Starts: ${_when(at!.toIso8601String())}'),
+            Wrap(spacing: 8, children: [
+              TextButton(
+                onPressed: () async {
+                  final now = DateTime.now();
+                  final day = await showDatePicker(context: d, initialDate: now, firstDate: now, lastDate: now.add(const Duration(days: 60)));
+                  if (day == null || !d.mounted) return;
+                  final t = await showTimePicker(context: d, initialTime: TimeOfDay.fromDateTime(now.add(const Duration(hours: 1))));
+                  if (t == null) return;
+                  set(() => at = DateTime(day.year, day.month, day.day, t.hour, t.minute));
+                },
+                child: const Text('Pick a later time'),
+              ),
+              if (at != null) TextButton(onPressed: () => set(() => at = null), child: const Text('Start now instead')),
+            ]),
+          ]),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(d, true), child: Text(at == null ? 'Start meeting' : 'Schedule')),
+        ],
+      ),
+    ),
+  );
+  if (go != true || !context.mounted) return false;
+  try {
+    final r = await api.adminCreateMeeting(title: title.text.trim(), audience: audience, accountIds: picked, scheduledAt: at);
+    if (!context.mounted) return true;
+    if (r['status'] == 'live') {
+      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => MeetingScreen(api: api, session: CallSession.fromJson(r), title: title.text.trim(), asAdmin: true)));
+    } else {
+      _toast(context, 'Meeting scheduled. Invited people have been notified.');
+    }
+    return true;
+  } on ApiException catch (e) {
+    if (context.mounted) _toast(context, e.message);
+  } catch (_) {
+    if (context.mounted) _toast(context, 'Network error');
+  }
+  return false;
+}
+
 List<_Spec> _specs() {
   _Act approve(String url) => _Act('Approve', (c, api, r) => _do(c, () => api.adminPost(url.replaceAll('{id}', '${r['id']}'), {'status': 'approved'})), color: Colors.green);
   _Act reject(String url, String prompt, String initial) => _Act('Reject', (c, api, r) async {
@@ -130,6 +274,26 @@ List<_Spec> _specs() {
             }
             return false;
           }, color: Colors.green),
+        ]),
+    _Spec('Meetings', '/admin/meetings', (r) => '${r['title']}',
+        (r) => '${r['status'] == 'live' ? 'LIVE now' : r['status'] == 'scheduled' ? 'Scheduled ${_when(r['scheduled_at'])}' : 'Ended'} · ${_audience('${r['audience']}')}', (r) => [
+          if (r['status'] == 'live' || r['status'] == 'scheduled')
+            _Act(r['status'] == 'live' ? 'Join' : 'Start now', (c, api, r) async {
+              try {
+                final s = await api.adminJoinMeeting('${r['id']}');
+                if (!c.mounted) return false;
+                await Navigator.of(c).push(MaterialPageRoute(builder: (_) => MeetingScreen(api: api, session: s, title: '${r['title']}', asAdmin: true)));
+              } on ApiException catch (e) {
+                if (c.mounted) _toast(c, e.message);
+              }
+              return true;
+            }, color: Colors.green),
+          if (r['status'] == 'live' || r['status'] == 'scheduled')
+            _Act(r['status'] == 'live' ? 'End' : 'Cancel', (c, api, r) async {
+              if (!await _confirm(c, '${r['status'] == 'live' ? 'End' : 'Cancel'} "${r['title']}" for everyone?')) return false;
+              if (!c.mounted) return false;
+              return _do(c, () => api.adminEndMeeting('${r['id']}'));
+            }, color: Colors.red),
         ]),
     _Spec('Payouts', '/partner/admin/payouts', (r) => '${r['display_name']}  ${_rs(r['amount'] as num)}',
         (r) => 'UPI ${r['upi_id']} · ${_when(r['requested_at'])}${r['kyc'] != 'approved' ? ' · KYC ${r['kyc']}' : ''}', (r) => [
@@ -228,6 +392,15 @@ class _AdminHomeState extends State<AdminHome> {
           ),
         ),
       ),
+      floatingActionButton: _tabs[_i].title == 'Meetings'
+          ? FloatingActionButton.extended(
+              onPressed: () async {
+                if (await _newMeeting(context, widget.api)) setState(() => _reload++);
+              },
+              icon: const Icon(Icons.video_call),
+              label: const Text('New meeting'),
+            )
+          : null,
       body: _TabList(key: ValueKey('$_i-$_reload'), api: widget.api, spec: _tabs[_i], onChanged: () => setState(() => _reload++)),
     );
   }

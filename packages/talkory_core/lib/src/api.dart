@@ -188,6 +188,21 @@ class Api {
   Future<void> endAdminCall(String id) => _send('POST', '/admin-calls/$id/end');
   Future<String> adminCallStatus(String id) async => (await _send('GET', '/admin-calls/$id/status') as Map)['status'] as String;
 
+  // ---- group meetings (free; only admins create them)
+  Future<List<dynamic>> liveMeetings() async => ((await _send('GET', '/meetings/live')) as List?) ?? [];
+  Future<CallSession> joinMeeting(String id) async => CallSession.fromJson(await _send('POST', '/meetings/$id/join'));
+  Future<String> meetingStatus(String id) async => (await _send('GET', '/meetings/$id/status') as Map)['status'] as String;
+  Future<Map<String, dynamic>> adminCreateMeeting({required String title, required String audience, List<String> accountIds = const [], DateTime? scheduledAt}) async =>
+      Map<String, dynamic>.from(await _send('POST', '/admin/meetings', {
+        'title': title,
+        'audience': audience,
+        if (accountIds.isNotEmpty) 'accountIds': accountIds,
+        if (scheduledAt != null) 'scheduledAt': scheduledAt.toUtc().toIso8601String(),
+      }) as Map);
+  Future<CallSession> adminJoinMeeting(String id) async => CallSession.fromJson(await _send('POST', '/admin/meetings/$id/join'));
+  Future<String> adminMeetingStatus(String id) async => (await _send('GET', '/admin/meetings/$id') as Map)['status'] as String;
+  Future<void> adminEndMeeting(String id) => _send('POST', '/admin/meetings/$id/end');
+
   Future<CallSession> acceptCall(String id) async =>
       CallSession.fromJson(await _send('POST', '/calls/$id/accept'));
 

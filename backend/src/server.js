@@ -48,6 +48,9 @@ const tickets = require('./tickets');
 app.use('/admin/tickets', tickets.admin);
 const adminCalls = require('./admincalls');
 app.use('/admin/video-calls', adminCalls.admin);
+const meetings = require('./meetings');
+app.use('/admin/meetings', meetings.admin);
+app.use('/meetings', meetings.app);
 app.use('/admin-calls', adminCalls.app);
 app.use('/admin', require('./admin'));
 app.use('/panel', express.static(path.join(__dirname, '../admin'))); // admin web panel

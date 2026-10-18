@@ -55,6 +55,9 @@ const TABS={
  video:{url:'/admin/video-calls/accounts',cols:['Name','Role','Phone'],
   row:r=>[esc(r.display_name),esc(r.role),esc(r.phone)],
   acts:r=>[['Video call','ok',null,()=>videoCall(r)]]},
+ meetings:{url:'/admin/meetings',cols:['Title','Who','Status','When'],
+  row:r=>[esc(r.title),({everyone:'Everyone',users:'All users',partners:'All hosts',selected:'Selected people'})[r.audience]||esc(r.audience),r.status==='live'?'<b class="ok">LIVE</b>':esc(r.status),when(r.scheduled_at||r.started_at)],
+  acts:r=>r.status==='ended'?[]:[[r.status==='live'?'Join':'Start now','ok',null,()=>meetingRoom(r.id,r.title)],['End','bad','/admin/meetings/'+r.id+'/end',()=>({}),'End this meeting for everyone?']]},
  support:{url:'/admin/tickets',cols:['Customer','Subject','Last message','Updated'],
   row:r=>[esc(r.display_name)+' <span class="mut">('+r.role+', '+esc(r.phone)+')</span>',(r.needs_reply?'<b class="err">● </b>':'')+esc(r.subject),esc((r.last_body||'').slice(0,120)),when(r.updated_at)],
   acts:r=>[['Open & reply','',null,()=>openTicket(r.id)],['Close','bad','/admin/tickets/'+r.id+'/close',()=>({}),'Close this ticket?']]},
@@ -127,10 +130,68 @@ async function listenIntro(id){
   const u=URL.createObjectURL(await r.blob()),d=document.createElement('dialog');
   d.innerHTML=`<audio controls autoplay src="${u}"></audio><p><button>Close</button></p>`;
   d.querySelector('button').onclick=()=>{d.close();d.remove();URL.revokeObjectURL(u)};document.body.appendChild(d);d.showModal()}
+async function meetingRoom(id,title){
+  const d=document.createElement('dialog');d.style.cssText='width:min(900px,96vw)';
+  d.innerHTML=`<h3 style="margin:0 0 4px">${esc(title)}</h3><div class="mut" id="ms">Joining…</div>
+<div id="mg" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;margin:12px 0"><div id="m0" style="background:#000;aspect-ratio:4/3;border-radius:10px"></div></div>
+<p style="display:flex;gap:8px;justify-content:flex-end;margin:0"><button id="mu">Mute</button><button id="cm">Camera off</button><button id="lv">Leave</button><button class="bad" id="ea">End for everyone</button></p>`;
+  document.body.appendChild(d);d.showModal();
+  const st=t=>{d.querySelector('#ms').textContent=t};
+  const count=()=>d.querySelector('#mg').children.length;
+  let client,mic,cam,poll,done=false;
+  const finish=async(msg,end)=>{if(done)return;done=true;clearInterval(poll);
+    try{mic&&mic.close();cam&&cam.close();client&&await client.leave()}catch(_){}
+    if(end)try{await api('/admin/meetings/'+id+'/end',{})}catch(_){}
+    if(msg){st(msg);await new Promise(x=>setTimeout(x,1200))}d.close();d.remove();render()};
+  d.querySelector('#lv').onclick=()=>finish('You left the meeting');
+  d.querySelector('#ea').onclick=()=>{if(confirm('End this meeting for everyone?'))finish('Meeting ended',true)};
+  d.addEventListener('cancel',e=>{e.preventDefault();finish()});
+  try{
+    await loadAgora();
+    const s=await api('/admin/meetings/'+id+'/join',{});
+    client=AgoraRTC.createClient({mode:'rtc',codec:'vp8'});
+    client.on('user-published',async(u,type)=>{await client.subscribe(u,type);
+      if(type==='video'){let t=d.querySelector('#m'+u.uid);
+        if(!t){t=document.createElement('div');t.id='m'+u.uid;t.style.cssText='background:#000;aspect-ratio:4/3;border-radius:10px';d.querySelector('#mg').appendChild(t)}
+        u.videoTrack.play(t)}
+      if(type==='audio')u.audioTrack.play();st(count()+' in meeting')});
+    client.on('user-left',u=>{const t=d.querySelector('#m'+u.uid);if(t)t.remove();st(count()+' in meeting')});
+    await client.join(s.appId,s.channel,s.token,s.uid);
+    [mic,cam]=await AgoraRTC.createMicrophoneAndCameraTracks();
+    cam.play('m0');await client.publish([mic,cam]);st('You are in the meeting');
+    d.querySelector('#mu').onclick=async e=>{const m=!mic.muted;await mic.setMuted(m);e.target.textContent=m?'Unmute':'Mute'};
+    d.querySelector('#cm').onclick=async e=>{const m=!cam.muted;await cam.setMuted(m);e.target.textContent=m?'Camera on':'Camera off'};
+    poll=setInterval(async()=>{try{const x=await api('/admin/meetings/'+id);if(x.status==='ended')finish('The meeting has ended')}catch(_){}},4000);
+  }catch(e){alert(e.message);finish()}}
+async function newMeeting(){
+  let people=[];try{people=await api('/admin/meetings/accounts')}catch(_){}
+  const d=document.createElement('dialog');d.style.cssText='width:min(520px,94vw)';
+  d.innerHTML=`<h3 style="margin:0 0 10px">New video meeting</h3>
+<label>Title<br><input id="nt" maxlength="80" style="width:100%" placeholder="e.g. Host training"></label><p></p>
+<label>Invite<br><select id="na" style="width:100%"><option value="everyone">Everyone (users and hosts)</option><option value="users">All users</option><option value="partners">All hosts</option><option value="selected">Selected people</option></select></label>
+<div id="np" style="display:none;margin:8px 0"><input id="nq" placeholder="Search name or phone" style="width:100%"><div id="nl" style="max-height:200px;overflow:auto;margin-top:6px"></div></div>
+<p><label>Start time (leave empty to start right now)<br><input id="nw" type="datetime-local" style="width:100%"></label></p>
+<p style="display:flex;gap:8px;justify-content:flex-end;margin:0"><button id="nc">Cancel</button><button class="pri" id="ng">Start meeting</button></p>`;
+  document.body.appendChild(d);d.showModal();
+  const sel=new Set();
+  const draw=()=>{const q=d.querySelector('#nq').value.toLowerCase();
+    d.querySelector('#nl').innerHTML=people.filter(p=>(p.display_name+' '+p.phone).toLowerCase().includes(q)).map(p=>`<label style="display:block"><input type="checkbox" data-id="${p.id}" ${sel.has(p.id)?'checked':''}> ${esc(p.display_name)} <span class="mut">(${p.role==='partner'?'host':'user'}, ${esc(p.phone)})</span></label>`).join('')};
+  draw();d.querySelector('#nq').oninput=draw;
+  d.querySelector('#nl').onchange=e=>{const c=e.target;c.checked?sel.add(c.dataset.id):sel.delete(c.dataset.id)};
+  d.querySelector('#na').onchange=e=>{d.querySelector('#np').style.display=e.target.value==='selected'?'':'none'};
+  d.querySelector('#nw').oninput=e=>{d.querySelector('#ng').textContent=e.target.value?'Schedule':'Start meeting'};
+  d.querySelector('#nc').onclick=()=>{d.close();d.remove()};
+  d.querySelector('#ng').onclick=async()=>{
+    const title=d.querySelector('#nt').value.trim(),w=d.querySelector('#nw').value;
+    try{const r=await api('/admin/meetings',{title,audience:d.querySelector('#na').value,accountIds:[...sel],scheduledAt:w?new Date(w).toISOString():undefined});
+      d.close();d.remove();
+      if(r.status==='live')meetingRoom(r.id,title);else{alert('Meeting scheduled. Invited people have been notified.');render()}
+    }catch(e){alert(e.message)}}}
 async function render(){
   if(!token)return login();
   $('#app').innerHTML=`<header><b>Talkory Admin</b><nav>${Object.keys(TABS).map(k=>`<button class="${k===tab?'on':''}" data-t="${k}">${k[0].toUpperCase()+k.slice(1)}</button>`).join('')}</nav><button id="lo">Log out</button></header><main><div class="card" id="list"><div class="empty">Loading…</div></div></main>`;
   $('#lo').onclick=logout;document.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{tab=b.dataset.t;render()});
+  if(tab==='meetings')$('#list').insertAdjacentHTML('beforebegin','<p><button class="pri" id="nm">+ New meeting</button></p>'),$('#nm').onclick=newMeeting;
   const T=TABS[tab];let rows=[];
   try{rows=await api(T.url)}catch(e){return $('#list').innerHTML='<div class="empty err">'+esc(e.message)+'</div>'}
   if(!rows.length)return $('#list').innerHTML='<div class="empty">Nothing pending 🎉</div>';
