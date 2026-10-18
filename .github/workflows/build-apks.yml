@@ -47,5 +47,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: talkory-apks
-          path: dist/*.apk
+          path: |
+            dist/*.apk
+            dist/admin-*.txt
           if-no-files-found: error
