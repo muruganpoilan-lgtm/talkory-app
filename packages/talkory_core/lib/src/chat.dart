@@ -104,7 +104,10 @@ class _ChatTabState extends State<ChatTab> {
                           final unread = (t['unread'] ?? 0) as int;
                           return ListTile(
                             leading: ProfileAvatar(baseUrl: widget.api.baseUrl, name: t['name'] as String, url: t['avatar_url'] as String?, radius: 26, female: widget.isUser),
-                            title: Text(t['name'] as String, style: TextStyle(fontWeight: unread > 0 ? FontWeight.bold : FontWeight.w500)),
+                            title: Row(children: [
+                              Flexible(child: Text(t['name'] as String, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: unread > 0 ? FontWeight.bold : FontWeight.w500))),
+                              if (t['best_friend'] == true) ...[const SizedBox(width: 6), const BestFriendBadge()],
+                            ]),
                             subtitle: Text(t['last_body'] as String, maxLines: 1, overflow: TextOverflow.ellipsis),
                             trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
                               Text(_ago(t['last_at'] as String?), style: TextStyle(color: muted, fontSize: 12)),
@@ -150,6 +153,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Timer? _timer;
   bool _sending = false, _loaded = false;
   int? _balance; // paise, users only
+  bool _bestFriend = false;
   Map<String, dynamic>? _free; // hosts only: is a free 2-minute call to this user available?
 
   int get _lastId => _msgs.isEmpty ? 0 : _msgs.last['id'] as int;
@@ -161,6 +165,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _timer = Timer.periodic(const Duration(seconds: 4), (_) => _poll());
     if (widget.isUser) widget.api.walletBalance().then((b) { if (mounted) setState(() => _balance = b); }).catchError((_) {});
     if (!widget.isUser) _loadFree();
+    widget.api.isBestFriend(widget.otherId).then((b) { if (mounted) setState(() => _bestFriend = b); }).catchError((_) {});
   }
 
   Future<void> _loadFree() async {
@@ -309,7 +314,10 @@ class _ChatScreenState extends State<ChatScreen> {
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.otherName),
+        title: Row(children: [
+          Flexible(child: Text(widget.otherName, overflow: TextOverflow.ellipsis)),
+          if (_bestFriend) ...[const SizedBox(width: 8), const BestFriendBadge()],
+        ]),
         actions: [
           if (!widget.isUser) IconButton(icon: const Icon(Icons.call), tooltip: 'Call', onPressed: _callUser),
           PopupMenuButton<String>(
@@ -402,4 +410,15 @@ class _ChatScreenState extends State<ChatScreen> {
       ]),
     );
   }
+}
+
+/// Small gold "Best Friend" badge, shown once a user and a host have had more than 5 calls together.
+class BestFriendBadge extends StatelessWidget {
+  const BestFriendBadge({super.key});
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(color: const Color(0xFFFFF1CC), borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFE0A800))),
+        child: const Text('❤ Best Friend', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF8A5A00))),
+      );
 }

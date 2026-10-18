@@ -5,6 +5,8 @@ const push = require('./push');
 
 const MESSAGE_COST = 30; // paise = 0.3 coins, charged to the user for each message they send. Hosts reply free.
 const MAX_LEN = 500;
+// "Best Friend" badge: shown once a user and a host have had more than this many answered calls together
+const BEST_FRIEND_AFTER = Number(process.env.BEST_FRIEND_AFTER_CALLS || 5);
 // Same rule as profiles: no phone numbers, handles or links, so hosts and users can't move off-platform
 const LEAKS = /(\+?\d[\d\s-]{6,}\d|@|https?:|www\.)/i;
 
@@ -25,7 +27,8 @@ router.get('/threads', requireAuth(['user', 'partner']), async (req, res) => {
   const mine = req.auth.role === 'user' ? 'user_id' : 'partner_id';
   const other = req.auth.role === 'user' ? 'partner_id' : 'user_id';
   const { rows } = await pool.query(
-    `SELECT t.other_id AS id, a.display_name AS name, a.avatar_url, t.last_body, t.last_at, t.unread
+    `SELECT t.other_id AS id, a.display_name AS name, a.avatar_url, t.last_body, t.last_at, t.unread,
+           (SELECT COUNT(*) FROM calls c WHERE c.${mine} = $1 AND c.${other} = t.other_id AND c.started_at IS NOT NULL) > $2 AS best_friend
        FROM (
          SELECT ${other} AS other_id,
                 (ARRAY_AGG(body ORDER BY id DESC))[1] AS last_body,
@@ -35,7 +38,7 @@ router.get('/threads', requireAuth(['user', 'partner']), async (req, res) => {
        ) t JOIN accounts a ON a.id = t.other_id
       WHERE NOT a.is_blocked
         AND NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id=$1 AND b.blocked_id=t.other_id) OR (b.blocker_id=t.other_id AND b.blocked_id=$1))
-      ORDER BY t.last_at DESC LIMIT 100`, [req.auth.id]);
+      ORDER BY t.last_at DESC LIMIT 100`, [req.auth.id, BEST_FRIEND_AFTER]);
   // a user's photo is private to them; hosts only ever see an initial
   res.json(rows.map((r) => ({ ...r, avatar_url: req.auth.role === 'user' ? r.avatar_url : null })));
 });
@@ -44,6 +47,14 @@ router.get('/unread', requireAuth(['user', 'partner']), async (req, res) => {
   const mine = req.auth.role === 'user' ? 'user_id' : 'partner_id';
   const r = await pool.query(`SELECT COUNT(*)::int AS n FROM messages WHERE ${mine}=$1 AND sender_id<>$1 AND read_at IS NULL`, [req.auth.id]);
   res.json({ unread: r.rows[0].n });
+});
+
+// Is this person a "Best Friend"? (more than BEST_FRIEND_AFTER answered calls between this user and host)
+router.get('/:otherId/info', requireAuth(['user', 'partner']), async (req, res) => {
+  if (!/^[0-9a-f-]{36}$/i.test(req.params.otherId)) return res.status(404).json({ error: 'not found' });
+  const { userId, partnerId } = sides(req, req.params.otherId);
+  const n = (await pool.query('SELECT COUNT(*)::int AS n FROM calls WHERE user_id=$1 AND partner_id=$2 AND started_at IS NOT NULL', [userId, partnerId])).rows[0].n;
+  res.json({ bestFriend: n > BEST_FRIEND_AFTER, calls: n });
 });
 
 // Messages in a thread. ?after=<id> returns only newer ones (polling). Opening a thread marks theirs as read.
