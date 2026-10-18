@@ -18,11 +18,12 @@ const agoraToken = (channel, uid) =>
 router.post('/', requireAuth(['user']), async (req, res) => {
   const { partnerId } = req.body;
   const { rows } = await pool.query(
-    `SELECT p.rate_per_min, p.is_online FROM partner_profiles p
+    `SELECT p.rate_per_min, p.is_online, p.manual_busy FROM partner_profiles p
       JOIN accounts a ON a.id=p.account_id
       WHERE p.account_id=$1 AND p.kyc='approved' AND NOT a.is_blocked`, [partnerId]);
   const p = rows[0];
   if (!p || !p.is_online) return res.status(409).json({ error: 'partner offline' });
+  if (p.manual_busy) return res.status(409).json({ error: 'partner is busy right now' });
 
   const blocked = await pool.query(
     'SELECT 1 FROM blocks WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1)',

@@ -16,7 +16,7 @@ class HomeTab extends StatefulWidget {
 
 class _HomeTabState extends State<HomeTab> {
   Map<String, dynamic>? _profile, _earn;
-  bool _online = false;
+  String _status = 'offline'; // 'online' | 'busy' | 'offline'
 
   @override
   void initState() {
@@ -36,7 +36,7 @@ class _HomeTabState extends State<HomeTab> {
         setState(() {
           _profile = p;
           _earn = e;
-          _online = p['isOnline'] == true;
+          _status = (p['status'] as String?) ?? (p['isOnline'] == true ? 'online' : 'offline');
         });
       }
     } on ApiException catch (e) {
@@ -44,10 +44,10 @@ class _HomeTabState extends State<HomeTab> {
     } catch (_) {}
   }
 
-  Future<void> _toggle(bool value) async {
+  Future<void> _setStatus(String value) async {
     try {
-      await widget.api.setOnline(value);
-      setState(() => _online = value);
+      await widget.api.setStatus(value);
+      setState(() => _status = value);
     } on ApiException catch (e) {
       if (e.status == 401) return widget.onLogout();
       _snack(e.message);
@@ -94,16 +94,40 @@ class _HomeTabState extends State<HomeTab> {
             Transform.translate(
               offset: const Offset(0, -34),
               child: SoftCard(
-                child: SwitchListTile(
-                  value: _online,
-                  onChanged: _toggle,
-                  activeColor: Colors.green,
-                  secondary: CircleAvatar(
-                    backgroundColor: _online ? Colors.green.shade50 : Colors.grey.shade200,
-                    child: Icon(_online ? Icons.wifi_tethering : Icons.wifi_tethering_off, color: _online ? Colors.green : Colors.grey),
-                  ),
-                  title: Text(_online ? 'You are online' : 'You are offline', style: const TextStyle(fontWeight: FontWeight.w700, color: kInk)),
-                  subtitle: Text(_online ? 'Incoming calls will ring even if the app is closed' : 'Go online to start receiving calls'),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(children: [
+                      Icon(_status == 'online' ? Icons.wifi_tethering : _status == 'busy' ? Icons.do_not_disturb_on_outlined : Icons.wifi_tethering_off,
+                          color: _status == 'online' ? Colors.green : _status == 'busy' ? Colors.orange : Colors.grey),
+                      const SizedBox(width: 10),
+                      Text(_status == 'online' ? 'You are online' : _status == 'busy' ? 'You are busy' : 'You are offline',
+                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: kInk)),
+                    ]),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: SegmentedButton<String>(
+                        showSelectedIcon: false,
+                        segments: const [
+                          ButtonSegment(value: 'online', label: Text('Online')),
+                          ButtonSegment(value: 'busy', label: Text('Busy')),
+                          ButtonSegment(value: 'offline', label: Text('Offline')),
+                        ],
+                        selected: {_status},
+                        onSelectionChanged: (v) => _setStatus(v.first),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _status == 'online'
+                          ? 'Incoming calls will ring even if the app is closed'
+                          : _status == 'busy'
+                              ? 'Shown as Busy: users can see you but cannot call'
+                              : 'Go online to start receiving calls',
+                      style: const TextStyle(color: Colors.black54, fontSize: 13),
+                    ),
+                  ]),
                 ),
               ),
             ),

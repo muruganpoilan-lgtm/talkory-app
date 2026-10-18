@@ -195,12 +195,36 @@ class _CallTabState extends State<CallTab> {
                 }
                 final list = snap.data!;
                 if (list.isEmpty) {
-                  return ListView(children: const [Padding(padding: EdgeInsets.all(32), child: Text('No hosts online right now. Pull down to refresh.'))]);
+                  return ListView(children: const [Padding(padding: EdgeInsets.all(32), child: Text('No hosts to show right now. Pull down to refresh.'))]);
+                }
+                // Online hosts first, then Busy, then Offline, each under a small heading
+                final items = <Object>[];
+                for (final st in const ['online', 'busy', 'offline']) {
+                  final group = list.where((p) => p.status == st).toList();
+                  if (group.isEmpty) continue;
+                  items.add(st);
+                  items.addAll(group);
                 }
                 return ListView.builder(
                   padding: const EdgeInsets.only(bottom: 16),
-                  itemCount: list.length,
-                  itemBuilder: (_, i) => HostCard(p: list[i], baseUrl: widget.api.baseUrl, onCall: () => _call(list[i]), onChat: () => _chat(list[i])),
+                  itemCount: items.length,
+                  itemBuilder: (_, i) {
+                    final it = items[i];
+                    if (it is String) {
+                      final label = it == 'online' ? 'ONLINE' : it == 'busy' ? 'BUSY' : 'OFFLINE';
+                      final color = it == 'online' ? Colors.green.shade700 : it == 'busy' ? Colors.orange.shade800 : Colors.grey.shade600;
+                      return Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 12, 20, 2),
+                        child: Row(children: [
+                          Container(width: 9, height: 9, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+                          const SizedBox(width: 8),
+                          Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w800, letterSpacing: 1, fontSize: 12)),
+                        ]),
+                      );
+                    }
+                    final h = it as Partner;
+                    return HostCard(p: h, baseUrl: widget.api.baseUrl, onCall: () => _call(h), onChat: () => _chat(h));
+                  },
                 );
               },
             ),
@@ -257,7 +281,8 @@ class HostCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final dot = p.busy ? Colors.orange : Colors.green;
+    final canCall = p.status == 'online';
+    final dot = p.status == 'busy' ? Colors.orange : p.status == 'offline' ? Colors.grey : Colors.green;
     final muted = TextStyle(color: scheme.onSurfaceVariant, fontSize: 12);
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
@@ -295,7 +320,7 @@ class HostCard extends StatelessWidget {
               const Icon(Icons.star_rounded, size: 16, color: Color(0xFFFFB020)),
               const SizedBox(width: 2),
               Flexible(
-                child: Text('${p.rating.toStringAsFixed(1)} · ${formatCoins(p.ratePerMin)} coins/min${p.busy ? ' · Busy' : ''}',
+                child: Text('${p.rating.toStringAsFixed(1)} · ${formatCoins(p.ratePerMin)} coins/min${p.status == 'busy' ? ' · Busy' : p.status == 'offline' ? ' · Offline' : ''}',
                     maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: kInk)),
               ),
             ]),
@@ -305,7 +330,7 @@ class HostCard extends StatelessWidget {
         const SizedBox(width: 8),
         Column(mainAxisSize: MainAxisSize.min, children: [
           Opacity(
-            opacity: p.busy ? 0.4 : 1,
+            opacity: canCall ? 1 : 0.4,
             child: Material(
               color: Colors.transparent,
               child: Ink(
@@ -314,7 +339,7 @@ class HostCard extends StatelessWidget {
                 decoration: BoxDecoration(gradient: brandGradient(scheme.primary), shape: BoxShape.circle),
                 child: InkWell(
                   customBorder: const CircleBorder(),
-                  onTap: p.busy ? null : onCall,
+                  onTap: canCall ? onCall : null,
                   child: const Icon(Icons.call, color: Colors.white, size: 22),
                 ),
               ),

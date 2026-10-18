@@ -52,6 +52,7 @@ class Partner {
         rating = double.tryParse('${j['rating_avg']}') ?? 0,
         ratingCount = j['rating_count'] ?? 0,
         busy = j['busy'] == true,
+        status = (j['status'] as String?) ?? (j['busy'] == true ? 'busy' : 'online'),
         avatarUrl = j['avatar_url'],
         introUrl = j['intro_url'],
         verified = j['verified'] == true;
@@ -62,6 +63,7 @@ class Partner {
   final int ratePerMin, ratingCount;
   final double rating;
   final bool busy, verified;
+  final String status; // 'online' | 'busy' | 'offline'
 }
 
 class Api {
@@ -120,7 +122,7 @@ class Api {
 
   // ---- user app
   Future<List<Partner>> listPartners({String? language, String? query}) async {
-    final params = <String, String>{if (language != null) 'language': language, if (query != null && query.isNotEmpty) 'q': query};
+    final params = <String, String>{'all': '1', if (language != null) 'language': language, if (query != null && query.isNotEmpty) 'q': query};
     final q = params.isEmpty ? '' : '?${Uri(queryParameters: params).query}';
     final data = await _send('GET', '/partners$q') as List;
     return data.map((e) => Partner.fromJson(e)).toList();
@@ -158,6 +160,9 @@ class Api {
 
   // ---- partner app
   Future<void> setOnline(bool online) => _send('POST', '/partners/online', {'online': online});
+
+  /// status: 'online' | 'busy' | 'offline'
+  Future<void> setStatus(String status) => _send('POST', '/partners/online', {'status': status, 'online': status != 'offline'});
 
   /// Returns {id, user_name} or null.
   Future<Map<String, dynamic>?> incomingCall() async =>
