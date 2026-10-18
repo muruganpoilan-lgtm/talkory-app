@@ -77,7 +77,8 @@ class _PostCallScreenState extends State<PostCallScreen> {
     final text = Theme.of(context).textTheme;
     return Scaffold(
       appBar: AppBar(title: const Text('Call ended'), automaticallyImplyLeading: false),
-      body: ListView(
+      body: Column(children: [
+       Expanded(child: ListView(
         padding: const EdgeInsets.all(24),
         children: [
           if (widget.canRate) ...[
@@ -104,32 +105,32 @@ class _PostCallScreenState extends State<PostCallScreen> {
             FilledButton(onPressed: _busy || _stars == 0 ? null : _submitRating, child: const Text('Submit rating')),
           ] else
             Text('Call with ${widget.peerName} ended', style: text.titleLarge),
-          const SizedBox(height: 32),
-          const Divider(),
-          const SizedBox(height: 8),
-          Text('Something went wrong?', style: text.titleSmall),
-          const SizedBox(height: 8),
-          Row(children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: _busy || _reported ? null : _report,
-                icon: const Icon(Icons.flag_outlined),
-                label: Text(_reported ? 'Reported' : 'Report'),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: _busy || _blocked ? null : _block,
-                icon: const Icon(Icons.block),
-                label: Text(_blocked ? 'Blocked' : 'Block'),
-              ),
-            ),
-          ]),
           const SizedBox(height: 24),
           TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(widget.canRate ? 'Skip' : 'Done')),
         ],
+      )),
+      // Small and far from the main buttons, at the bottom, so they are not tapped by accident
+      SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+          child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            TextButton.icon(
+              style: TextButton.styleFrom(visualDensity: VisualDensity.compact, foregroundColor: Theme.of(context).colorScheme.outline, textStyle: const TextStyle(fontSize: 12)),
+              onPressed: _busy || _reported ? null : _report,
+              icon: const Icon(Icons.flag_outlined, size: 15),
+              label: Text(_reported ? 'Reported' : 'Report'),
+            ),
+            TextButton.icon(
+              style: TextButton.styleFrom(visualDensity: VisualDensity.compact, foregroundColor: Theme.of(context).colorScheme.outline, textStyle: const TextStyle(fontSize: 12)),
+              onPressed: _busy || _blocked ? null : _block,
+              icon: const Icon(Icons.block, size: 15),
+              label: Text(_blocked ? 'Blocked' : 'Block'),
+            ),
+          ]),
+        ),
       ),
+     ]),
     );
   }
 }
