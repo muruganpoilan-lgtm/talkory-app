@@ -112,7 +112,7 @@ build_app() { # project_name label "PERMISSIONS" "ios modes" needs_firebase(yes|
 COMMON="INTERNET ACCESS_NETWORK_STATE RECORD_AUDIO MODIFY_AUDIO_SETTINGS BLUETOOTH_CONNECT ACCESS_COARSE_LOCATION ACCESS_FINE_LOCATION"
 build_app talkory_user    "Talkory"         "$COMMON POST_NOTIFICATIONS CAMERA"                                                                 "audio"                          no
 build_app talkory_partner "Talkory Partner" "$COMMON POST_NOTIFICATIONS USE_FULL_SCREEN_INTENT FOREGROUND_SERVICE FOREGROUND_SERVICE_MICROPHONE WAKE_LOCK VIBRATE CAMERA" "audio remote-notification voip" yes
-build_app talkory_admin   "Talkory Admin"   "INTERNET ACCESS_NETWORK_STATE RECORD_AUDIO MODIFY_AUDIO_SETTINGS BLUETOOTH_CONNECT CAMERA" "" no
+build_app talkory_admin   "Talkory Admin"   "INTERNET ACCESS_NETWORK_STATE RECORD_AUDIO MODIFY_AUDIO_SETTINGS BLUETOOTH_CONNECT CAMERA" "" no || echo "WARNING: the Talkory Admin app failed to build (see the error above). The other apps are fine."
 
 echo; echo "Done. dist/*.apk installs on a phone for testing; dist/*.aab is what you upload to Google Play."
 echo "iPhone builds need a Mac: see BUILD.md and IOS_VOIP.md."
