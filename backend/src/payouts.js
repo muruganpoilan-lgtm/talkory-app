@@ -2,6 +2,11 @@ const router = require('express').Router();
 const { pool, requireAuth } = require('./db');
 
 const MIN_PAYOUT_RUPEES = 500;
+// A host can withdraw once every this many days. Counted from the last request that was not rejected (a rejected one is refunded).
+const WITHDRAW_EVERY_DAYS = Number(process.env.WITHDRAW_EVERY_DAYS || 10);
+const lastPayoutSql = `SELECT requested_at, requested_at + ($2 || ' days')::interval AS next_at FROM payouts
+   WHERE partner_id=$1 AND status IN ('requested','processing','paid') ORDER BY requested_at DESC LIMIT 1`;
+const fmtDay = (d) => new Date(d).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short' });
 const UPI_RE = /^[\w.\-]{2,}@[a-zA-Z]{2,}$/;
 const IST_DAY = "(created_at AT TIME ZONE 'Asia/Kolkata')::date = (now() AT TIME ZONE 'Asia/Kolkata')::date";
 
@@ -15,7 +20,7 @@ const num = (v) => Number(v ?? 0);
 // Everything the earnings screen needs, in one call (all money in paise)
 router.get('/earnings', requireAuth(['partner']), async (req, res) => {
   const id = req.auth.id;
-  const [wallet, sums, payoutSums, profile, calls, payouts] = await Promise.all([
+  const [wallet, sums, payoutSums, profile, calls, payouts, last] = await Promise.all([
     pool.query('SELECT balance FROM wallets WHERE account_id=$1', [id]),
     pool.query(
       `SELECT COALESCE(SUM(amount),0) AS total,
@@ -35,7 +40,9 @@ router.get('/earnings', requireAuth(['partner']), async (req, res) => {
     pool.query(
       `SELECT id, amount, status, upi_id, requested_at, paid_at FROM payouts
         WHERE partner_id=$1 ORDER BY requested_at DESC LIMIT 20`, [id]),
+    pool.query(lastPayoutSql, [id, String(WITHDRAW_EVERY_DAYS)]),
   ]);
+  const nextAt = last.rows[0] && new Date(last.rows[0].next_at) > new Date() ? last.rows[0].next_at : null;
 
   res.json({
     balance: num(wallet.rows[0]?.balance),
@@ -46,6 +53,8 @@ router.get('/earnings', requireAuth(['partner']), async (req, res) => {
     upiId: profile.rows[0]?.upi_id ?? null,
     kyc: profile.rows[0]?.kyc,
     minPayoutRupees: MIN_PAYOUT_RUPEES,
+    withdrawEveryDays: WITHDRAW_EVERY_DAYS,
+    nextWithdrawAt: nextAt, // null = a withdrawal is allowed now
     recentCalls: calls.rows.map((r) => ({
       id: r.id, startedAt: r.started_at, seconds: r.billed_seconds, earned: num(r.earned),
     })),
@@ -81,6 +90,10 @@ router.post('/payouts', requireAuth(['partner']), async (req, res) => {
     const open = await client.query(
       `SELECT 1 FROM payouts WHERE partner_id=$1 AND status IN ('requested','processing')`, [req.auth.id]);
     if (open.rowCount) throw new HttpError(409, 'You already have a withdrawal in progress');
+
+    const last = (await client.query(lastPayoutSql, [req.auth.id, String(WITHDRAW_EVERY_DAYS)])).rows[0];
+    if (last && new Date(last.next_at) > new Date())
+      throw new HttpError(409, `You can withdraw once every ${WITHDRAW_EVERY_DAYS} days. Your next withdrawal is on ${fmtDay(last.next_at)}.`);
 
     const debit = await client.query(
       'UPDATE wallets SET balance = balance - $1, updated_at = now() WHERE account_id=$2 AND balance >= $1',

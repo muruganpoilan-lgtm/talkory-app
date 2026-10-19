@@ -79,9 +79,16 @@ class _EarningsScreenState extends State<EarningsScreen> {
     await _guard(() => widget.api.setPayoutMethod(v), 'UPI ID saved');
   }
 
+  String _day(DateTime t) {
+    const m = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${t.day} ${m[t.month - 1]}';
+  }
+
   Future<void> _withdraw() async {
     final d = _d!;
     final min = d['minPayoutRupees'] as int;
+    final next = DateTime.tryParse((d['nextWithdrawAt'] as String?) ?? '')?.toLocal();
+    if (next != null && next.isAfter(DateTime.now())) return _snack('You can withdraw once every ${d['withdrawEveryDays'] ?? 10} days. Your next withdrawal is on ${_day(next)}.');
     if (d['upiId'] == null) {
       _snack('Add your UPI ID first');
       return _editUpi();
@@ -151,6 +158,18 @@ class _EarningsScreenState extends State<EarningsScreen> {
                             label: const Text('Withdraw'),
                           ),
                         ),
+                        const SizedBox(height: 8),
+                        Builder(builder: (_) {
+                          final next = DateTime.tryParse((d['nextWithdrawAt'] as String?) ?? '')?.toLocal();
+                          final waiting = next != null && next.isAfter(DateTime.now());
+                          return Text(
+                            waiting
+                                ? 'Next withdrawal available on ${_day(next)}'
+                                : 'You can withdraw once every ${d['withdrawEveryDays'] ?? 10} days (minimum ₹${d['minPayoutRupees']})',
+                            textAlign: TextAlign.center,
+                            style: text.bodySmall?.copyWith(color: waiting ? Colors.orange.shade800 : Colors.black54),
+                          );
+                        }),
                       ]),
                     ),
                   ),
