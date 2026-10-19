@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:talkory_core/talkory_core.dart';
@@ -17,11 +18,27 @@ class HomeTab extends StatefulWidget {
 class _HomeTabState extends State<HomeTab> {
   Map<String, dynamic>? _profile, _earn;
   String _status = 'offline'; // 'online' | 'busy' | 'offline'
+  Map<String, dynamic>? _ot; // today's online time vs the daily minimum
+  Timer? _otTimer;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _otTimer = Timer.periodic(const Duration(minutes: 1), (_) => _loadOnline());
+  }
+
+  @override
+  void dispose() {
+    _otTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _loadOnline() async {
+    try {
+      final o = await widget.api.onlineToday();
+      if (mounted) setState(() => _ot = o);
+    } catch (_) {}
   }
 
   void _snack(String m) {
@@ -32,6 +49,7 @@ class _HomeTabState extends State<HomeTab> {
     try {
       final p = await widget.api.myProfile();
       final e = await widget.api.partnerEarnings();
+      _loadOnline();
       if (mounted) {
         setState(() {
           _profile = p;
@@ -71,6 +89,42 @@ class _HomeTabState extends State<HomeTab> {
           ),
         ),
       );
+
+  /// Daily goal: be Online for 3 hours. Shows progress and what a shortfall costs.
+  Widget _onlineGoalCard() {
+    final done = (_ot!['seconds'] as num).toInt();
+    final need = (_ot!['requiredSeconds'] as num).toInt();
+    final block = (_ot!['blockMinutes'] as num).toInt();
+    final pen = (_ot!['penaltyPaise'] as num).toInt();
+    String hm(int sec) {
+      final h = sec ~/ 3600, m = (sec % 3600) ~/ 60;
+      return h > 0 ? '${h}h ${m}m' : '${m}m';
+    }
+
+    final met = done >= need;
+    return SoftCard(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(met ? Icons.check_circle : Icons.schedule, color: met ? Colors.green : kRoyal, size: 20),
+            const SizedBox(width: 8),
+            Expanded(child: Text("Today's online time", style: const TextStyle(fontWeight: FontWeight.w700, color: kInk))),
+            Text('${hm(done)} / ${hm(need)}', style: const TextStyle(fontWeight: FontWeight.w700)),
+          ]),
+          const SizedBox(height: 8),
+          ClipRRect(borderRadius: BorderRadius.circular(6), child: LinearProgressIndicator(value: (done / need).clamp(0.0, 1.0), minHeight: 8, color: met ? Colors.green : kRoyal)),
+          const SizedBox(height: 8),
+          Text(
+            met
+                ? 'Daily goal done. Thank you!'
+                : 'Stay Online for ${hm(need)} every day. For each $block minutes short, ${_rs(pen)} is deducted from your earnings at midnight. Busy and Offline time does not count.',
+            style: const TextStyle(color: Colors.black54, fontSize: 12),
+          ),
+        ]),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -131,6 +185,7 @@ class _HomeTabState extends State<HomeTab> {
                 ),
               ),
             ),
+            if (_ot != null && _ot!['enabled'] == true && kyc == 'approved') _onlineGoalCard(),
             if (kyc != null && kyc != 'approved')
               SoftCard(
                 color: const Color(0xFFFFF3CD),

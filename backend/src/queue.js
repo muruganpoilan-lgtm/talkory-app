@@ -4,6 +4,7 @@ const Sentry = require('@sentry/node');
 const { pool, redis } = require('./db');
 const { billTick, TICK_SECONDS } = require('./billing');
 const { finishCall } = require('./callctl');
+const onlinetime = require('./onlinetime');
 
 // Ring timeouts and per-15s billing live in Redis (BullMQ), not in process memory, so a restart/deploy
 // no longer drops calls and several API containers can run side by side.
@@ -37,7 +38,10 @@ async function handle(job) {
     return;
   }
 
+  if (job.name === 'online-settle') return void (await onlinetime.settleRecent()); // just after midnight India time
+
   if (job.name === 'sweep') { // safety net, once a minute: heal anything a lost job could leave behind
+    await onlinetime.track().catch((e) => console.error('[online] track failed:', e.message)); // host online-time counter
     const stuck = await pool.query(`SELECT id FROM calls WHERE status='ringing' AND created_at < now() - interval '60 seconds'`);
     for (const r of stuck.rows) await finishCall(r.id, 'missed', ['ringing']);
     const active = await pool.query(
@@ -59,6 +63,7 @@ function startWorker() {
     Sentry.captureException(err);
   });
   queue.add('sweep', {}, { repeat: { every: 60000 } }).catch((e) => console.error('[queue] sweep schedule failed', e));
+  queue.add('online-settle', {}, { repeat: { pattern: '10 0 * * *', tz: 'Asia/Kolkata' } }).catch((e) => console.error('[queue] online-settle schedule failed', e));
   return worker;
 }
 

@@ -18,6 +18,11 @@ router.get('/me', requireAuth(['partner']), async (req, res) => {
   });
 });
 
+// Today's online time against the daily minimum (shown in the partner app)
+router.get('/online-today', requireAuth(['partner']), async (req, res) => {
+  res.json(await require('./onlinetime').today(req.auth.id));
+});
+
 router.put('/me', requireAuth(['partner']), async (req, res) => {
   const name = String(req.body.displayName || '').trim();
   const bio = String(req.body.bio || '').trim();

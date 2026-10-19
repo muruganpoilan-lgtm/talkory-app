@@ -251,6 +251,8 @@ class Api {
   Future<void> uploadAvatar(String imageBase64) => _send('POST', '/partner/avatar', {'imageBase64': imageBase64});
   Future<void> removeAvatar() => _send('POST', '/partner/avatar/remove');
 
+  /// Hosts: today's online time against the daily minimum {enabled, seconds, requiredSeconds, penaltyPaise, blockMinutes}.
+  Future<Map<String, dynamic>> onlineToday() async => Map<String, dynamic>.from(await _send('GET', '/partners/online-today'));
   Future<Map<String, dynamic>> myProfile() async => Map<String, dynamic>.from(await _send('GET', '/partners/me'));
 
   Future<void> saveProfile({required String displayName, String tagline = '', required String bio, required List<String> languages, required int rateRupees}) =>
@@ -291,6 +293,9 @@ class Api {
   /// [{id, body, created_at, mine}] oldest first. Pass [after] to get only newer messages.
   Future<List<Map<String, dynamic>>> chatMessages(String otherId, {int after = 0}) async =>
       (await _send('GET', '/chat/$otherId/messages?after=$after') as List).map((e) => Map<String, dynamic>.from(e)).toList();
+
+  /// True once this user and host have had more than 5 answered calls together.
+  Future<bool> isBestFriend(String otherId) async => (await _send('GET', '/chat/$otherId/info') as Map)['bestFriend'] == true;
 
   /// Returns the stored message (plus `balance` in paise for users). Throws ApiException(402) when out of coins.
   Future<Map<String, dynamic>> sendMessage(String otherId, String body) async =>
