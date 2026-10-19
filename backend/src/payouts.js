@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const { pool, requireAuth } = require('./db');
+const autopayout = require('./autopayout');
 
 const MIN_PAYOUT_RUPEES = 500;
 // A host can withdraw once every this many days. Counted from the last request that was not rejected (a rejected one is refunded).
@@ -38,7 +39,7 @@ router.get('/earnings', requireAuth(['partner']), async (req, res) => {
         WHERE c.partner_id=$1 AND c.started_at IS NOT NULL
         GROUP BY c.id ORDER BY c.started_at DESC LIMIT 30`, [id]),
     pool.query(
-      `SELECT id, amount, status, upi_id, requested_at, paid_at FROM payouts
+      `SELECT id, amount, status, upi_id, requested_at, paid_at, payout_note FROM payouts
         WHERE partner_id=$1 ORDER BY requested_at DESC LIMIT 20`, [id]),
     pool.query(lastPayoutSql, [id, String(WITHDRAW_EVERY_DAYS)]),
   ]);
@@ -60,7 +61,7 @@ router.get('/earnings', requireAuth(['partner']), async (req, res) => {
     })),
     payouts: payouts.rows.map((r) => ({
       id: r.id, amount: num(r.amount), status: r.status, upiId: r.upi_id,
-      requestedAt: r.requested_at, paidAt: r.paid_at,
+      requestedAt: r.requested_at, paidAt: r.paid_at, note: r.status === 'rejected' ? r.payout_note : null,
     })),
   });
 });
@@ -108,6 +109,7 @@ router.post('/payouts', requireAuth(['partner']), async (req, res) => {
       [req.auth.id, -amount, payout.id, `payout:${payout.id}`]);
     await client.query('COMMIT');
     res.json({ payoutId: payout.id });
+    if (autopayout.ENABLED) autopayout.send(payout.id).catch((e) => console.error('[payout] send failed:', e.message)); // automatic UPI payout
   } catch (e) {
     await client.query('ROLLBACK');
     if (e instanceof HttpError) return res.status(e.status).json({ error: e.message });

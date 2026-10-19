@@ -15,6 +15,7 @@ app.set('trust proxy', 1); // behind Caddy: use the real client IP
 
 // Must come BEFORE express.json() and the rate limiter: webhook signature is computed over the raw body
 app.post('/webhooks/razorpay', express.raw({ type: 'application/json' }), wallet.webhook);
+app.post('/webhooks/razorpayx', express.raw({ type: 'application/json' }), require('./autopayout').webhook);
 
 // Phones on one mobile carrier often share a single IP, so the general limit is generous.
 const limit = (windowMs, max) => rateLimit({ windowMs, limit: max, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many requests. Please slow down.' } });
