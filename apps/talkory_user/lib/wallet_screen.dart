@@ -98,7 +98,8 @@ class _WalletScreenState extends State<WalletScreen> {
     );
   }
 
-  Future<void> _pay() async {
+  // upiOnly: Razorpay shows only UPI (GPay, PhonePe, Paytm, BHIM ...). Otherwise UPI is listed first, then cards and netbanking.
+  Future<void> _pay({bool upiOnly = true}) async {
     setState(() => _busy = true);
     try {
       final o = await widget.api.createTopup(_amount);
@@ -110,6 +111,17 @@ class _WalletScreenState extends State<WalletScreen> {
         'name': 'Talkory',
         'description': 'Wallet top-up',
         'theme': {'color': '#6C4DFF'},
+        if (upiOnly) 'method': {'upi': true, 'card': false, 'netbanking': false, 'wallet': false, 'emi': false, 'paylater': false},
+        if (!upiOnly)
+          'config': {
+            'display': {
+              'sequence': ['block.upi', 'block.other'],
+              'preferences': {'show_default_blocks': true},
+              'blocks': {
+                'upi': {'name': 'Pay with UPI', 'instruments': [{'method': 'upi'}]},
+              },
+            },
+          },
       });
     } on ApiException catch (e) {
       _snack(e.message);
@@ -195,12 +207,20 @@ class _WalletScreenState extends State<WalletScreen> {
                     width: double.infinity,
                     child: FilledButton(
                       style: FilledButton.styleFrom(backgroundColor: kRoyal, minimumSize: const Size(0, 50)),
-                      onPressed: _busy ? null : _pay,
+                      onPressed: _busy ? null : () => _pay(),
                       child: _busy
                           ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                          : Text('Pay ₹$_amount', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                          : Text('Pay ₹$_amount with UPI', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
                     ),
                   ),
+                  const SizedBox(height: 4),
+                  Center(
+                    child: TextButton(
+                      onPressed: _busy ? null : () => _pay(upiOnly: false),
+                      child: const Text('Pay with card or netbanking instead'),
+                    ),
+                  ),
+                  const Center(child: Text('Google Pay · PhonePe · Paytm · BHIM and any UPI app', style: TextStyle(fontSize: 12, color: Colors.black54))),
                   const SizedBox(height: 28),
                   Text('Activity', style: text.titleMedium?.copyWith(fontWeight: FontWeight.w700, color: kInk)),
                   const SizedBox(height: 4),
