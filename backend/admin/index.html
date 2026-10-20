@@ -37,6 +37,9 @@ function login(){$('#app').innerHTML=`<div class="box"><h2>Talkory Admin</h2>
     else{const d=await api('/auth/verify-otp',{phone,code:$('#cd').value.trim(),role:'admin'});token=d.token;sessionStorage.t=token;render()}
   }catch(e){$('#e').textContent=e.message}}}
 const TABS={
+ earnings:{url:'/admin/earnings',cols:['','Details','When'],
+  row:r=>r.kind==='summary'?['<b>Available '+rs(r.available)+'</b>','Calls '+rs(r.calls)+' · Chats '+rs(r.chats)+' · Withdrawn '+rs(r.withdrawn)+' · Today '+rs(r.today)+' · This month '+rs(r.month),'']:['Withdrawn '+rs(r.amount),'to '+esc(r.upi_id),when(r.created_at)],
+  acts:r=>r.kind!=='summary'?[]:[['Withdraw to UPI','ok','/admin/earnings/withdraw',()=>{const u=prompt('Your UPI ID (like name@bank):',r.upi_id||'');return {upiId:u||''}},'Withdraw '+rs(r.available)+' to your UPI?']]},
  payouts:{url:'/partner/admin/payouts',cols:['Partner','Amount','UPI ID','Requested'],
   row:r=>[esc(r.display_name)+(r.kyc!=='approved'?' <span class="err">(KYC '+r.kyc+')</span>':''),rs(r.amount),esc(r.upi_id),when(r.requested_at)],
   acts:r=>[['Mark paid','ok','/partner/admin/payouts/'+r.id+'/paid',()=>({reference:prompt('Payment reference (UPI txn id):','')??null}),'Confirm you have sent '+rs(r.amount)+' to '+r.upi_id+'?'],

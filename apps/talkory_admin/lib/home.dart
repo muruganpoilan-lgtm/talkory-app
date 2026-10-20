@@ -295,6 +295,20 @@ List<_Spec> _specs() {
               return _do(c, () => api.adminEndMeeting('${r['id']}'));
             }, color: Colors.red),
         ]),
+    _Spec('Earnings', '/admin/earnings',
+        (r) => r['kind'] == 'summary' ? 'Available: ${_rs(r['available'] as num)}' : 'Withdrawn ${_rs(r['amount'] as num)}',
+        (r) => r['kind'] == 'summary'
+            ? 'Calls ${_rs(r['calls'] as num)} · Chats ${_rs(r['chats'] as num)} · Already withdrawn ${_rs(r['withdrawn'] as num)}\nToday ${_rs(r['today'] as num)} · This month ${_rs(r['month'] as num)}'
+            : 'to ${r['upi_id']} · ${_when(r['created_at'])}',
+        (r) => r['kind'] != 'summary' ? [] : [
+          _Act('Withdraw to UPI', (c, api, r) async {
+            final upi = await _ask(c, 'Your UPI ID (like name@bank)', '${r['upi_id'] ?? ''}');
+            if (upi == null || upi.isEmpty || !c.mounted) return false;
+            if (!await _confirm(c, 'Withdraw ${_rs(r['available'] as num)} to $upi?')) return false;
+            if (!c.mounted) return false;
+            return _do(c, () => api.adminPost('/admin/earnings/withdraw', {'upiId': upi}));
+          }, color: Colors.green),
+        ]),
     _Spec('Payouts', '/partner/admin/payouts', (r) => '${r['display_name']}  ${_rs(r['amount'] as num)}',
         (r) => 'UPI ${r['upi_id']} · ${_when(r['requested_at'])}${r['kyc'] != 'approved' ? ' · KYC ${r['kyc']}' : ''}', (r) => [
           _Act('Mark paid', (c, api, r) async {

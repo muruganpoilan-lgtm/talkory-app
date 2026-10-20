@@ -79,4 +79,50 @@ router.post('/reports/:id/resolve', async (req, res) => {
   res.json({ ok: true });
 });
 
+// ---- Talkory's own earnings: what is left of every call and chat payment after the host is paid (caller pays 1.25, host 1.00 -> 0.25).
+// Free-call earnings (host paid, caller pays nothing) count against it. Admin takes it out to a UPI ID with "Withdraw".
+const UPI_RE = /^[a-zA-Z0-9._-]{2,64}@[a-zA-Z]{2,32}$/;
+async function earningsNumbers(q) {
+  const r = (await q.query(
+    `SELECT COALESCE(-SUM(amount) FILTER (WHERE type IN ('call_debit','call_earning')), 0)::bigint AS calls,
+            COALESCE(-SUM(amount) FILTER (WHERE type IN ('chat_debit','chat_earning')), 0)::bigint AS chats,
+            COALESCE(-SUM(amount) FILTER (WHERE created_at >= date_trunc('day', now() AT TIME ZONE 'Asia/Kolkata') AT TIME ZONE 'Asia/Kolkata'), 0)::bigint AS today,
+            COALESCE(-SUM(amount) FILTER (WHERE created_at >= date_trunc('month', now() AT TIME ZONE 'Asia/Kolkata') AT TIME ZONE 'Asia/Kolkata'), 0)::bigint AS month
+       FROM ledger WHERE type IN ('call_debit','call_earning','chat_debit','chat_earning')`)).rows[0];
+  const w = (await q.query('SELECT COALESCE(SUM(amount),0)::bigint AS n FROM admin_withdrawals')).rows[0].n;
+  return { calls: Number(r.calls), chats: Number(r.chats), today: Number(r.today), month: Number(r.month), withdrawn: Number(w) };
+}
+
+// One summary row first, then the withdrawals already taken.
+router.get('/earnings', async (req, res) => {
+  const n = await earningsNumbers(pool);
+  const last = (await pool.query('SELECT upi_id FROM admin_withdrawals ORDER BY id DESC LIMIT 1')).rows[0];
+  const past = (await pool.query('SELECT id, amount, upi_id, created_at FROM admin_withdrawals ORDER BY id DESC LIMIT 50')).rows;
+  res.json([
+    { kind: 'summary', id: 'summary', ...n, available: n.calls + n.chats - n.withdrawn, upi_id: last ? last.upi_id : '' },
+    ...past.map((p) => ({ kind: 'withdrawal', ...p, amount: Number(p.amount) })),
+  ]);
+});
+
+router.post('/earnings/withdraw', async (req, res) => {
+  const upi = String(req.body.upiId || '').trim();
+  if (!UPI_RE.test(upi)) return res.status(400).json({ error: 'Enter a valid UPI ID, like name@bank' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock(7001)'); // two taps at once cannot take the same money twice
+    const n = await earningsNumbers(client);
+    const available = n.calls + n.chats - n.withdrawn;
+    if (available < 100) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Less than ₹1 available to withdraw' }); }
+    await client.query('INSERT INTO admin_withdrawals (admin_id, amount, upi_id) VALUES ($1,$2,$3)', [req.auth.id, available, upi]);
+    await client.query('COMMIT');
+    res.json({ ok: true, amount: available });
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
+});
+
 module.exports = router;
