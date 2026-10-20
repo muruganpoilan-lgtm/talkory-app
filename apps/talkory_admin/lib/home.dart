@@ -298,7 +298,7 @@ List<_Spec> _specs() {
     _Spec('Earnings', '/admin/earnings',
         (r) => r['kind'] == 'summary' ? 'Available: ${_rs(r['available'] as num)}' : 'Withdrawn ${_rs(r['amount'] as num)}',
         (r) => r['kind'] == 'summary'
-            ? 'Calls ${_rs(r['calls'] as num)} · Chats ${_rs(r['chats'] as num)} · Already withdrawn ${_rs(r['withdrawn'] as num)}\nToday ${_rs(r['today'] as num)} · This month ${_rs(r['month'] as num)}'
+            ? 'Paid calls ${_rs(r['calls'] as num)} · Chats ${_rs(r['chats'] as num)} · Free calls (cost) ${_rs(r['free'] as num)} · Already withdrawn ${_rs(r['withdrawn'] as num)}\nToday ${_rs(r['today'] as num)} · This month ${_rs(r['month'] as num)}'
             : 'to ${r['upi_id']} · ${_when(r['created_at'])}',
         (r) => r['kind'] != 'summary' ? [] : [
           _Act('Withdraw to UPI', (c, api, r) async {
