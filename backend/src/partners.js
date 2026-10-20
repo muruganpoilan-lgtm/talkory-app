@@ -36,11 +36,11 @@ router.put('/me', requireAuth(['partner']), async (req, res) => {
   if (tagline.length > 40) return bad('Tagline can be up to 40 characters');
   if (LEAKS.test(name) || LEAKS.test(bio) || LEAKS.test(tagline)) return bad('Please remove phone numbers, links and social handles');
   if (!langs.length || langs.length > 5 || langs.some((l) => !LANGUAGES.includes(l))) return bad('Choose 1 to 5 languages');
-  if (!Number.isInteger(rate) || rate < MIN_RATE || rate > MAX_RATE) return bad(`Rate must be ₹${MIN_RATE} to ₹${MAX_RATE} per minute`);
+  // the call price is fixed for everyone (see billing.js), so the rate sent by the app is ignored
 
   await pool.query('UPDATE accounts SET display_name=$1 WHERE id=$2', [name, req.auth.id]);
-  await pool.query('UPDATE partner_profiles SET bio=$1, languages=$2, rate_per_min=$3, tagline=$5 WHERE account_id=$4',
-    [bio || null, langs, rate * 100, req.auth.id, tagline || null]); // calls in progress keep the rate they started with
+  await pool.query('UPDATE partner_profiles SET bio=$1, languages=$2, tagline=$3 WHERE account_id=$4',
+    [bio || null, langs, tagline || null, req.auth.id]);
   res.json({ ok: true });
 });
 

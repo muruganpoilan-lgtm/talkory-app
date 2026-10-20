@@ -3,6 +3,12 @@ const { pool, redis } = require('./db');
 const TICK_SECONDS = 15;
 const FREE_SECONDS = 120; // keep equal to freecall.js
 
+// Fixed pricing for every call: the caller pays CALL_RATE_PAISE per minute, the host earns CALL_HOST_PAISE per minute,
+// Talkory keeps the difference (125 / 100 / 25 paise = Rs 1.25 / Rs 1.00 / Rs 0.25). Charged exactly per minute, even though billing runs every 15 seconds.
+const CALL_RATE = Number(process.env.CALL_RATE_PAISE || 125);
+const CALL_HOST = Number(process.env.CALL_HOST_PAISE || 100);
+const upTo = (perMin, tickNo) => Math.ceil((perMin * TICK_SECONDS * tickNo) / 60); // total owed after this many ticks
+
 // A busy host: from their 4th answered call of the day (India time, calls from anyone), the host earns a flat Rs 3 per minute
 // instead of their normal cut (never more than the caller pays for that call). The caller still pays the normal rate.
 // Both numbers can be changed in .env.
@@ -24,10 +30,8 @@ async function isRepeatCall(call) {
 
 // Bills one tick. Returns false if the user can't pay (call must end).
 async function billTick(call, tickNo) {
-  const amount = Math.ceil((call.rate_per_min * TICK_SECONDS) / 60);
-  const { rows } = await pool.query('SELECT payout_share FROM partner_profiles WHERE account_id=$1', [call.partner_id]);
-  let share = Math.floor(amount * Number(rows[0].payout_share));
-  if (call.started_at && (await isRepeatCall(call))) share = Math.min(amount, Math.round((REPEAT_RUPEES_PER_MIN * 100 * TICK_SECONDS) / 60));
+  const amount = upTo(CALL_RATE, tickNo) - upTo(CALL_RATE, tickNo - 1);
+  const share = Math.min(amount, upTo(CALL_HOST, tickNo) - upTo(CALL_HOST, tickNo - 1));
 
   if (call.is_free && tickNo * TICK_SECONDS > FREE_SECONDS) return false; // free minutes are used up: end the call
 

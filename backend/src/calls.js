@@ -30,7 +30,8 @@ router.post('/', requireAuth(['user']), async (req, res) => {
     [req.auth.id, partnerId]);
   if (blocked.rowCount) return res.status(403).json({ error: 'this host is unavailable' });
 
-  const minCost = Math.ceil((p.rate_per_min * Number(process.env.MIN_CALL_SECONDS || 60)) / 60);
+  const callRate = Number(process.env.CALL_RATE_PAISE || 125); // fixed price per minute, see billing.js
+  const minCost = Math.ceil((callRate * Number(process.env.MIN_CALL_SECONDS || 60)) / 60);
   const free = false; // the free 2-minute call is offered by hosts (see hostcalls.js), not on calls a user starts
   const w = await pool.query('SELECT balance FROM wallets WHERE account_id=$1', [req.auth.id]);
   if (!free && Number(w.rows[0].balance) < minCost) return res.status(402).json({ error: 'insufficient balance', required: minCost });
@@ -42,7 +43,7 @@ router.post('/', requireAuth(['user']), async (req, res) => {
   const channel = `call_${crypto.randomBytes(8).toString('hex')}`;
   const call = (await pool.query(
     `INSERT INTO calls (user_id, partner_id, channel_name, rate_per_min, is_free) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
-    [req.auth.id, partnerId, channel, p.rate_per_min, free])).rows[0];
+    [req.auth.id, partnerId, channel, callRate, free])).rows[0];
 
   const caller = await pool.query('SELECT display_name FROM accounts WHERE id=$1', [req.auth.id]);
   push.notifyIncomingCall(partnerId, call.id, caller.rows[0].display_name).catch(() => {});
