@@ -7,7 +7,8 @@ router.use(requireAuth(['admin']));
 
 router.get('/kyc', async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT a.id, a.display_name, a.created_at, p.bio, p.languages, p.rate_per_min, p.kyc
+    `SELECT a.id, a.display_name, a.created_at, p.bio, p.languages, p.rate_per_min, p.kyc,
+            (SELECT MAX(ai_score)::float FROM kyc_documents d WHERE d.account_id=a.id) AS ai
        FROM partner_profiles p JOIN accounts a ON a.id=p.account_id
       WHERE p.kyc=$1 AND ($1 <> 'pending' OR p.kyc_submitted_at IS NOT NULL)
       ORDER BY p.kyc_submitted_at NULLS LAST, a.created_at LIMIT 100`, [req.query.status || 'pending']);

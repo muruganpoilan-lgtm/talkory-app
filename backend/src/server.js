@@ -44,7 +44,9 @@ const intros = require('./intros');
 app.use('/intros', express.static(intros.PUBLIC, { maxAge: '30d', immutable: true, index: false })); // approved voice intros only
 app.use('/partner/intro', intros.router);
 app.use('/admin/intros', intros.admin);
+app.use('/admin/avatars', require('./aicheck').adminAvatars); // list with AI score, before the rest of the photo review routes
 app.use('/admin/avatars', avatars.admin);
+app.use('/admin/contracts', require('./contract').admin);
 const tickets = require('./tickets');
 app.use('/admin/tickets', tickets.admin);
 const adminCalls = require('./admincalls');
@@ -59,6 +61,7 @@ app.use('/chat', require('./chat').router);
 app.use('/support-tickets', tickets.router);
 app.use('/devices', require('./devices'));
 app.use('/partner/kyc', require('./kyc').router);
+app.use('/partner/contract', require('./contract').router);
 app.use('/partner/avatar', avatars.router);
 app.use('/partner', require('./payouts')); // earnings, payouts, admin payout actions
 

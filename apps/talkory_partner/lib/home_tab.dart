@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:talkory_core/talkory_core.dart';
 import 'earnings_screen.dart';
+import 'contract_screen.dart';
 import 'kyc_screen.dart';
 
 String _rs(num paise) => '₹${(paise / 100).toStringAsFixed(2)}';
@@ -45,11 +46,23 @@ class _HomeTabState extends State<HomeTab> {
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
   }
 
+  bool _contractAsked = false; // open the agreement automatically once per app start
+
   Future<void> _load() async {
     try {
       final p = await widget.api.myProfile();
       final e = await widget.api.partnerEarnings();
       _loadOnline();
+      if (p['kyc'] == 'approved') {
+        try {
+          final c = await widget.api.partnerContract();
+          if (mounted) setState(() => _contractSigned = c['signed'] == true);
+          if (mounted && c['signed'] != true && !_contractAsked) {
+            _contractAsked = true;
+            _openContract();
+          }
+        } catch (_) {}
+      }
       if (mounted) {
         setState(() {
           _profile = p;
@@ -60,6 +73,13 @@ class _HomeTabState extends State<HomeTab> {
     } on ApiException catch (e) {
       if (e.status == 401) widget.onLogout();
     } catch (_) {}
+  }
+
+  bool _contractSigned = true;
+
+  Future<void> _openContract() async {
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ContractScreen(api: widget.api)));
+    _load();
   }
 
   Future<void> _setStatus(String value) async {
@@ -185,6 +205,17 @@ class _HomeTabState extends State<HomeTab> {
                 ),
               ),
             ),
+            if (kyc == 'approved' && !_contractSigned)
+              SoftCard(
+                color: const Color(0xFFFFF3CD),
+                child: ListTile(
+                  leading: const Icon(Icons.draw_outlined, color: Colors.black87),
+                  title: const Text('Sign your agreement', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w700)),
+                  subtitle: const Text('Required before you can go online', style: TextStyle(color: Colors.black87)),
+                  trailing: const Icon(Icons.chevron_right, color: Colors.black87),
+                  onTap: _openContract,
+                ),
+              ),
             if (_ot != null && _ot!['enabled'] == true && kyc == 'approved') _onlineGoalCard(),
             if (kyc != null && kyc != 'approved')
               SoftCard(

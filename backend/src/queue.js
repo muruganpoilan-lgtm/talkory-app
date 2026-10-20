@@ -6,6 +6,7 @@ const { billTick, TICK_SECONDS } = require('./billing');
 const { finishCall } = require('./callctl');
 const onlinetime = require('./onlinetime');
 const autopayout = require('./autopayout');
+const aicheck = require('./aicheck');
 
 // Ring timeouts and per-15s billing live in Redis (BullMQ), not in process memory, so a restart/deploy
 // no longer drops calls and several API containers can run side by side.
@@ -42,6 +43,7 @@ async function handle(job) {
   if (job.name === 'online-settle') return void (await onlinetime.settleRecent()); // just after midnight India time
 
   if (job.name === 'sweep') { // safety net, once a minute: heal anything a lost job could leave behind
+    await aicheck.scan().catch((e) => console.error('[aicheck] scan failed:', e.message)); // AI-photo check
     await autopayout.retryPending().catch((e) => console.error('[payout] retry failed:', e.message)); // automatic UPI payouts still waiting
     await onlinetime.track().catch((e) => console.error('[online] track failed:', e.message)); // host online-time counter
     const stuck = await pool.query(`SELECT id FROM calls WHERE status='ringing' AND created_at < now() - interval '60 seconds'`);

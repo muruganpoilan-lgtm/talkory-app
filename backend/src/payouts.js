@@ -2,7 +2,7 @@ const router = require('express').Router();
 const { pool, requireAuth } = require('./db');
 const autopayout = require('./autopayout');
 
-const MIN_PAYOUT_RUPEES = 500;
+const MIN_PAYOUT_RUPEES = Number(process.env.MIN_PAYOUT_RUPEES || 1500); // minimum withdrawal
 // A host can withdraw once every this many days. Counted from the last request that was not rejected (a rejected one is refunded).
 const WITHDRAW_EVERY_DAYS = Number(process.env.WITHDRAW_EVERY_DAYS || 10);
 const lastPayoutSql = `SELECT requested_at, requested_at + ($2 || ' days')::interval AS next_at FROM payouts

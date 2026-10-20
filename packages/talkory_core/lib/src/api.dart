@@ -260,6 +260,8 @@ class Api {
 
   // ---- partner KYC
   /// {status: pending|approved|rejected, submitted, note, docs: [id_front, selfie]}
+  Future<Map<String, dynamic>> partnerContract() async => Map<String, dynamic>.from(await _send('GET', '/partner/contract'));
+  Future<void> signContract(String fullName) => _send('POST', '/partner/contract/sign', {'fullName': fullName, 'agree': true});
   Future<Map<String, dynamic>> kycStatus() async => Map<String, dynamic>.from(await _send('GET', '/partner/kyc/status'));
 
   Future<void> uploadKycDocument(String kind, String imageBase64) =>

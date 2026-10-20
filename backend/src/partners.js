@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const { pool, redis, requireAuth } = require('./db');
 const push = require('./push');
+const contract = require('./contract');
 
 const LANGUAGES = ['Hindi', 'English', 'Tamil', 'Telugu', 'Bengali', 'Marathi', 'Odia', 'Bhojpuri', 'Malayalam', 'Kannada', 'Gujarati', 'Punjabi', 'Urdu', 'Assamese']; // keep in sync with kLanguages in talkory_core/api.dart
 const MIN_RATE = 5, MAX_RATE = 200; // rupees per minute
@@ -51,6 +52,7 @@ router.post('/online', requireAuth(['partner']), async (req, res) => {
   const on = status !== 'offline';
   const { rows } = await pool.query('SELECT kyc, languages FROM partner_profiles WHERE account_id=$1', [req.auth.id]);
   if (on && rows[0]?.kyc !== 'approved') return res.status(403).json({ error: 'Verification pending. Open Verification (KYC) to submit your documents.' });
+  if (on && !(await contract.isSigned(req.auth.id))) return res.status(403).json({ error: 'Please sign the partner agreement first (Home screen).', code: 'contract_required' });
   if (on && !rows[0].languages.length) return res.status(400).json({ error: 'Complete your profile (languages) before going online' });
 
   await pool.query('UPDATE partner_profiles SET is_online=$1, manual_busy=$2 WHERE account_id=$3', [on, status === 'busy', req.auth.id]);

@@ -21,6 +21,7 @@ dialog{background:var(--card);color:var(--ink);border:1px solid var(--line);bord
 <script>
 const $=s=>document.querySelector(s);let token=sessionStorage.t||'',tab='payouts',phone='';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const aiTag=v=>typeof v==='number'?' <span class="'+(v>=0.5?'err':'mut')+'">'+(v>=0.5?'⚠ ':'')+'AI check: '+Math.round(v*100)+'%</span>':'';
 const rs=p=>'₹'+(p/100).toLocaleString('en-IN',{minimumFractionDigits:2});
 const when=d=>d?new Date(d).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'}):'';
 async function api(path,body){
@@ -40,12 +41,13 @@ const TABS={
  earnings:{url:'/admin/earnings',cols:['','Details','When'],
   row:r=>r.kind==='summary'?['<b>Available '+rs(r.available)+'</b>','Paid calls '+rs(r.calls)+' · Chats '+rs(r.chats)+' · Free calls (cost) '+rs(r.free)+' · Withdrawn '+rs(r.withdrawn)+' · Today '+rs(r.today)+' · This month '+rs(r.month),'']:['Withdrawn '+rs(r.amount),'to '+esc(r.upi_id),when(r.created_at)],
   acts:r=>r.kind!=='summary'?[]:[['Withdraw to UPI','ok','/admin/earnings/withdraw',()=>{const u=prompt('Your UPI ID (like name@bank):',r.upi_id||'');return {upiId:u||''}},'Withdraw '+rs(r.available)+' to your UPI?']]},
+ contracts:{url:'/admin/contracts',cols:['Host','Signed as','When','IP'],row:r=>[esc(r.display_name),esc(r.full_name),when(r.signed_at),esc(r.ip||'')],acts:r=>[]},
  payouts:{url:'/partner/admin/payouts',cols:['Partner','Amount','UPI ID','Requested'],
   row:r=>[esc(r.display_name)+(r.kyc!=='approved'?' <span class="err">(KYC '+r.kyc+')</span>':''),rs(r.amount),esc(r.upi_id),when(r.requested_at)],
   acts:r=>[['Mark paid','ok','/partner/admin/payouts/'+r.id+'/paid',()=>({reference:prompt('Payment reference (UPI txn id):','')??null}),'Confirm you have sent '+rs(r.amount)+' to '+r.upi_id+'?'],
            ['Reject','bad','/partner/admin/payouts/'+r.id+'/reject',()=>({}),'Reject and refund the partner wallet?']]},
  kyc:{url:'/admin/kyc',cols:['Partner','Languages','Rate/min','Bio','Joined'],
-  row:r=>[esc(r.display_name),esc((r.languages||[]).join(', ')),rs(r.rate_per_min),esc(r.bio),when(r.created_at)],
+  row:r=>[esc(r.display_name)+aiTag(r.ai),esc((r.languages||[]).join(', ')),rs(r.rate_per_min),esc(r.bio),when(r.created_at)],
   acts:r=>[['View documents','',null,()=>viewDocs(r.id)],['Approve','ok','/admin/kyc/'+r.id,()=>({status:'approved'})],['Reject','bad','/admin/kyc/'+r.id,()=>({status:'rejected',note:prompt('Reason the partner will see:','Photo unclear, please resubmit')||''})]]},
  reports:{url:'/admin/reports',cols:['Reported','Reason','By','Reports','Date'],
   row:r=>[esc(r.reported)+' <span class="mut">('+r.reported_role+(r.is_blocked?', blocked':'')+')</span>',esc(r.reason),esc(r.reporter),r.total_reports,when(r.created_at)],
@@ -64,7 +66,7 @@ const TABS={
  support:{url:'/admin/tickets',cols:['Customer','Subject','Last message','Updated'],
   row:r=>[esc(r.display_name)+' <span class="mut">('+r.role+', '+esc(r.phone)+')</span>',(r.needs_reply?'<b class="err">● </b>':'')+esc(r.subject),esc((r.last_body||'').slice(0,120)),when(r.updated_at)],
   acts:r=>[['Open & reply','',null,()=>openTicket(r.id)],['Close','bad','/admin/tickets/'+r.id+'/close',()=>({}),'Close this ticket?']]},
- photos:{url:'/admin/avatars',cols:['Host'],row:r=>[esc(r.display_name)],
+ photos:{url:'/admin/avatars',cols:['Host'],row:r=>[esc(r.display_name)+aiTag(r.ai)],
   acts:r=>[['View photo','',null,()=>viewPhoto(r.id)],['Approve','ok','/admin/avatars/'+r.id,()=>({status:'approved'})],['Reject','bad','/admin/avatars/'+r.id,()=>({status:'rejected',note:prompt('Reason the host will see:','Please use a clear photo of yourself with no text or contact details')||''})]]}};
 
 let agoraLoaded=null;

@@ -3,6 +3,8 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:talkory_core/talkory_core.dart';
 
+/// Shown next to photos when the AI-image check is on: 0 = real, 1 = AI-generated
+String _aiNote(dynamic v) => v is num ? (v >= 0.5 ? '\n⚠ AI check: ${(v * 100).round()}% looks AI-generated' : '\nAI check: ${(v * 100).round()}% AI') : '';
 String _rs(num paise) => '₹${(paise / 100).toStringAsFixed(2)}';
 String _when(dynamic d) {
   final t = DateTime.tryParse('$d')?.toLocal();
@@ -309,6 +311,7 @@ List<_Spec> _specs() {
             return _do(c, () => api.adminPost('/admin/earnings/withdraw', {'upiId': upi}));
           }, color: Colors.green),
         ]),
+    _Spec('Contracts', '/admin/contracts', (r) => '${r['display_name']}', (r) => 'Signed as ${r['full_name']} · ${_when(r['signed_at'])}', (r) => []),
     _Spec('Payouts', '/partner/admin/payouts', (r) => '${r['display_name']}  ${_rs(r['amount'] as num)}',
         (r) => 'UPI ${r['upi_id']} · ${_when(r['requested_at'])}${r['kyc'] != 'approved' ? ' · KYC ${r['kyc']}' : ''}', (r) => [
           _Act('Mark paid', (c, api, r) async {
@@ -324,7 +327,7 @@ List<_Spec> _specs() {
             return _do(c, () => api.adminPost('/partner/admin/payouts/${r['id']}/reject', {}));
           }, color: Colors.red),
         ]),
-    _Spec('KYC', '/admin/kyc', (r) => '${r['display_name']}', (r) => '${((r['languages'] as List?) ?? []).join(', ')} · ${_rs(r['rate_per_min'] as num)}/min\n${r['bio'] ?? ''}', (r) => [
+    _Spec('KYC', '/admin/kyc', (r) => '${r['display_name']}', (r) => '${((r['languages'] as List?) ?? []).join(', ')} · ${_rs(r['rate_per_min'] as num)}/min${_aiNote(r['ai'])}\n${r['bio'] ?? ''}', (r) => [
           _Act('Documents', (c, api, r) async {
             await _showImages(c, api, ['/admin/kyc/${r['id']}/document/id_front', '/admin/kyc/${r['id']}/document/selfie']);
             return false;
@@ -349,7 +352,7 @@ List<_Spec> _specs() {
           approve('/admin/intros/{id}'),
           reject('/admin/intros/{id}', 'Reason the host will see', 'Please re-record: clear voice, no contact details'),
         ]),
-    _Spec('Photos', '/admin/avatars', (r) => '${r['display_name']}', (r) => 'Profile photo waiting for approval', (r) => [
+    _Spec('Photos', '/admin/avatars', (r) => '${r['display_name']}', (r) => 'Profile photo waiting for approval${_aiNote(r['ai'])}', (r) => [
           _Act('View photo', (c, api, r) async {
             await _showImages(c, api, ['/admin/avatars/${r['id']}/image']);
             return false;
