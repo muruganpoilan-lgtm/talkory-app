@@ -3,7 +3,8 @@ const rateLimit = require('express-rate-limit');
 const { pool, requireAuth } = require('./db');
 const push = require('./push');
 
-const MESSAGE_COST = 30; // paise = 0.3 coins, charged to the user for each message they send. Hosts reply free.
+const MESSAGE_COST = Number(process.env.CHAT_COST_PAISE || 60); // paise = 0.6 coins, charged to the user for each message they send. Hosts reply free.
+const HOST_EARN = Number(process.env.CHAT_HOST_EARN_PAISE || 50); // paise the host receives for each message; the rest (10 paise) stays with Talkory
 const MAX_LEN = 500;
 // "Best Friend" badge: shown once a user and a host have had more than this many answered calls together
 const BEST_FRIEND_AFTER = Number(process.env.BEST_FRIEND_AFTER_CALLS || 5);
@@ -101,7 +102,7 @@ router.post('/:otherId', requireAuth(['user', 'partner']), sendLimit, async (req
     if (req.auth.role === 'user') {
       const debit = await client.query('UPDATE wallets SET balance = balance - $1, updated_at = now() WHERE account_id=$2 AND balance >= $1', [MESSAGE_COST, req.auth.id]);
       if (!debit.rowCount) { await client.query('ROLLBACK'); return res.status(402).json({ error: 'Not enough coins. Add coins to keep chatting.' }); }
-      const share = Math.floor(MESSAGE_COST * Number((await client.query('SELECT payout_share FROM partner_profiles WHERE account_id=$1', [partnerId])).rows[0].payout_share));
+      const share = Math.min(HOST_EARN, MESSAGE_COST);
       await client.query(`INSERT INTO ledger (account_id, type, amount, ref, idem_key) VALUES ($1,'chat_debit',$2,$3,$4)`,
         [req.auth.id, -MESSAGE_COST, `msg:${msg.id}`, `chat:${msg.id}:debit`]);
       await client.query(`INSERT INTO ledger (account_id, type, amount, ref, idem_key) VALUES ($1,'chat_earning',$2,$3,$4)`,
