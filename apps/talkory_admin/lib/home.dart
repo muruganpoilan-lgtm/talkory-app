@@ -362,6 +362,7 @@ List<_Spec> _specs() {
             return _do(c, () => api.adminPost('/admin/earnings/withdraw', {'upiId': pick['upiId'], 'upiApp': pick['upiApp']}));
           }, color: Colors.green),
         ]),
+    _Spec('Agreements', '/admin/agreements', (r) => '${r['display_name']}', (r) => 'Signed as ${r['full_name']} · ${_when(r['signed_at'])}', (r) => []),
     _Spec('Contracts', '/admin/contracts', (r) => '${r['display_name']}', (r) => 'Signed as ${r['full_name']} · ${_when(r['signed_at'])}', (r) => []),
     _Spec('Payouts', '/partner/admin/payouts', (r) => '${r['display_name']}  ${_rs(r['amount'] as num)}',
         (r) => 'UPI ${r['upi_id']}${_appName(r['upi_app']).isEmpty ? '' : ' (${_appName(r['upi_app'])})'} · ${_when(r['requested_at'])}${r['kyc'] != 'approved' ? ' · KYC ${r['kyc']}' : ''}', (r) => [

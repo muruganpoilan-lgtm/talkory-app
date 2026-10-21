@@ -28,6 +28,7 @@ app.use('/partner/kyc', express.json({ limit: '6mb' })); // base64 photos
 app.use('/partner/avatar', express.json({ limit: '3mb' }));
 app.use('/account/avatar', express.json({ limit: '3mb' }));
 app.use('/partner/intro', express.json({ limit: '1.5mb' })); // base64 audio
+app.use('/account/agreement', express.json({ limit: '400kb' })); // signature image
 app.use(express.json());
 app.use('/auth', require('./auth'));
 app.use('/partners', require('./partners'));
@@ -40,6 +41,7 @@ app.use('/account', require('./account').router);
 const avatars = require('./avatars');
 app.use('/avatars', express.static(avatars.PUBLIC, { maxAge: '30d', immutable: true, index: false })); // approved photos only
 app.use('/account/avatar', avatars.userRouter);
+app.use('/account/agreement', require('./useragreement').router);
 const intros = require('./intros');
 app.use('/intros', express.static(intros.PUBLIC, { maxAge: '30d', immutable: true, index: false })); // approved voice intros only
 app.use('/partner/intro', intros.router);
@@ -47,6 +49,7 @@ app.use('/admin/intros', intros.admin);
 app.use('/admin/avatars', require('./aicheck').adminAvatars); // list with AI score, before the rest of the photo review routes
 app.use('/admin/avatars', avatars.admin);
 app.use('/admin/contracts', require('./contract').admin);
+app.use('/admin/agreements', require('./useragreement').admin);
 const tickets = require('./tickets');
 app.use('/admin/tickets', tickets.admin);
 const adminCalls = require('./admincalls');

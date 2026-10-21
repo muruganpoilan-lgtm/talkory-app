@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:talkory_core/talkory_core.dart';
+import 'agreement_screen.dart';
 import 'call_tab.dart';
 import 'profile_tab.dart';
 import 'push_service.dart';
@@ -37,11 +38,21 @@ class _HomeScreenState extends State<HomeScreen> {
     _timer = Timer.periodic(const Duration(seconds: 20), (_) => _loadUnread());
     _ringPoll = Timer.periodic(const Duration(seconds: 3), (_) => _checkIncoming());
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAgreement();
       UserPush.instance.start(widget.api);
       AdminCallWatcher.instance.start(context, widget.api);
     });
     // A few seconds later, so the location box does not collide with the notification box.
     Future.delayed(const Duration(seconds: 4), () { if (mounted) LocationShare.share(widget.api); });
+  }
+
+  /// New users, and users after the agreement changes, must read and sign it before anything else.
+  Future<void> _checkAgreement() async {
+    try {
+      final a = await widget.api.userAgreement();
+      if (a['signed'] == true || !mounted) return;
+      await Navigator.of(context).push(MaterialPageRoute(fullscreenDialog: true, builder: (_) => AgreementScreen(api: widget.api, onLogout: widget.onLogout)));
+    } catch (_) {} // offline: it is checked again by the server when calling or chatting
   }
 
   /// A host is calling this user: show Accept / Decline, ring and vibrate until answered (max 20s).

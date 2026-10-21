@@ -76,6 +76,7 @@ router.post('/:otherId', requireAuth(['user', 'partner']), sendLimit, async (req
   if (body.length > MAX_LEN) return res.status(400).json({ error: `Messages can be up to ${MAX_LEN} characters` });
   if (LEAKS.test(body)) return res.status(400).json({ error: 'Phone numbers, links and handles are not allowed in chat' });
 
+  if (req.auth.role === 'user' && !(await require('./useragreement').isSigned(req.auth.id))) return res.status(403).json({ error: 'Please sign the user agreement first.', code: 'agreement_required' });
   const { userId, partnerId } = sides(req, req.params.otherId);
   const target = (await pool.query(
     `SELECT a.id, a.role, a.is_blocked, a.display_name, p.kyc FROM accounts a LEFT JOIN partner_profiles p ON p.account_id=a.id WHERE a.id=$1`,
