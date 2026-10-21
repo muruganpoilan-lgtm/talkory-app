@@ -233,7 +233,7 @@ class Api {
   Future<Map<String, dynamic>> partnerEarnings() async =>
       Map<String, dynamic>.from(await _send('GET', '/partner/earnings'));
 
-  Future<void> setPayoutMethod(String upiId) => _send('PUT', '/partner/payout-method', {'upiId': upiId});
+  Future<void> setPayoutMethod(String upiId, {String? upiApp}) => _send('PUT', '/partner/payout-method', {'upiId': upiId, if (upiApp != null) 'upiApp': upiApp});
 
   Future<void> requestPayout(int amountRupees) => _send('POST', '/partner/payouts', {'amountRupees': amountRupees});
 

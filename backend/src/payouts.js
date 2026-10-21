@@ -31,7 +31,7 @@ router.get('/earnings', requireAuth(['partner']), async (req, res) => {
       `SELECT COALESCE(SUM(amount) FILTER (WHERE status='paid'),0) AS withdrawn,
               COALESCE(SUM(amount) FILTER (WHERE status IN ('requested','processing')),0) AS pending
          FROM payouts WHERE partner_id=$1`, [id]),
-    pool.query('SELECT upi_id, kyc FROM partner_profiles WHERE account_id=$1', [id]),
+    pool.query('SELECT upi_id, upi_app, kyc FROM partner_profiles WHERE account_id=$1', [id]),
     pool.query(
       `SELECT c.id, c.started_at, c.billed_seconds, COALESCE(SUM(l.amount),0) AS earned
          FROM calls c
@@ -52,6 +52,7 @@ router.get('/earnings', requireAuth(['partner']), async (req, res) => {
     withdrawn: num(payoutSums.rows[0].withdrawn),
     pending: num(payoutSums.rows[0].pending),
     upiId: profile.rows[0]?.upi_id ?? null,
+    upiApp: profile.rows[0]?.upi_app ?? null,
     kyc: profile.rows[0]?.kyc,
     minPayoutRupees: MIN_PAYOUT_RUPEES,
     withdrawEveryDays: WITHDRAW_EVERY_DAYS,
@@ -69,8 +70,9 @@ router.get('/earnings', requireAuth(['partner']), async (req, res) => {
 router.put('/payout-method', requireAuth(['partner']), async (req, res) => {
   const upi = String(req.body.upiId || '').trim().toLowerCase();
   if (!UPI_RE.test(upi)) return res.status(400).json({ error: 'Enter a valid UPI ID, e.g. name@bank' });
-  await pool.query('UPDATE partner_profiles SET upi_id=$1 WHERE account_id=$2', [upi, req.auth.id]);
-  res.json({ upiId: upi });
+  const app = ['gpay', 'phonepe'].includes(req.body.upiApp) ? req.body.upiApp : null;
+  await pool.query('UPDATE partner_profiles SET upi_id=$1, upi_app=$3 WHERE account_id=$2', [upi, req.auth.id, app]);
+  res.json({ upiId: upi, upiApp: app });
 });
 
 // Withdrawal request: money leaves the wallet immediately (held), admin then pays it out
@@ -84,7 +86,7 @@ router.post('/payouts', requireAuth(['partner']), async (req, res) => {
   try {
     await client.query('BEGIN');
     const p = (await client.query(
-      'SELECT kyc, upi_id FROM partner_profiles WHERE account_id=$1 FOR UPDATE', [req.auth.id])).rows[0];
+      'SELECT kyc, upi_id, upi_app FROM partner_profiles WHERE account_id=$1 FOR UPDATE', [req.auth.id])).rows[0];
     if (!p || p.kyc !== 'approved') throw new HttpError(403, 'KYC approval is required to withdraw');
     if (!p.upi_id) throw new HttpError(400, 'Add your UPI ID first');
 
@@ -102,8 +104,8 @@ router.post('/payouts', requireAuth(['partner']), async (req, res) => {
     if (!debit.rowCount) throw new HttpError(402, 'Insufficient balance');
 
     const payout = (await client.query(
-      'INSERT INTO payouts (partner_id, amount, upi_id) VALUES ($1,$2,$3) RETURNING id',
-      [req.auth.id, amount, p.upi_id])).rows[0];
+      'INSERT INTO payouts (partner_id, amount, upi_id, upi_app) VALUES ($1,$2,$3,$4) RETURNING id',
+      [req.auth.id, amount, p.upi_id, p.upi_app])).rows[0];
     await client.query(
       `INSERT INTO ledger (account_id, type, amount, ref, idem_key) VALUES ($1,'payout',$2,$3,$4)`,
       [req.auth.id, -amount, payout.id, `payout:${payout.id}`]);
@@ -124,7 +126,7 @@ router.post('/payouts', requireAuth(['partner']), async (req, res) => {
 router.get('/admin/payouts', requireAuth(['admin']), async (req, res) => {
   const status = req.query.status || 'requested';
   const { rows } = await pool.query(
-    `SELECT p.id, p.amount, p.status, p.upi_id, p.requested_at, a.display_name, pp.kyc
+    `SELECT p.id, p.amount, p.status, p.upi_id, p.upi_app, p.requested_at, a.display_name, pp.kyc
        FROM payouts p JOIN accounts a ON a.id=p.partner_id JOIN partner_profiles pp ON pp.account_id=p.partner_id
       WHERE p.status=$1 ORDER BY p.requested_at ASC LIMIT 100`, [status]);
   res.json(rows.map((r) => ({ ...r, amount: num(r.amount) })));

@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:talkory_core/talkory_core.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// Shown next to photos when the AI-image check is on: 0 = real, 1 = AI-generated
 String _aiNote(dynamic v) => v is num ? (v >= 0.5 ? '\n⚠ AI check: ${(v * 100).round()}% looks AI-generated' : '\nAI check: ${(v * 100).round()}% AI') : '';
@@ -48,6 +49,56 @@ Future<String?> _ask(BuildContext c, String title, String initial) {
         TextButton(onPressed: () => Navigator.pop(d), child: const Text('Cancel')),
         FilledButton(onPressed: () => Navigator.pop(d, ctl.text.trim()), child: const Text('OK')),
       ],
+    ),
+  );
+}
+
+String _appName(dynamic a) => a == 'gpay' ? 'GPay' : a == 'phonepe' ? 'PhonePe' : '';
+
+/// Opens GPay or PhonePe with the host's UPI ID and the amount already filled in. You still confirm the payment inside the app.
+Future<void> _payInApp(BuildContext c, String app, Map r) async {
+  final q = 'pa=${Uri.encodeComponent('${r['upi_id']}')}&pn=${Uri.encodeComponent('${r['display_name']}')}'
+      '&am=${((r['amount'] as num) / 100).toStringAsFixed(2)}&cu=INR&tn=${Uri.encodeComponent('Talkory payout')}';
+  final uri = Uri.parse(app == 'gpay' ? 'tez://upi/pay?$q' : 'phonepe://pay?$q');
+  var ok = false;
+  try {
+    ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+  } catch (_) {}
+  if (!ok) {
+    try {
+      ok = await launchUrl(Uri.parse('upi://pay?$q'), mode: LaunchMode.externalApplication); // any UPI app
+    } catch (_) {}
+  }
+  if (!ok && c.mounted) _toast(c, 'Could not open ${_appName(app)}. Is it installed?');
+}
+
+/// Asks which UPI app and which UPI ID to withdraw to. Returns {upiId, upiApp} or null.
+Future<Map<String, String>?> _askUpi(BuildContext c, String initialUpi, String? initialApp) {
+  final ctl = TextEditingController(text: initialUpi);
+  var app = initialApp == 'phonepe' ? 'phonepe' : 'gpay';
+  return showDialog<Map<String, String>>(
+    context: c,
+    builder: (d) => StatefulBuilder(
+      builder: (d, set) => AlertDialog(
+        title: const Text('Withdraw to UPI'),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            for (final a in const [['gpay', 'GPay'], ['phonepe', 'PhonePe']])
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ChoiceChip(label: SizedBox(width: double.infinity, child: Text(a[1], textAlign: TextAlign.center)), selected: app == a[0], onSelected: (_) => set(() => app = a[0])),
+                ),
+              ),
+          ]),
+          const SizedBox(height: 12),
+          TextField(controller: ctl, autocorrect: false, decoration: InputDecoration(labelText: 'Your ${_appName(app)} UPI ID', hintText: 'name@bank')),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(d), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(d, {'upiId': ctl.text.trim(), 'upiApp': app}), child: const Text('Continue')),
+        ],
+      ),
     ),
   );
 }
@@ -301,19 +352,26 @@ List<_Spec> _specs() {
         (r) => r['kind'] == 'summary' ? 'Available: ${_rs(r['available'] as num)}' : 'Withdrawn ${_rs(r['amount'] as num)}',
         (r) => r['kind'] == 'summary'
             ? 'Paid calls ${_rs(r['calls'] as num)} · Chats ${_rs(r['chats'] as num)} · Free calls (cost) ${_rs(r['free'] as num)} · Already withdrawn ${_rs(r['withdrawn'] as num)}\nToday ${_rs(r['today'] as num)} · This month ${_rs(r['month'] as num)}'
-            : 'to ${r['upi_id']} · ${_when(r['created_at'])}',
+            : 'to ${r['upi_id']}${_appName(r['upi_app']).isEmpty ? '' : ' (${_appName(r['upi_app'])})'} · ${_when(r['created_at'])}',
         (r) => r['kind'] != 'summary' ? [] : [
           _Act('Withdraw to UPI', (c, api, r) async {
-            final upi = await _ask(c, 'Your UPI ID (like name@bank)', '${r['upi_id'] ?? ''}');
-            if (upi == null || upi.isEmpty || !c.mounted) return false;
-            if (!await _confirm(c, 'Withdraw ${_rs(r['available'] as num)} to $upi?')) return false;
+            final pick = await _askUpi(c, '${r['upi_id'] ?? ''}', r['upi_app'] as String?);
+            if (pick == null || pick['upiId']!.isEmpty || !c.mounted) return false;
+            if (!await _confirm(c, 'Withdraw ${_rs(r['available'] as num)} to ${pick['upiId']} (${_appName(pick['upiApp'])})?')) return false;
             if (!c.mounted) return false;
-            return _do(c, () => api.adminPost('/admin/earnings/withdraw', {'upiId': upi}));
+            return _do(c, () => api.adminPost('/admin/earnings/withdraw', {'upiId': pick['upiId'], 'upiApp': pick['upiApp']}));
           }, color: Colors.green),
         ]),
     _Spec('Contracts', '/admin/contracts', (r) => '${r['display_name']}', (r) => 'Signed as ${r['full_name']} · ${_when(r['signed_at'])}', (r) => []),
     _Spec('Payouts', '/partner/admin/payouts', (r) => '${r['display_name']}  ${_rs(r['amount'] as num)}',
-        (r) => 'UPI ${r['upi_id']} · ${_when(r['requested_at'])}${r['kyc'] != 'approved' ? ' · KYC ${r['kyc']}' : ''}', (r) => [
+        (r) => 'UPI ${r['upi_id']}${_appName(r['upi_app']).isEmpty ? '' : ' (${_appName(r['upi_app'])})'} · ${_when(r['requested_at'])}${r['kyc'] != 'approved' ? ' · KYC ${r['kyc']}' : ''}', (r) => [
+          if (r['status'] == 'requested' || r['status'] == 'processing') ...[
+            for (final a in (r['upi_app'] == 'phonepe' ? ['phonepe', 'gpay'] : ['gpay', 'phonepe']))
+              _Act('Pay via ${_appName(a)}', (c, api, r) async {
+                await _payInApp(c, a, r);
+                return false;
+              }, color: Colors.blue),
+          ],
           _Act('Mark paid', (c, api, r) async {
             if (!await _confirm(c, 'Confirm you have sent ${_rs(r['amount'] as num)} to ${r['upi_id']}?')) return false;
             if (!c.mounted) return false;

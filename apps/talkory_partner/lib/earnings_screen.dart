@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:talkory_core/talkory_core.dart';
+import 'withdraw_screen.dart';
 
 String _rs(num paise) => '₹${(paise / 100).toStringAsFixed(2)}';
 String _two(int n) => n.toString().padLeft(2, '0');
@@ -89,20 +90,14 @@ class _EarningsScreenState extends State<EarningsScreen> {
     final min = d['minPayoutRupees'] as int;
     final next = DateTime.tryParse((d['nextWithdrawAt'] as String?) ?? '')?.toLocal();
     if (next != null && next.isAfter(DateTime.now())) return _snack('You can withdraw once every ${d['withdrawEveryDays'] ?? 10} days. Your next withdrawal is on ${_day(next)}.');
-    if (d['upiId'] == null) {
-      _snack('Add your UPI ID first');
-      return _editUpi();
+    if ((d['balance'] as int) < min * 100) return _snack('You need at least ₹$min to withdraw');
+    final ok = await Navigator.of(context).push<bool>(MaterialPageRoute(
+      builder: (_) => WithdrawScreen(api: widget.api, balancePaise: d['balance'] as int, minRupees: min, upiId: d['upiId'] as String?, upiApp: d['upiApp'] as String?),
+    ));
+    if (ok == true) {
+      _snack('Withdrawal requested');
+      _load();
     }
-    final v = await _ask(
-      title: 'Withdraw to ${d['upiId']}',
-      hint: 'Amount in ₹ (min $min)',
-      type: TextInputType.number,
-    );
-    final rupees = int.tryParse(v ?? '');
-    if (rupees == null) return;
-    if (rupees < min) return _snack('Minimum withdrawal is ₹$min');
-    if (rupees * 100 > (d['balance'] as int)) return _snack('That is more than your balance');
-    await _guard(() => widget.api.requestPayout(rupees), 'Withdrawal requested');
   }
 
   Color _statusColor(String s) => switch (s) {

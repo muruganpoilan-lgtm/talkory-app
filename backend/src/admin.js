@@ -101,16 +101,17 @@ const availableOf = (n) => Math.max(0, n.calls + n.free + n.chats - n.withdrawn)
 // One summary row first, then the withdrawals already taken.
 router.get('/earnings', async (req, res) => {
   const n = await earningsNumbers(pool);
-  const last = (await pool.query('SELECT upi_id FROM admin_withdrawals ORDER BY id DESC LIMIT 1')).rows[0];
-  const past = (await pool.query('SELECT id, amount, upi_id, created_at FROM admin_withdrawals ORDER BY id DESC LIMIT 50')).rows;
+  const last = (await pool.query('SELECT upi_id, upi_app FROM admin_withdrawals ORDER BY id DESC LIMIT 1')).rows[0];
+  const past = (await pool.query('SELECT id, amount, upi_id, upi_app, created_at FROM admin_withdrawals ORDER BY id DESC LIMIT 50')).rows;
   res.json([
-    { kind: 'summary', id: 'summary', ...n, available: availableOf(n), upi_id: last ? last.upi_id : '' },
+    { kind: 'summary', id: 'summary', ...n, available: availableOf(n), upi_id: last ? last.upi_id : '', upi_app: last ? last.upi_app : null },
     ...past.map((p) => ({ kind: 'withdrawal', ...p, amount: Number(p.amount) })),
   ]);
 });
 
 router.post('/earnings/withdraw', async (req, res) => {
   const upi = String(req.body.upiId || '').trim();
+  const upiApp = ['gpay', 'phonepe'].includes(req.body.upiApp) ? req.body.upiApp : null;
   if (!UPI_RE.test(upi)) return res.status(400).json({ error: 'Enter a valid UPI ID, like name@bank' });
   const client = await pool.connect();
   try {
@@ -119,7 +120,7 @@ router.post('/earnings/withdraw', async (req, res) => {
     const n = await earningsNumbers(client);
     const available = availableOf(n);
     if (available < 100) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Less than ₹1 available to withdraw' }); }
-    await client.query('INSERT INTO admin_withdrawals (admin_id, amount, upi_id) VALUES ($1,$2,$3)', [req.auth.id, available, upi]);
+    await client.query('INSERT INTO admin_withdrawals (admin_id, amount, upi_id, upi_app) VALUES ($1,$2,$3,$4)', [req.auth.id, available, upi, upiApp]);
     await client.query('COMMIT');
     res.json({ ok: true, amount: available });
   } catch (e) {
