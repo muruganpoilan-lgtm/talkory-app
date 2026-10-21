@@ -30,6 +30,9 @@ class _WalletScreenState extends State<WalletScreen> {
   ];
   bool _packsFromServer = false;
   String _packId = 'p500';
+  // UPI app chosen on the screen: opens straight into that app. 'other' lets the person pick on Razorpay's sheet.
+  String _upiApp = 'gpay';
+  static const _upiPackages = {'gpay': 'com.google.android.apps.nbu.paisa.user', 'phonepe': 'com.phonepe.app'};
   bool _busy = false;
   final _items = <Map<String, dynamic>>[];
   int _page = 0;
@@ -121,6 +124,28 @@ class _WalletScreenState extends State<WalletScreen> {
     );
   }
 
+  Widget _upiTile(String id, String label, Color color) {
+    final on = _upiApp == id;
+    return GestureDetector(
+      onTap: () => setState(() => _upiApp = id),
+      child: Container(
+        width: 96,
+        margin: const EdgeInsets.only(right: 12),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: on ? kRoyal : Colors.black26, width: on ? 2 : 1),
+        ),
+        child: Column(children: [
+          CircleAvatar(radius: 20, backgroundColor: color, child: Text(label[0], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 18))),
+          const SizedBox(height: 6),
+          Text(label, style: TextStyle(fontSize: 13, fontWeight: on ? FontWeight.w700 : FontWeight.w500)),
+        ]),
+      ),
+    );
+  }
+
   Widget _packCard(Map<String, dynamic> p) {
     final pay = p['pay'] as int, coins = p['coins'] as int, tag = (p['tag'] as String?) ?? '';
     final bonus = coins - pay;
@@ -177,6 +202,7 @@ class _WalletScreenState extends State<WalletScreen> {
         'description': 'Wallet top-up',
         'theme': {'color': '#6C4DFF'},
         if (upiOnly) 'method': {'upi': true, 'card': false, 'netbanking': false, 'wallet': false, 'emi': false, 'paylater': false},
+        if (upiOnly && _upiPackages[_upiApp] != null) ...{'_[flow]': 'intent', 'upi_app_package_name': _upiPackages[_upiApp]},
         if (!upiOnly)
           'config': {
             'display': {
@@ -256,6 +282,13 @@ class _WalletScreenState extends State<WalletScreen> {
                   const SizedBox(height: 12),
                   for (final p in _packs) _packCard(p),
                   const SizedBox(height: 8),
+                  const Text('Pay with', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 8),
+                  Row(children: [
+                    _upiTile('gpay', 'GPay', const Color(0xFF4285F4)),
+                    _upiTile('phonepe', 'PhonePe', const Color(0xFF5F259F)),
+                  ]),
+                  const SizedBox(height: 14),
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton(
@@ -264,7 +297,7 @@ class _WalletScreenState extends State<WalletScreen> {
                       child: _busy
                           ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                           : Column(mainAxisSize: MainAxisSize.min, children: [
-                              Text('Add ₹${_pack['pay']} with UPI', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+                              Text('Add ₹${_pack['pay']} with ${_upiApp == 'phonepe' ? 'PhonePe' : 'GPay'}', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
                               const Text('(incl. of all taxes)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w400)),
                             ]),
                     ),
@@ -273,10 +306,10 @@ class _WalletScreenState extends State<WalletScreen> {
                   Center(
                     child: TextButton(
                       onPressed: _busy ? null : () => _pay(upiOnly: false),
-                      child: const Text('More options (card, netbanking)'),
+                      child: const Text('More options (other UPI apps, card, netbanking)'),
                     ),
                   ),
-                  const Center(child: Text('Google Pay · PhonePe · Paytm · BHIM and any UPI app', style: TextStyle(fontSize: 12, color: Colors.black54))),
+                  const Center(child: Text('Not installed? Use More options for any other UPI app', style: TextStyle(fontSize: 12, color: Colors.black54))),
                   const SizedBox(height: 28),
                   Text('Activity', style: text.titleMedium?.copyWith(fontWeight: FontWeight.w700, color: kInk)),
                   const SizedBox(height: 4),
