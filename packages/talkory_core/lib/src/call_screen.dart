@@ -24,7 +24,7 @@ class _CallScreenState extends State<CallScreen> {
   RtcEngine? _engine;
   Timer? _timer, _poll;
   int? _secondsLeft;
-  bool _warned = false;
+  bool _warned2 = false, _warned1 = false; // vibration alerts already given at 2 minutes and at 1 minute left
   int _seconds = 0;
   bool _connected = false, _muted = false, _leaving = false, _speaker = false, _free = false;
 
@@ -84,16 +84,29 @@ class _CallScreenState extends State<CallScreen> {
         return _leave(s['status'] == 'rejected' ? 'Call declined' : !_connected ? 'No answer' : _free ? 'Free call ended' : (_secondsLeft ?? 999) <= 30 ? 'Call ended: balance used up' : 'Call ended');
       }
       final left = s['secondsLeft'] as int?;
-      if (left != null && left <= 60 && !_warned) {
-        _warned = true;
-        HapticFeedback.heavyImpact();
+      if (!_free && left != null) {
+        if (left <= 120 && !_warned2) {
+          _warned2 = true;
+          _buzz(4); // 2 minutes left: strong vibration
+        } else if (left <= 60 && !_warned1) {
+          _warned1 = true;
+          _buzz(2); // 1 minute left
+        }
+        if (left > 120) { _warned2 = false; _warned1 = false; } // topped up: alerts can fire again
       }
-      if (left != null && left > 60) _warned = false; // topped up
       setState(() {
         _secondsLeft = left;
         _free = s['free'] == true;
       });
     } catch (_) {} // transient network error: try again in 5s
+  }
+
+  /// A row of vibration pulses (the phone's touch-feedback setting must be on for them to be felt).
+  Future<void> _buzz(int pulses) async {
+    for (var i = 0; i < pulses && mounted && !_leaving; i++) {
+      HapticFeedback.heavyImpact();
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+    }
   }
 
   Future<void> _leave([String? message]) async {
@@ -147,7 +160,7 @@ class _CallScreenState extends State<CallScreen> {
               Text(widget.peerName, style: Theme.of(context).textTheme.headlineSmall),
               const SizedBox(height: 8),
               Text(_connected ? _clock : 'Ringing…', style: Theme.of(context).textTheme.titleMedium),
-              if (_secondsLeft != null && !_free && _secondsLeft! <= 60) ...[
+              if (_secondsLeft != null && !_free && _secondsLeft! <= 120) ...[
                 const SizedBox(height: 24),
                 Container(
                   margin: const EdgeInsets.symmetric(horizontal: 24),
@@ -160,11 +173,11 @@ class _CallScreenState extends State<CallScreen> {
                     const Icon(Icons.warning_amber_rounded, color: Colors.black87),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: Text(_free ? 'Free call: about ${_secondsLeft}s left' : 'Low balance: about ${_secondsLeft}s of talk time left',
+                      child: Text(_secondsLeft! > 60 ? 'Low balance: your call will end in about 2 minutes. Add coins to keep talking.' : 'Low balance: about ${_secondsLeft}s of talk time left. Add coins now!',
                           style: const TextStyle(color: Colors.black87)),
                     ),
                     if (widget.onAddCredits != null && !_free)
-                      TextButton(onPressed: widget.onAddCredits, child: const Text('Add credits')),
+                      FilledButton(onPressed: widget.onAddCredits, child: const Text('Add coins')),
                   ]),
                 ),
               ],
