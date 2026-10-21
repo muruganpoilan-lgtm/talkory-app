@@ -2,7 +2,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:talkory_core/talkory_core.dart';
-import 'home_screen.dart';
+import 'setup_gate.dart';
 import 'push_service.dart';
 
 /// Firebase from --dart-define values (no google-services.json needed), else the platform config files.
@@ -71,7 +71,7 @@ class _PartnerAppState extends State<PartnerApp> {
       debugShowCheckedModeBanner: false,
       theme: talkoryTheme(const Color(0xFF5B3DF5)),
       home: _loggedIn
-          ? HomeScreen(api: widget.api, onLogout: _logout)
+          ? SetupGate(api: widget.api, onLogout: _logout) // dashboard only after KYC is approved and the agreement is signed
           : LoginScreen(
               api: widget.api,
               role: 'partner',
