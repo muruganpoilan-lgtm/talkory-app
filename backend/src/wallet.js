@@ -5,6 +5,14 @@ const { pool, requireAuth } = require('./db');
 const MIN_RUPEES = 100;
 const MAX_RUPEES = 10000;
 
+// Coin packs: pay (rupees) -> coins credited. 1 coin = Rs 1; bigger packs give bonus coins.
+const PACKS = [
+  { id: 'p100', pay: 100, coins: 100, tag: '' },
+  { id: 'p200', pay: 200, coins: 210, tag: '' },
+  { id: 'p500', pay: 500, coins: 560, tag: 'Popular' },
+  { id: 'p1000', pay: 1000, coins: 1200, tag: 'Best value' },
+];
+
 const hmac = (secret, data) => crypto.createHmac('sha256', secret).update(data).digest('hex');
 const safeEqual = (a, b) => {
   const x = Buffer.from(String(a)), y = Buffer.from(String(b));
@@ -89,22 +97,32 @@ router.get('/history', requireAuth(['user']), async (req, res) => {
 });
 
 // Step 1: create a Razorpay order for the app to open checkout with
-router.post('/topup', requireAuth(['user']), async (req, res) => {
-  const rupees = Number(req.body.amountRupees);
-  if (!Number.isInteger(rupees) || rupees < MIN_RUPEES || rupees > MAX_RUPEES)
-    return res.status(400).json({ error: `Amount must be between ₹${MIN_RUPEES} and ₹${MAX_RUPEES}` });
+router.get('/packs', requireAuth(['user']), (req, res) => res.json(PACKS));
 
-  const amount = rupees * 100; // paise: always computed server-side
+router.post('/topup', requireAuth(['user']), async (req, res) => {
+  let pay, coins, packId = null;
+  const pack = req.body.packId ? PACKS.find((p) => p.id === req.body.packId) : null;
+  if (req.body.packId && !pack) return res.status(400).json({ error: 'Choose a pack' });
+  if (pack) { pay = pack.pay; coins = pack.coins; packId = pack.id; }
+  else { // older app versions send a plain amount: 1 coin per rupee
+    const rupees = Number(req.body.amountRupees);
+    if (!Number.isInteger(rupees) || rupees < MIN_RUPEES || rupees > MAX_RUPEES)
+      return res.status(400).json({ error: `Amount must be between ₹${MIN_RUPEES} and ₹${MAX_RUPEES}` });
+    pay = coins = rupees;
+  }
+
+  const amount = coins * 100; // paise credited to the wallet: always computed server-side
+  const payAmount = pay * 100; // paise charged
   try {
     const order = await razorpayPost('/orders', {
-      amount, currency: 'INR',
+      amount: payAmount, currency: 'INR',
       receipt: `tk_${Date.now()}`,
-      notes: { account_id: req.auth.id },
+      notes: { account_id: req.auth.id, pack: packId || '' },
     });
     await pool.query(
-      'INSERT INTO topup_orders (account_id, razorpay_order_id, amount) VALUES ($1,$2,$3)',
-      [req.auth.id, order.id, amount]);
-    res.json({ orderId: order.id, keyId: process.env.RAZORPAY_KEY_ID, amount, currency: 'INR' });
+      'INSERT INTO topup_orders (account_id, razorpay_order_id, amount, pay_amount, pack_id) VALUES ($1,$2,$3,$4,$5)',
+      [req.auth.id, order.id, amount, payAmount, packId]);
+    res.json({ orderId: order.id, keyId: process.env.RAZORPAY_KEY_ID, amount: payAmount, currency: 'INR' });
   } catch (e) {
     console.error('create order failed', e.message);
     res.status(502).json({ error: 'Could not start payment. Try again.' });

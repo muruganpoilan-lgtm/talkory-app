@@ -19,10 +19,17 @@ class WalletScreen extends StatefulWidget {
 }
 
 class _WalletScreenState extends State<WalletScreen> {
-  static const _presets = [100, 200, 500, 1000];
   late final Razorpay _rz;
   int? _balance; // paise
-  int _amount = 200; // rupees
+  // Coin packs come from the server (pay = rupees charged, coins = coins credited). These are used if the server cannot be reached.
+  List<Map<String, dynamic>> _packs = [
+    {'id': 'p100', 'pay': 100, 'coins': 100, 'tag': ''},
+    {'id': 'p200', 'pay': 200, 'coins': 210, 'tag': ''},
+    {'id': 'p500', 'pay': 500, 'coins': 560, 'tag': 'Popular'},
+    {'id': 'p1000', 'pay': 1000, 'coins': 1200, 'tag': 'Best value'},
+  ];
+  bool _packsFromServer = false;
+  String _packId = 'p500';
   bool _busy = false;
   final _items = <Map<String, dynamic>>[];
   int _page = 0;
@@ -36,7 +43,23 @@ class _WalletScreenState extends State<WalletScreen> {
       ..on(Razorpay.EVENT_PAYMENT_ERROR, _onError);
     _load();
     _loadHistory();
+    _loadPacks();
   }
+
+  Future<void> _loadPacks() async {
+    try {
+      final p = await widget.api.topupPacks();
+      if (mounted && p.isNotEmpty) {
+        setState(() {
+          _packs = p;
+          _packsFromServer = true;
+          if (!p.any((x) => x['id'] == _packId)) _packId = p.first['id'] as String;
+        });
+      }
+    } catch (_) {}
+  }
+
+  Map<String, dynamic> get _pack => _packs.firstWhere((p) => p['id'] == _packId, orElse: () => _packs.first);
 
   @override
   void dispose() {
@@ -98,11 +121,53 @@ class _WalletScreenState extends State<WalletScreen> {
     );
   }
 
+  Widget _packCard(Map<String, dynamic> p) {
+    final pay = p['pay'] as int, coins = p['coins'] as int, tag = (p['tag'] as String?) ?? '';
+    final bonus = coins - pay;
+    final selected = p['id'] == _packId;
+    return GestureDetector(
+      onTap: () => setState(() => _packId = p['id'] as String),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFFF6F1FF) : Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: selected ? kRoyal : Colors.black26, width: selected ? 2 : 1),
+        ),
+        child: Column(children: [
+          if (tag.isNotEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+              decoration: BoxDecoration(
+                color: selected ? kRoyal : const Color(0xFFE6DAFB),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              ),
+              child: Text(tag, style: TextStyle(color: selected ? Colors.white : kRoyal, fontWeight: FontWeight.w700, fontSize: 12)),
+            ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            child: Row(children: [
+              const Icon(Icons.monetization_on, color: kGold, size: 30),
+              const SizedBox(width: 8),
+              Text('$coins', style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: kInk)),
+              const Spacer(),
+              Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                Text('₹$pay', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: kInk)),
+                if (bonus > 0) Text('+$bonus bonus coins', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.green.shade700)),
+              ]),
+            ]),
+          ),
+        ]),
+      ),
+    );
+  }
+
   // upiOnly: Razorpay shows only UPI (GPay, PhonePe, Paytm, BHIM ...). Otherwise UPI is listed first, then cards and netbanking.
   Future<void> _pay({bool upiOnly = true}) async {
     setState(() => _busy = true);
     try {
-      final o = await widget.api.createTopup(_amount);
+      final o = _packsFromServer ? await widget.api.createPackTopup(_packId) : await widget.api.createTopup(_pack['pay'] as int);
       _rz.open({
         'key': o['keyId'],
         'order_id': o['orderId'],
@@ -187,37 +252,28 @@ class _WalletScreenState extends State<WalletScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Add coins  (1 coin = ₹1)', style: text.titleMedium?.copyWith(fontWeight: FontWeight.w700, color: kInk)),
+                  Text('Add coins', style: text.titleMedium?.copyWith(fontWeight: FontWeight.w700, color: kInk)),
                   const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final a in _presets)
-                        ChoiceChip(
-                          label: Text('$a coins'),
-                          selected: _amount == a,
-                          selectedColor: const Color(0xFFE6DAFB),
-                          onSelected: (_) => setState(() => _amount = a),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
+                  for (final p in _packs) _packCard(p),
+                  const SizedBox(height: 8),
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton(
-                      style: FilledButton.styleFrom(backgroundColor: kRoyal, minimumSize: const Size(0, 50)),
+                      style: FilledButton.styleFrom(backgroundColor: kRoyal, minimumSize: const Size(0, 56)),
                       onPressed: _busy ? null : () => _pay(),
                       child: _busy
                           ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                          : Text('Pay ₹$_amount with UPI', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                          : Column(mainAxisSize: MainAxisSize.min, children: [
+                              Text('Add ₹${_pack['pay']} with UPI', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+                              const Text('(incl. of all taxes)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w400)),
+                            ]),
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   Center(
                     child: TextButton(
                       onPressed: _busy ? null : () => _pay(upiOnly: false),
-                      child: const Text('Pay with card or netbanking instead'),
+                      child: const Text('More options (card, netbanking)'),
                     ),
                   ),
                   const Center(child: Text('Google Pay · PhonePe · Paytm · BHIM and any UPI app', style: TextStyle(fontSize: 12, color: Colors.black54))),

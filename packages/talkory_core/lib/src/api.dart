@@ -219,6 +219,12 @@ class Api {
   Future<Map<String, dynamic>> createTopup(int amountRupees) async =>
       Map<String, dynamic>.from(await _send('POST', '/wallet/topup', {'amountRupees': amountRupees}));
 
+  /// Coin packs: [{id, pay (rupees), coins, tag}]
+  Future<List<Map<String, dynamic>>> topupPacks() async =>
+      (await _send('GET', '/wallet/packs') as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+  Future<Map<String, dynamic>> createPackTopup(String packId) async =>
+      Map<String, dynamic>.from(await _send('POST', '/wallet/topup', {'packId': packId}));
+
   /// Sends the checkout result for server-side signature verification. Returns the new balance.
   Future<int> verifyTopup({required String orderId, required String paymentId, required String signature}) async =>
       (await _send('POST', '/wallet/topup/verify', {'orderId': orderId, 'paymentId': paymentId, 'signature': signature}))['balance'] as int;
