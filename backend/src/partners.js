@@ -61,6 +61,12 @@ router.post('/online', requireAuth(['partner']), async (req, res) => {
   res.json({ online: on, status });
   if (status === 'online') {
     // Tell users this host is online, at most once every 30 minutes per host (so toggling does not spam anyone)
+    try { // best friends get their own alert (own 30-minute limit per host)
+      if (await redis.set(`bfnotif:${req.auth.id}`, '1', 'EX', 1800, 'NX')) {
+        const name = (await pool.query('SELECT display_name FROM accounts WHERE id=$1', [req.auth.id])).rows[0]?.display_name;
+        push.notifyBestFriendsOnline(req.auth.id, name).catch((e) => console.error('[push] best-friend-online:', e.message));
+      }
+    } catch (e) { console.error('[push] best-friend-online:', e.message); }
     try {
       if (await redis.set(`hostnotif:${req.auth.id}`, '1', 'EX', 1800, 'NX')) {
         const name = (await pool.query('SELECT display_name FROM accounts WHERE id=$1', [req.auth.id])).rows[0]?.display_name;

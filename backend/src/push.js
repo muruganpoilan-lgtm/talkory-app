@@ -92,13 +92,48 @@ async function notifyAdminVideoCall(accountId) {
   })));
 }
 
-// A host just went online: tell every user's phone. Plain notification, no call data.
+// "Best friends" of a host: users who have had more than BEST_FRIEND_AFTER answered calls with them (same rule as the badge in chat.js)
+const BEST_FRIEND_AFTER = Number(process.env.BEST_FRIEND_AFTER_CALLS || 5);
+const bestFriendIds = async (hostId) => (await pool.query(
+  `SELECT user_id FROM calls WHERE partner_id=$1 AND started_at IS NOT NULL GROUP BY user_id HAVING COUNT(*) > $2`,
+  [hostId, BEST_FRIEND_AFTER])).rows.map((r) => r.user_id);
+
+async function sendToTokens(tokens, message, label) {
+  for (let i = 0; i < tokens.length; i += 500) {
+    const chunk = tokens.slice(i, i + 500);
+    try {
+      const res = await admin.messaging().sendEachForMulticast({ tokens: chunk, ...message });
+      const dead = [];
+      res.responses.forEach((r, k) => { if (!r.success && DEAD_TOKEN_CODES.includes(r.error?.code)) dead.push(chunk[k]); });
+      if (dead.length) await pool.query('DELETE FROM devices WHERE push_token = ANY($1)', [dead]);
+    } catch (e) {
+      console.error(`[push] ${label} send failed:`, e.code || e.message);
+    }
+  }
+}
+
+// A host just went online: tell the users who are their best friends: "Your best friend <name> is online!!"
+async function notifyBestFriendsOnline(hostId, hostName) {
+  if (!enabled) return;
+  const ids = await bestFriendIds(hostId);
+  if (!ids.length) return;
+  const first = String(hostName || 'Your friend').split(/\s+/)[0].slice(0, 30);
+  const { rows } = await pool.query('SELECT DISTINCT push_token FROM devices WHERE account_id = ANY($1)', [ids]);
+  await sendToTokens(rows.map((r) => r.push_token), {
+    notification: { title: `Your best friend ${first} is online!!` }, // one line only: no body text
+    data: { type: 'best_friend_online', hostId: String(hostId) },
+    android: { priority: 'high', ttl: 60 * 60 * 1000 },
+  }, 'best-friend-online');
+}
+
+// A host just went online: tell every user's phone. Plain notification, no call data. (Best friends get their own, nicer alert instead.)
 async function notifyHostOnline(hostId, hostName) {
   if (!enabled) return;
   const first = String(hostName || 'A host').split(/\s+/)[0].slice(0, 30);
+  const friends = await bestFriendIds(hostId);
   const { rows } = await pool.query(
     `SELECT DISTINCT d.push_token FROM devices d JOIN accounts a ON a.id=d.account_id
-      WHERE a.role='user' AND a.id<>$1 LIMIT 20000`, [hostId]);
+      WHERE a.role='user' AND a.id<>$1 AND NOT (a.id = ANY($2::uuid[])) LIMIT 20000`, [hostId, friends]);
   const tokens = rows.map((r) => r.push_token);
   for (let i = 0; i < tokens.length; i += 500) {
     const chunk = tokens.slice(i, i + 500);
@@ -144,4 +179,4 @@ async function notifyMeeting(accountIds, { title, body }) {
   }
 }
 
-module.exports = { notifyIncomingCall, notifyCallCancelled, notifyMessage, notifyHostOnline, notifyAdminVideoCall, notifyMeeting };
+module.exports = { notifyIncomingCall, notifyCallCancelled, notifyMessage, notifyHostOnline, notifyBestFriendsOnline, notifyAdminVideoCall, notifyMeeting };
