@@ -2,6 +2,12 @@ const router = require('express').Router();
 const rateLimit = require('express-rate-limit');
 const { pool, requireAuth } = require('./db');
 const push = require('./push');
+const { redis } = require('./db');
+const wordfilter = require('./wordfilter');
+
+// Illegal / abusive words: the message is not sent. 3 strikes within 7 days and a user is blocked automatically.
+const STRIKES_TO_BLOCK = Number(process.env.CHAT_STRIKES_TO_BLOCK || 3);
+
 
 const MESSAGE_COST = Number(process.env.CHAT_COST_PAISE || 60); // paise = 0.6 coins, charged to the user for each message they send. Hosts reply free.
 const HOST_EARN = Number(process.env.CHAT_HOST_EARN_PAISE || 50); // paise the host receives for each message; the rest (10 paise) stays with Talkory
@@ -75,6 +81,26 @@ router.post('/:otherId', requireAuth(['user', 'partner']), sendLimit, async (req
   if (!body) return res.status(400).json({ error: 'Type a message' });
   if (body.length > MAX_LEN) return res.status(400).json({ error: `Messages can be up to ${MAX_LEN} characters` });
   if (LEAKS.test(body)) return res.status(400).json({ error: 'Phone numbers, links and handles are not allowed in chat' });
+
+  const hit = wordfilter.check(body);
+  if (hit && /^[0-9a-f-]{36}$/i.test(req.params.otherId)) {
+    const key = `chatstrike:${req.auth.id}`;
+    const strikes = await redis.incr(key);
+    await redis.expire(key, 7 * 24 * 3600);
+    const reason = `[auto-filter] banned word "${hit}" (strike ${strikes}): ${body.slice(0, 200)}`;
+    if (strikes >= STRIKES_TO_BLOCK) {
+      // the person who would have received it is the reporter, so it shows up in the admin Reports list
+      await pool.query('INSERT INTO reports (reporter_id, reported_id, reason) VALUES ($1,$2,$3)', [req.params.otherId, req.auth.id, reason]).catch(() => {});
+      if (req.auth.role === 'user') {
+        await pool.query('UPDATE accounts SET is_blocked=true WHERE id=$1', [req.auth.id]);
+        await redis.sadd('blocked', req.auth.id);
+        await redis.del(key);
+        return res.status(403).json({ error: 'Your account has been blocked for breaking the chat rules.' });
+      }
+      await redis.del(key);
+    }
+    return res.status(400).json({ error: `This message is not allowed (illegal or abusive words). Warning ${Math.min(strikes, STRIKES_TO_BLOCK)} of ${STRIKES_TO_BLOCK}: repeated warnings block your account.` });
+  }
 
   const { userId, partnerId } = sides(req, req.params.otherId);
   const target = (await pool.query(
