@@ -87,7 +87,7 @@ router.post('/:otherId', requireAuth(['user', 'partner']), sendLimit, async (req
     const key = `chatstrike:${req.auth.id}`;
     const strikes = await redis.incr(key);
     await redis.expire(key, 7 * 24 * 3600);
-    const reason = `[auto-filter] banned word "${hit}" (strike ${strikes}): ${body.slice(0, 200)}`;
+    const reason = `[auto-filter] banned word / contact detail "${hit}" (strike ${strikes}): ${body.slice(0, 200)}`;
     if (strikes >= STRIKES_TO_BLOCK) {
       // the person who would have received it is the reporter, so it shows up in the admin Reports list
       await pool.query('INSERT INTO reports (reporter_id, reported_id, reason) VALUES ($1,$2,$3)', [req.params.otherId, req.auth.id, reason]).catch(() => {});
@@ -99,7 +99,7 @@ router.post('/:otherId', requireAuth(['user', 'partner']), sendLimit, async (req
       }
       await redis.del(key);
     }
-    return res.status(400).json({ error: `This message is not allowed (illegal or abusive words). Warning ${Math.min(strikes, STRIKES_TO_BLOCK)} of ${STRIKES_TO_BLOCK}: repeated warnings block your account.` });
+    return res.status(400).json({ error: `This message is not allowed (illegal or abusive words, or phone numbers and contact details). Warning ${Math.min(strikes, STRIKES_TO_BLOCK)} of ${STRIKES_TO_BLOCK}: repeated warnings block your account.` });
   }
 
   const { userId, partnerId } = sides(req, req.params.otherId);
