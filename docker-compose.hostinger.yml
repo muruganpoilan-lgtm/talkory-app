@@ -41,6 +41,9 @@ services:
       TWILIO_VERIFY_SID: "${TWILIO_VERIFY_SID:-}"
       MSG91_AUTH_KEY: "${MSG91_AUTH_KEY:-}"
       MSG91_TEMPLATE_ID: "${MSG91_TEMPLATE_ID:-}"
+      APITXT_AUTH_KEY: "${APITXT_AUTH_KEY:-}"
+      APITXT_TEMPLATE_ID: "${APITXT_TEMPLATE_ID:-}"
+      APITXT_CHANNEL: "${APITXT_CHANNEL:-}"
       SUPPORT_EMAIL: "${SUPPORT_EMAIL:-}"      # shown on the apps' Customer Support button
       FIREBASE_SERVICE_ACCOUNT_B64: "${FIREBASE_SERVICE_ACCOUNT_B64:-}"   # the Firebase service-account key file, base64 on one line (see BUILD.md)
     volumes:

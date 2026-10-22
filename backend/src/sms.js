@@ -9,7 +9,30 @@ const { redis } = require('./db');
 const DEV = process.env.OTP_DEV_MODE === 'true';
 const hash = (s) => crypto.createHash('sha256').update(s).digest('hex');
 const msg91 = () => !!(process.env.MSG91_AUTH_KEY && process.env.MSG91_TEMPLATE_ID);
-const local = () => DEV || msg91(); // codes checked here (Redis) instead of by Twilio
+// apitxt.com: we generate the code, apitxt delivers it (GET /api/sendOTP). Needs only APITXT_AUTH_KEY.
+const apitxt = () => !!process.env.APITXT_AUTH_KEY;
+const local = () => DEV || apitxt() || msg91(); // codes checked here (Redis) instead of by Twilio
+
+async function apitxtSend(phone, code) {
+  const q = new URLSearchParams({
+    authkey: process.env.APITXT_AUTH_KEY,
+    mobile: phone.replace(/^\+/, ''), // country code, no +
+    otp: code,
+  });
+  if (process.env.APITXT_TEMPLATE_ID) q.set('template_id', process.env.APITXT_TEMPLATE_ID);
+  if (process.env.APITXT_CHANNEL) q.set('channel', process.env.APITXT_CHANNEL); // sms (default), whatsapp or voice
+  const r = await fetch(`https://apitxt.com/api/sendOTP?${q}`);
+  const text = await r.text();
+  let data = {};
+  try { data = JSON.parse(text); } catch (_) {}
+  const st = String(data.status || data.type || '').toLowerCase();
+  const bad = st === 'error' || st === 'failed' || st === 'fail' || data.success === false;
+  if (!r.ok || bad) {
+    console.error('[sms] apitxt send failed:', r.status, text.slice(0, 300)); // never logs the key
+    throw new Error('sms_failed');
+  }
+  console.log('[sms] apitxt reply:', text.slice(0, 200));
+}
 
 async function msg91Send(phone, code) {
   const q = new URLSearchParams({
@@ -50,7 +73,8 @@ async function sendOtp(phone) {
       return;
     }
     try {
-      await msg91Send(phone, code);
+      if (apitxt()) await apitxtSend(phone, code);
+      else await msg91Send(phone, code);
     } catch (e) {
       await redis.del(`otp:${phone}`);
       throw e;
