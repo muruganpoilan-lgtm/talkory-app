@@ -17,7 +17,6 @@ const agoraToken = (channel, uid) =>
 // User starts a call
 router.post('/', requireAuth(['user']), async (req, res) => {
   const { partnerId } = req.body;
-  if (!(await require('./useragreement').isSigned(req.auth.id))) return res.status(403).json({ error: 'Please sign the user agreement first.', code: 'agreement_required' });
   const { rows } = await pool.query(
     `SELECT p.rate_per_min, p.is_online, p.manual_busy FROM partner_profiles p
       JOIN accounts a ON a.id=p.account_id

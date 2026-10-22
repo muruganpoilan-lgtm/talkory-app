@@ -38,7 +38,6 @@ class _HomeScreenState extends State<HomeScreen> {
     _timer = Timer.periodic(const Duration(seconds: 20), (_) => _loadUnread());
     _ringPoll = Timer.periodic(const Duration(seconds: 3), (_) => _checkIncoming());
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkAgreement();
       UserPush.instance.start(widget.api);
       AdminCallWatcher.instance.start(context, widget.api);
     });
