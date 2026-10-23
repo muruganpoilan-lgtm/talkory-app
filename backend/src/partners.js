@@ -2,6 +2,7 @@ const router = require('express').Router();
 const { pool, redis, requireAuth } = require('./db');
 const push = require('./push');
 const contract = require('./contract');
+const tier = require('./tier');
 
 const LANGUAGES = ['Hindi', 'English', 'Tamil', 'Telugu', 'Bengali', 'Marathi', 'Odia', 'Bhojpuri', 'Malayalam', 'Kannada', 'Gujarati', 'Punjabi', 'Urdu', 'Assamese']; // keep in sync with kLanguages in talkory_core/api.dart
 const MIN_RATE = 5, MAX_RATE = 200; // rupees per minute
@@ -22,6 +23,11 @@ router.get('/me', requireAuth(['partner']), async (req, res) => {
 // Today's online time against the daily minimum (shown in the partner app)
 router.get('/online-today', requireAuth(['partner']), async (req, res) => {
   res.json(await require('./onlinetime').today(req.auth.id));
+});
+
+// This week's hours on calls and the host's Paradise level (shown in the partner app)
+router.get('/weekly-tier', requireAuth(['partner']), async (req, res) => {
+  res.json(await tier.weekly(req.auth.id));
 });
 
 router.put('/me', requireAuth(['partner']), async (req, res) => {

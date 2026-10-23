@@ -258,7 +258,9 @@ class Api {
   Future<void> removeAvatar() => _send('POST', '/partner/avatar/remove');
 
   /// Hosts: today's online time against the daily minimum {enabled, seconds, requiredSeconds, penaltyPaise, blockMinutes}.
-  Future<Map<String, dynamic>> onlineToday() async => Map<String, dynamic>.from(await _send('GET', '/partners/online-today'));
+  /// Hosts: this week's call hours and Paradise level {seconds, tier{key,name}, next{name,secondsToGo}, lastWeek{seconds,tier}}.
+  Future<Map<String, dynamic>> weeklyTier() async => Map<String, dynamic>.from(await _send('GET', '/partners/weekly-tier'));
+  Future<Map<String, dynamic>> onlineToday() async = Map<String, dynamic>.from(await _send('GET', '/partners/online-today'));
   Future<Map<String, dynamic>> myProfile() async => Map<String, dynamic>.from(await _send('GET', '/partners/me'));
 
   Future<void> saveProfile({required String displayName, String tagline = '', required String bio, required List<String> languages, required int rateRupees}) =>

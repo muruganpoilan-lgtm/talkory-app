@@ -20,6 +20,7 @@ class _HomeTabState extends State<HomeTab> {
   Map<String, dynamic>? _profile, _earn;
   String _status = 'offline'; // 'online' | 'busy' | 'offline'
   Map<String, dynamic>? _ot; // today's online time vs the daily minimum
+  Map<String, dynamic>? _wt; // this week's call hours and Paradise level
   Timer? _otTimer;
 
   @override
@@ -39,6 +40,10 @@ class _HomeTabState extends State<HomeTab> {
     try {
       final o = await widget.api.onlineToday();
       if (mounted) setState(() => _ot = o);
+    } catch (_) {}
+    try {
+      final w = await widget.api.weeklyTier();
+      if (mounted) setState(() => _wt = w);
     } catch (_) {}
   }
 
@@ -109,6 +114,44 @@ class _HomeTabState extends State<HomeTab> {
           ),
         ),
       );
+
+  /// Weekly Paradise level from call hours (Monday to Sunday).
+  Widget _tierCard() {
+    final w = _wt!;
+    final cur = Map<String, dynamic>.from(w['tier'] as Map);
+    final next = w['next'] == null ? null : Map<String, dynamic>.from(w['next'] as Map);
+    final last = Map<String, dynamic>.from(w['lastWeek'] as Map);
+    final lastTier = Map<String, dynamic>.from(last['tier'] as Map);
+    final secs = (w['seconds'] as num).toInt();
+    final style = tierStyle(cur['key'] as String?);
+    final goalHours = next == null ? (cur['minHours'] as num).toInt() : (next['minHours'] as num).toInt();
+    final progress = goalHours == 0 ? 1.0 : (secs / (goalHours * 3600)).clamp(0.0, 1.0);
+    return SoftCard(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Expanded(child: Text('This week on calls', style: const TextStyle(fontWeight: FontWeight.w700, color: kInk))),
+            TierChip(tier: cur['key'] as String?, name: cur['name'] as String?, small: false),
+          ]),
+          const SizedBox(height: 8),
+          Text(tierHours(secs), style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: style.color)),
+          const SizedBox(height: 6),
+          ClipRRect(borderRadius: BorderRadius.circular(6), child: LinearProgressIndicator(value: progress, minHeight: 8, color: style.color, backgroundColor: style.color.withOpacity(0.15))),
+          const SizedBox(height: 8),
+          Text(
+            next == null
+                ? 'You are at the top level this week. Keep it up!'
+                : '${tierHours((next['secondsToGo'] as num).toInt())} more on calls to reach ${next['name']}.',
+            style: const TextStyle(color: Colors.black54, fontSize: 12),
+          ),
+          const SizedBox(height: 2),
+          Text('Last week: ${tierHours((last['seconds'] as num).toInt())} · ${lastTier['name']}. Levels restart every Monday.',
+              style: const TextStyle(color: Colors.black45, fontSize: 11)),
+        ]),
+      ),
+    );
+  }
 
   /// Daily goal: be Online for 4 hours. Shows progress and what a shortfall costs.
   Widget _onlineGoalCard() {
@@ -217,6 +260,7 @@ class _HomeTabState extends State<HomeTab> {
                 ),
               ),
             if (_ot != null && _ot!['enabled'] == true && kyc == 'approved') _onlineGoalCard(),
+            if (_wt != null && kyc == 'approved') _tierCard(),
             if (kyc != null && kyc != 'approved')
               SoftCard(
                 color: const Color(0xFFFFF3CD),

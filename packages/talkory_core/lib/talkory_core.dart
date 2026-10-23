@@ -14,3 +14,4 @@ export 'src/location.dart';
 export 'src/admin_video.dart';
 export 'src/meeting.dart';
 export 'src/signature_pad.dart';
+export 'src/tier.dart';
