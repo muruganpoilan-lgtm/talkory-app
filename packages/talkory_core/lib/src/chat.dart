@@ -8,6 +8,33 @@ import 'ringer.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
+final _hostCalling = <String>{};
+
+/// Host only: ring a user from anywhere (chat list or chat screen). The first call to a user in any 3 hours is free for 2 minutes,
+/// then normal rates apply. Opens the call screen and, after a connected call, the post-call screen.
+Future<void> startHostCall(BuildContext context, Api api, String userId, String userName) async {
+  if (!_hostCalling.add(userId)) return;
+  final nav = Navigator.of(context);
+  final messenger = ScaffoldMessenger.of(context);
+  try {
+    final session = await api.hostCall(userId);
+    final connected = await nav.push<bool>(
+      MaterialPageRoute(builder: (_) => CallScreen(api: api, session: session, peerName: userName, peerFemale: false)),
+    );
+    if (connected == true) {
+      await nav.push(MaterialPageRoute(
+        builder: (_) => PostCallScreen(api: api, callId: session.callId, peerName: userName, canRate: false),
+      ));
+    }
+  } on ApiException catch (e) {
+    messenger.showSnackBar(SnackBar(content: Text(e.message)));
+  } catch (_) {
+    messenger.showSnackBar(const SnackBar(content: Text('Network error. Try again.')));
+  } finally {
+    _hostCalling.remove(userId);
+  }
+}
+
 /// Chat inbox, shared by both apps. [isUser] controls the hint text (users pay per message, hosts reply free).
 class ChatTab extends StatefulWidget {
   const ChatTab({super.key, required this.api, required this.isUser, this.onBalanceChanged, this.onLogout});
@@ -109,15 +136,30 @@ class _ChatTabState extends State<ChatTab> {
                               if (t['best_friend'] == true) ...[const SizedBox(width: 6), const BestFriendBadge()],
                             ]),
                             subtitle: Text(t['last_body'] as String, maxLines: 1, overflow: TextOverflow.ellipsis),
-                            trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
-                              Text(_ago(t['last_at'] as String?), style: TextStyle(color: muted, fontSize: 12)),
-                              const SizedBox(height: 4),
-                              if (unread > 0)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                                  decoration: BoxDecoration(color: Colors.green.shade600, borderRadius: BorderRadius.circular(10)),
-                                  child: Text('$unread', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                              Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
+                                Text(_ago(t['last_at'] as String?), style: TextStyle(color: muted, fontSize: 12)),
+                                const SizedBox(height: 4),
+                                if (unread > 0)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                    decoration: BoxDecoration(color: Colors.green.shade600, borderRadius: BorderRadius.circular(10)),
+                                    child: Text('$unread', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                                  ),
+                              ]),
+                              if (!widget.isUser) ...[
+                                const SizedBox(width: 6),
+                                // hosts: call this user straight from the list
+                                IconButton.filled(
+                                  style: IconButton.styleFrom(backgroundColor: Colors.green.shade600, foregroundColor: Colors.white),
+                                  tooltip: 'Call',
+                                  icon: const Icon(Icons.call),
+                                  onPressed: () async {
+                                    await startHostCall(context, widget.api, t['id'] as String, t['name'] as String);
+                                    _load();
+                                  },
                                 ),
+                              ],
                             ]),
                             onTap: () async {
                               await Navigator.of(context).push(MaterialPageRoute(
@@ -282,31 +324,10 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  bool _calling = false;
-
-  /// Host only: ring this user. The first call to a user in any 3 hours is free for 2 minutes, then normal rates apply.
+  /// Host only: ring this user (see startHostCall).
   Future<void> _callUser() async {
-    if (_calling) return;
-    _calling = true;
-    try {
-      final session = await widget.api.hostCall(widget.otherId);
-      if (!mounted) return;
-      final connected = await Navigator.of(context).push<bool>(
-        MaterialPageRoute(builder: (_) => CallScreen(api: widget.api, session: session, peerName: widget.otherName, peerFemale: false)),
-      );
-      if (connected == true && mounted) {
-        await Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => PostCallScreen(api: widget.api, callId: session.callId, peerName: widget.otherName, canRate: false),
-        ));
-      }
-    } on ApiException catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
-    } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Network error. Try again.')));
-    } finally {
-      _calling = false;
-      _loadFree();
-    }
+    await startHostCall(context, widget.api, widget.otherId, widget.otherName);
+    if (mounted) _loadFree();
   }
 
   @override
@@ -319,7 +340,16 @@ class _ChatScreenState extends State<ChatScreen> {
           if (_bestFriend) ...[const SizedBox(width: 8), const BestFriendBadge()],
         ]),
         actions: [
-          if (!widget.isUser) IconButton(icon: const Icon(Icons.call), tooltip: 'Call', onPressed: _callUser),
+          if (!widget.isUser)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(backgroundColor: Colors.green.shade600, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 14)),
+                onPressed: _callUser,
+                icon: const Icon(Icons.call, size: 18),
+                label: const Text('Call'),
+              ),
+            ),
           PopupMenuButton<String>(
             onSelected: (v) => v == 'report' ? _report() : _block(),
             itemBuilder: (_) => const [
