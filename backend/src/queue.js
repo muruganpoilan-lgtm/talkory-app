@@ -8,6 +8,7 @@ const onlinetime = require('./onlinetime');
 const autopayout = require('./autopayout');
 const aicheck = require('./aicheck');
 const hostfiles = require('./hostfiles');
+const cleanup = require('./cleanup');
 
 // Ring timeouts and per-15s billing live in Redis (BullMQ), not in process memory, so a restart/deploy
 // no longer drops calls and several API containers can run side by side.
@@ -41,6 +42,7 @@ async function handle(job) {
     return;
   }
 
+  if (job.name === 'inactive-cleanup') return void (await cleanup.run()); // hosts away for 30 days
   if (job.name === 'online-settle') return void (await onlinetime.settleRecent()); // just after midnight India time
 
   if (job.name === 'sweep') { // safety net, once a minute: heal anything a lost job could leave behind
@@ -69,6 +71,7 @@ function startWorker() {
     Sentry.captureException(err);
   });
   queue.add('sweep', {}, { repeat: { every: 60000 } }).catch((e) => console.error('[queue] sweep schedule failed', e));
+  queue.add('inactive-cleanup', {}, { repeat: { pattern: '30 3 * * *', tz: 'Asia/Kolkata' } }).catch((e) => console.error('[queue] inactive-cleanup schedule failed', e));
   queue.add('online-settle', {}, { repeat: { pattern: '10 0 * * *', tz: 'Asia/Kolkata' } }).catch((e) => console.error('[queue] online-settle schedule failed', e));
   return worker;
 }

@@ -381,6 +381,8 @@ List<_Spec> _specs() {
           }, color: Colors.green),
         ]),
     _Spec('Agreements', '/admin/agreements', (r) => '${r['display_name']}', (r) => 'Signed as ${r['full_name']} · ${_when(r['signed_at'])}', (r) => []),
+    _Spec('Inactive', '/admin/inactive-hosts', (r) => '${r['display_name']} · away ${r['days_away']} days',
+        (r) => 'Wallet ${_rs(r['balance'] as num)} · ${r['state'] == 'waiting' ? 'NOT deleted: ask the host to withdraw the money' : r['state'] == 'due' ? 'records are deleted tonight' : 'records deleted in ${r['deletes_in_days']} days'}', (r) => []),
     _Spec('Records', '/admin/host-records', (r) => '${r['display_name']}', (r) => 'KYC ${r['kyc']} · ${((r['files'] as List?) ?? []).length} files saved · ${_when(r['last_at'])}', (r) => [
           _Act('Photos', (c, api, r) async {
             final files = ((r['files'] as List?) ?? []).where((f) => f['kind'] != 'agreement').toList();

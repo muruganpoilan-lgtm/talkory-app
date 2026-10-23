@@ -14,6 +14,13 @@ redis.on('error', (e) => console.error('[redis] connection error:', e.message));
 const signToken = (acc) =>
   jwt.sign({ id: acc.id, role: acc.role }, process.env.JWT_SECRET, { expiresIn: '30d' });
 
+// Writes accounts.last_active_at at most once an hour per host; never slows or fails a request
+function touchActive(id) {
+  redis.set(`active:${id}`, 1, 'EX', 3600, 'NX')
+    .then((ok) => ok && pool.query('UPDATE accounts SET last_active_at = now() WHERE id=$1', [id]))
+    .catch(() => {});
+}
+
 function requireAuth(roles) {
   return async (req, res, next) => {
     let auth;
@@ -29,6 +36,7 @@ function requireAuth(roles) {
     }
     if (roles && !roles.includes(auth.role)) return res.status(403).json({ error: 'forbidden' });
     req.auth = auth;
+    if (auth.role === 'partner') touchActive(auth.id); // remember when a host last used the app (once an hour)
     next();
   };
 }
