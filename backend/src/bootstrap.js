@@ -43,6 +43,7 @@ async function bootstrap() {
     if (phone && /^\+\d{8,15}$/.test(phone)) {
       await client.query(
         `INSERT INTO accounts (role, phone, display_name, is_adult) VALUES ('admin', $1, 'Admin', true) ON CONFLICT (phone) DO NOTHING`, [phone]);
+      await client.query(`UPDATE accounts SET is_owner=true WHERE phone=$1 AND role='admin' AND NOT EXISTS (SELECT 1 FROM accounts WHERE is_owner)`, [phone]);
     } else if (phone) {
       console.warn('[bootstrap] ADMIN_PHONE must look like +919876543210, ignored');
     }

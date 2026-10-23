@@ -366,6 +366,15 @@ List<_Spec> _specs() {
               return _do(c, () => api.adminEndMeeting('${r['id']}'));
             }, color: Colors.red),
         ]),
+    _Spec('Admins', '/admin/admins', (r) => '${r['display_name']}  ${r['phone']}',
+        (r) => '${r['is_owner'] == true ? 'Owner' : r['is_blocked'] == true ? 'Removed' : 'Admin'} · added ${_when(r['created_at'])}', (r) => [
+          if (r['is_owner'] != true && r['is_blocked'] != true)
+            _Act('Remove access', (c, api, r) async {
+              if (!await _confirm(c, 'Remove admin access for ${r['display_name']}? They can no longer log in.')) return false;
+              if (!c.mounted) return false;
+              return _do(c, () => api.adminPost('/admin/admins/${r['id']}/remove', {}));
+            }, color: Colors.red),
+        ]),
     _Spec('Earnings', '/admin/earnings',
         (r) => r['kind'] == 'summary' ? 'Available: ${_rs(r['available'] as num)}' : 'Withdrawn ${_rs(r['amount'] as num)}',
         (r) => r['kind'] == 'summary'
@@ -483,10 +492,31 @@ class AdminHome extends StatefulWidget {
   State<AdminHome> createState() => _AdminHomeState();
 }
 
+/// Tabs only the owner sees (money and the list of admins).
+const _ownerTabs = {'Earnings', 'Payouts', 'Admins'};
+
+Future<bool> _addAdmin(BuildContext c, Api api) async {
+  final phone = await _ask(c, 'Phone number of the new admin, with country code', '+91');
+  if (phone == null || phone.trim().length < 8 || !c.mounted) return false;
+  final name = await _ask(c, 'Name of the new admin', 'Admin');
+  if (name == null || !c.mounted) return false;
+  final ok = await _do(c, () => api.adminPost('/admin/admins', {'phone': phone.trim(), 'name': name.trim()}));
+  if (ok && c.mounted) _toast(c, 'Admin added. They can log in with that number.');
+  return ok;
+}
+
 class _AdminHomeState extends State<AdminHome> {
-  final _tabs = _specs();
+  List<_Spec> _tabs = _specs().where((s) => !_ownerTabs.contains(s.title)).toList(); // until we know this admin is the owner
   int _i = 0;
   int _reload = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.api.adminGet('/admin/me').then((m) {
+      if (m is Map && m['isOwner'] == true && mounted) setState(() => _tabs = _specs());
+    }).catchError((_) {});
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -508,7 +538,15 @@ class _AdminHomeState extends State<AdminHome> {
           ),
         ),
       ),
-      floatingActionButton: _tabs[_i].title == 'Meetings'
+      floatingActionButton: _tabs[_i].title == 'Admins'
+          ? FloatingActionButton.extended(
+              onPressed: () async {
+                if (await _addAdmin(context, widget.api)) setState(() => _reload++);
+              },
+              icon: const Icon(Icons.person_add),
+              label: const Text('Add admin'),
+            )
+          : _tabs[_i].title == 'Meetings'
           ? FloatingActionButton.extended(
               onPressed: () async {
                 if (await _newMeeting(context, widget.api)) setState(() => _reload++);

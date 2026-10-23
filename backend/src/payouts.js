@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const { pool, requireAuth } = require('./db');
 const autopayout = require('./autopayout');
+const { requireOwner } = require('./owner'); // approving payouts: owner only
 
 const MIN_PAYOUT_RUPEES = Number(process.env.MIN_PAYOUT_RUPEES || 1500); // minimum withdrawal
 // A host can withdraw once every this many days. Counted from the last request that was not rejected (a rejected one is refunded).
@@ -123,7 +124,7 @@ router.post('/payouts', requireAuth(['partner']), async (req, res) => {
 
 // ---------------- admin (minimal; a full panel comes later) ----------------
 
-router.get('/admin/payouts', requireAuth(['admin']), async (req, res) => {
+router.get('/admin/payouts', requireOwner, async (req, res) => {
   const status = req.query.status || 'requested';
   const { rows } = await pool.query(
     `SELECT p.id, p.amount, p.status, p.upi_id, p.upi_app, p.requested_at, a.display_name, pp.kyc
@@ -133,7 +134,7 @@ router.get('/admin/payouts', requireAuth(['admin']), async (req, res) => {
 });
 
 // Call this AFTER you have actually sent the money (UPI / bank transfer / RazorpayX)
-router.post('/admin/payouts/:id/paid', requireAuth(['admin']), async (req, res) => {
+router.post('/admin/payouts/:id/paid', requireOwner, async (req, res) => {
   const r = await pool.query(
     `UPDATE payouts SET status='paid', paid_at=now(), reference=$2
       WHERE id=$1 AND status IN ('requested','processing')`, [req.params.id, req.body.reference || null]);
@@ -142,7 +143,7 @@ router.post('/admin/payouts/:id/paid', requireAuth(['admin']), async (req, res) 
 });
 
 // Reject: returns the held money to the partner's wallet
-router.post('/admin/payouts/:id/reject', requireAuth(['admin']), async (req, res) => {
+router.post('/admin/payouts/:id/reject', requireOwner, async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');

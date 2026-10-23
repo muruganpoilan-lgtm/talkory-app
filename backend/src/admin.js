@@ -2,6 +2,7 @@ const router = require('express').Router();
 const path = require('path');
 const { pool, redis, requireAuth } = require('./db');
 const { KYC_DIR } = require('./kyc');
+const { requireOwner } = require('./owner'); // earnings and withdrawals: owner only
 const { deleteAccount } = require('./account');
 router.use(requireAuth(['admin']));
 
@@ -99,7 +100,7 @@ async function earningsNumbers(q) {
 const availableOf = (n) => Math.max(0, n.calls + n.free + n.chats - n.withdrawn); // never shown below zero
 
 // One summary row first, then the withdrawals already taken.
-router.get('/earnings', async (req, res) => {
+router.get('/earnings', requireOwner, async (req, res) => {
   const n = await earningsNumbers(pool);
   const last = (await pool.query('SELECT upi_id, upi_app FROM admin_withdrawals ORDER BY id DESC LIMIT 1')).rows[0];
   const past = (await pool.query('SELECT id, amount, upi_id, upi_app, created_at FROM admin_withdrawals ORDER BY id DESC LIMIT 50')).rows;
@@ -109,7 +110,7 @@ router.get('/earnings', async (req, res) => {
   ]);
 });
 
-router.post('/earnings/withdraw', async (req, res) => {
+router.post('/earnings/withdraw', requireOwner, async (req, res) => {
   const upi = String(req.body.upiId || '').trim();
   const upiApp = ['gpay', 'phonepe'].includes(req.body.upiApp) ? req.body.upiApp : null;
   if (!UPI_RE.test(upi)) return res.status(400).json({ error: 'Enter a valid UPI ID, like name@bank' });

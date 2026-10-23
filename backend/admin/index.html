@@ -33,7 +33,7 @@ async function api(path,body){
   const d=await r.json().catch(()=>({}));
   if(r.status===401&&token){logout();throw Error('Session expired')}
   if(!r.ok)throw Error(d.error||'Request failed');return d}
-function logout(){token='';sessionStorage.removeItem('t');render()}
+function logout(){token='';isOwner=null;sessionStorage.removeItem('t');render()}
 function login(){$('#app').innerHTML=`<div class="box"><h2>Talkory Admin</h2>
 <input id="ph" placeholder="+91XXXXXXXXXX" value="${esc(phone)}"><input id="cd" placeholder="OTP" style="display:${phone?'':'none'}">
 <button class="pri" id="go">${phone?'Verify':'Send OTP'}</button><div class="err" id="e"></div></div>`;
@@ -51,6 +51,9 @@ const TABS={
   row:r=>[esc(r.display_name)+' <span class="mut">('+esc(r.phone)+')</span>',r.days_away+' days',rs(r.balance),
    r.state==='waiting'?'<b class="err">Not deleted: money in wallet. Ask the host to withdraw.</b>':r.state==='due'?'Records are deleted tonight':'Records deleted in '+r.deletes_in_days+' days'],
   acts:r=>[]},
+ admins:{url:'/admin/admins',cols:['Name','Phone','Role','Added'],
+  row:r=>[esc(r.display_name),esc(r.phone),r.is_owner?'<b class="ok">Owner</b>':r.is_blocked?'<span class="mut">Removed</span>':'Admin',when(r.created_at)],
+  acts:r=>(r.is_owner||r.is_blocked)?[]:[['Remove access','bad','/admin/admins/'+r.id+'/remove',()=>({}),'Remove admin access for '+r.display_name+'? They can no longer log in.']]},
  records:{url:'/admin/host-records',cols:['Host','KYC','Saved in database','Last saved'],
   row:r=>[esc(r.display_name)+' <span class="mut">('+esc(r.phone)+')</span>',esc(r.kyc),(r.files||[]).length+' files',when(r.last_at)],
   acts:r=>[['Open records','',null,()=>viewRecords(r)]]},
@@ -224,10 +227,18 @@ async function newMeeting(){
       d.close();d.remove();
       if(r.status==='live')meetingRoom(r.id,title);else{alert('Meeting scheduled. Invited people have been notified.');render()}
     }catch(e){alert(e.message)}}}
+const OWNER_TABS=['earnings','payouts','admins'];let isOwner=null;
+async function addAdmin(){
+  const phone=prompt('Phone number of the new admin, with country code (example +919876543210):','+91');if(!phone)return;
+  const name=prompt('Name of the new admin:','Admin');if(name===null)return;
+  try{const r=await api('/admin/admins',{phone:phone.trim(),name:name.trim()});alert(r.restored?'Access given back.':'Admin added. They can log in with that number.');render()}catch(e){alert(e.message)}}
 async function render(){
   if(!token)return login();
-  $('#app').innerHTML=`<header><b>Talkory Admin</b><nav>${Object.keys(TABS).map(k=>`<button class="${k===tab?'on':''}" data-t="${k}">${k[0].toUpperCase()+k.slice(1)}</button>`).join('')}</nav><button id="lo">Log out</button></header><main><div class="card" id="list"><div class="empty">Loading…</div></div></main>`;
+  if(isOwner===null){try{isOwner=!!(await api('/admin/me')).isOwner}catch(e){isOwner=false}}
+  if(!isOwner&&OWNER_TABS.includes(tab))tab='kyc';
+  $('#app').innerHTML=`<header><b>Talkory Admin</b><nav>${Object.keys(TABS).filter(k=>isOwner||!OWNER_TABS.includes(k)).map(k=>`<button class="${k===tab?'on':''}" data-t="${k}">${k[0].toUpperCase()+k.slice(1)}</button>`).join('')}</nav><button id="lo">Log out</button></header><main><div class="card" id="list"><div class="empty">Loading…</div></div></main>`;
   $('#lo').onclick=logout;document.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{tab=b.dataset.t;render()});
+  if(tab==='admins')$('#list').insertAdjacentHTML('beforebegin','<p><button class="pri" id="na2">+ Add admin</button></p>'),$('#na2').onclick=addAdmin;
   if(tab==='meetings')$('#list').insertAdjacentHTML('beforebegin','<p><button class="pri" id="nm">+ New meeting</button></p>'),$('#nm').onclick=newMeeting;
   const T=TABS[tab];let rows=[];
   try{rows=await api(T.url)}catch(e){return $('#list').innerHTML='<div class="empty err">'+esc(e.message)+'</div>'}

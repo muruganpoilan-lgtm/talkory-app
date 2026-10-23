@@ -60,6 +60,8 @@ const meetings = require('./meetings');
 app.use('/admin/meetings', meetings.admin);
 app.use('/meetings', meetings.app);
 app.use('/admin-calls', adminCalls.app);
+app.use('/admin/me', require('./owner').me);
+app.use('/admin/admins', require('./owner').router); // owner only: who is an admin
 app.use('/admin', require('./admin'));
 app.use('/panel', express.static(path.join(__dirname, '../admin'))); // admin web panel
 app.use('/chat', require('./chat').router);
