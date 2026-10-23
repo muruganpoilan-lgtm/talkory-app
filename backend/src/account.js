@@ -50,6 +50,7 @@ async function deleteAccount(id, { force = false } = {}) {
     await client.query(
       `UPDATE partner_profiles SET bio=NULL, languages='{}', is_online=false, upi_id=NULL, kyc_note=NULL, avatar_pending=NULL, avatar_status=NULL, avatar_note=NULL, intro_pending=NULL, intro_status=NULL, intro_note=NULL, intro_url=NULL, tagline=NULL WHERE account_id=$1`, [id]);
     files = (await client.query('DELETE FROM kyc_documents WHERE account_id=$1 RETURNING file_name', [id])).rows.map((r) => r.file_name);
+    await client.query("DELETE FROM host_files WHERE account_id=$1 AND kind <> 'agreement'", [id]); // database copies of verification and profile photos (the signed agreement is kept as a legal record)
     await client.query('DELETE FROM devices WHERE account_id=$1', [id]);
     await client.query('DELETE FROM messages WHERE user_id=$1 OR partner_id=$1', [id]);
     await client.query('DELETE FROM support_tickets WHERE account_id=$1', [id]);

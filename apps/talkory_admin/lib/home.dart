@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
@@ -135,6 +136,23 @@ Future<void> _showImages(BuildContext c, Api api, List<String> paths) async {
             TextButton(onPressed: () => Navigator.pop(d), child: const Text('Close')),
           ]),
         ),
+      ),
+    );
+  } catch (_) {
+    if (c.mounted) _toast(c, 'File not found');
+  }
+}
+
+/// Shows a saved text file (the signed host agreement).
+Future<void> _showText(BuildContext c, Api api, String path) async {
+  try {
+    final text = utf8.decode(await api.adminBytes(path), allowMalformed: true);
+    if (!c.mounted) return;
+    await showDialog(
+      context: c,
+      builder: (d) => AlertDialog(
+        content: SingleChildScrollView(child: SelectableText(text, style: const TextStyle(fontSize: 13))),
+        actions: [TextButton(onPressed: () => Navigator.pop(d), child: const Text('Close'))],
       ),
     );
   } catch (_) {
@@ -363,6 +381,26 @@ List<_Spec> _specs() {
           }, color: Colors.green),
         ]),
     _Spec('Agreements', '/admin/agreements', (r) => '${r['display_name']}', (r) => 'Signed as ${r['full_name']} · ${_when(r['signed_at'])}', (r) => []),
+    _Spec('Records', '/admin/host-records', (r) => '${r['display_name']}', (r) => 'KYC ${r['kyc']} · ${((r['files'] as List?) ?? []).length} files saved · ${_when(r['last_at'])}', (r) => [
+          _Act('Photos', (c, api, r) async {
+            final files = ((r['files'] as List?) ?? []).where((f) => f['kind'] != 'agreement').toList();
+            if (files.isEmpty) {
+              _toast(c, 'No photos saved yet');
+              return false;
+            }
+            await _showImages(c, api, [for (final f in files) '/admin/host-records/file/${f['id']}']);
+            return false;
+          }),
+          _Act('Agreement', (c, api, r) async {
+            final files = ((r['files'] as List?) ?? []).where((f) => f['kind'] == 'agreement').toList();
+            if (files.isEmpty) {
+              _toast(c, 'No signed agreement yet');
+              return false;
+            }
+            await _showText(c, api, '/admin/host-records/file/${files.last['id']}');
+            return false;
+          }),
+        ]),
     _Spec('Contracts', '/admin/contracts', (r) => '${r['display_name']}', (r) => 'Signed as ${r['full_name']} · ${_when(r['signed_at'])}', (r) => []),
     _Spec('Payouts', '/partner/admin/payouts', (r) => '${r['display_name']}  ${_rs(r['amount'] as num)}',
         (r) => 'UPI ${r['upi_id']}${_appName(r['upi_app']).isEmpty ? '' : ' (${_appName(r['upi_app'])})'} · ${_when(r['requested_at'])}${r['kyc'] != 'approved' ? ' · KYC ${r['kyc']}' : ''}', (r) => [

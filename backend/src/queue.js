@@ -7,6 +7,7 @@ const { finishCall } = require('./callctl');
 const onlinetime = require('./onlinetime');
 const autopayout = require('./autopayout');
 const aicheck = require('./aicheck');
+const hostfiles = require('./hostfiles');
 
 // Ring timeouts and per-15s billing live in Redis (BullMQ), not in process memory, so a restart/deploy
 // no longer drops calls and several API containers can run side by side.
@@ -43,6 +44,7 @@ async function handle(job) {
   if (job.name === 'online-settle') return void (await onlinetime.settleRecent()); // just after midnight India time
 
   if (job.name === 'sweep') { // safety net, once a minute: heal anything a lost job could leave behind
+    await hostfiles.sync().catch((e) => console.error('[hostfiles] sync failed:', e.message)); // copy host photos and KYC files into the database
     await aicheck.scan().catch((e) => console.error('[aicheck] scan failed:', e.message)); // AI-photo check
     await autopayout.retryPending().catch((e) => console.error('[payout] retry failed:', e.message)); // automatic UPI payouts still waiting
     await onlinetime.track().catch((e) => console.error('[online] track failed:', e.message)); // host online-time counter

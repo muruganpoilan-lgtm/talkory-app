@@ -47,6 +47,9 @@ const TABS={
   acts:r=>r.kind!=='summary'?[]:[['Withdraw to UPI','ok','/admin/earnings/withdraw',()=>{const g=(prompt('Which app? Type g for GPay or p for PhonePe:',r.upi_app==='phonepe'?'p':'g')||'g').toLowerCase().startsWith('p')?'phonepe':'gpay';const u=prompt('Your '+(g==='gpay'?'GPay':'PhonePe')+' UPI ID (like name@bank):',r.upi_id||'');return {upiId:u||'',upiApp:g}},'Withdraw '+rs(r.available)+' to your UPI?']]},
  agreements:{url:'/admin/agreements',cols:['User','Phone','Signed as','When'],row:r=>[esc(r.display_name),esc(r.phone),esc(r.full_name),when(r.signed_at)],
   acts:r=>[['View signature','',null,()=>viewSignature(r.id)]]},
+ records:{url:'/admin/host-records',cols:['Host','KYC','Saved in database','Last saved'],
+  row:r=>[esc(r.display_name)+' <span class="mut">('+esc(r.phone)+')</span>',esc(r.kyc),(r.files||[]).length+' files',when(r.last_at)],
+  acts:r=>[['Open records','',null,()=>viewRecords(r)]]},
  contracts:{url:'/admin/contracts',cols:['Host','Signed as','When','IP'],row:r=>[esc(r.display_name),esc(r.full_name),when(r.signed_at),esc(r.ip||'')],acts:r=>[]},
  payouts:{url:'/partner/admin/payouts',cols:['Partner','Amount','UPI ID','Requested'],
   row:r=>[esc(r.display_name)+(r.kyc!=='approved'?' <span class="err">(KYC '+r.kyc+')</span>':''),rs(r.amount),esc(r.upi_id)+(r.upi_app?' <span class="mut">('+(r.upi_app==='gpay'?'GPay':'PhonePe')+')</span>':''),when(r.requested_at)],
@@ -131,6 +134,20 @@ async function viewDocs(id){
     d.innerHTML=`<div style="display:flex;gap:12px;flex-wrap:wrap"><div><div class="mut">ID</div><img src="${a}" style="max-width:420px;max-height:70vh"></div><div><div class="mut">Selfie</div><img src="${b}" style="max-width:420px;max-height:70vh"></div></div><p><button>Close</button></p>`;
     d.querySelector('button').onclick=()=>{d.close();d.remove();URL.revokeObjectURL(a);URL.revokeObjectURL(b)};
     document.body.appendChild(d);d.showModal()}catch(e){alert(e.message)}}
+async function viewRecords(r){
+  const names={kyc_id:'KYC ID photo',kyc_selfie:'KYC selfie',photo:'Profile photo',photo_pending:'Profile photo waiting for review',agreement:'Signed agreement'};
+  const d=document.createElement('dialog');d.style.cssText='width:min(760px,96vw)';
+  d.innerHTML='<h3 style="margin:0 0 8px">'+esc(r.display_name)+'</h3><div id="rb" class="mut">Loading…</div><p><button>Close</button></p>';
+  document.body.appendChild(d);d.showModal();const urls=[];
+  d.querySelector('button').onclick=()=>{d.close();d.remove();urls.forEach(u=>URL.revokeObjectURL(u))};
+  let html='';
+  for(const f of (r.files||[])){
+    try{const x=await fetch('/admin/host-records/file/'+f.id,{headers:{Authorization:'Bearer '+token}});if(!x.ok)throw Error();
+      const t=x.headers.get('Content-Type')||'',label='<div class="mut" style="margin-top:12px">'+esc(names[f.kind]||f.kind)+' · '+when(f.at)+'</div>';
+      if(t.startsWith('text/'))html+=label+'<pre style="white-space:pre-wrap;max-height:40vh;overflow:auto;background:#f6f6f6;padding:10px;border-radius:8px">'+esc(await x.text())+'</pre>';
+      else{const u=URL.createObjectURL(await x.blob());urls.push(u);html+=label+'<img src="'+u+'" style="max-width:100%;max-height:60vh">'}
+    }catch(e){html+='<div class="err">'+esc(names[f.kind]||f.kind)+': could not load</div>'}}
+  d.querySelector('#rb').outerHTML='<div>'+(html||'No files saved yet.')+'</div>'}
 async function viewSignature(id){
   const r=await fetch(`/admin/agreements/${id}/signature`,{headers:{Authorization:'Bearer '+token}});if(!r.ok)return alert('Signature missing');
   const u=URL.createObjectURL(await r.blob()),d=document.createElement('dialog');

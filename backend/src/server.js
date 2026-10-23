@@ -49,6 +49,7 @@ app.use('/admin/intros', intros.admin);
 app.use('/admin/avatars', require('./aicheck').adminAvatars); // list with AI score, before the rest of the photo review routes
 app.use('/admin/avatars', avatars.admin);
 app.use('/admin/contracts', require('./contract').admin);
+app.use('/admin/host-records', require('./hostfiles').admin); // KYC photos, profile photos and agreements saved in the database
 app.use('/admin/agreements', require('./useragreement').admin);
 const tickets = require('./tickets');
 app.use('/admin/tickets', tickets.admin);

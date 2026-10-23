@@ -52,6 +52,7 @@ router.post('/sign', requireAuth(['partner']), async (req, res) => {
     `INSERT INTO partner_contracts (partner_id, version, full_name, ip) VALUES ($1,$2,$3,$4)
      ON CONFLICT (partner_id) DO UPDATE SET version=EXCLUDED.version, full_name=EXCLUDED.full_name, ip=EXCLUDED.ip, signed_at=now()`,
     [req.auth.id, VERSION, name, String(req.ip || '').slice(0, 64)]);
+  await require('./hostfiles').saveAgreement(req.auth.id, VERSION, name, String(req.ip || '').slice(0, 64), TEXT).catch((e) => console.error('[hostfiles] agreement copy failed:', e.message)); // permanent copy in the database
   res.json({ ok: true });
 });
 
