@@ -34,7 +34,7 @@ class TierChip extends StatelessWidget {
     final s = tierStyle(tier);
     return Container(
       padding: EdgeInsets.symmetric(horizontal: small ? 6 : 10, vertical: small ? 1 : 4),
-      decoration: BoxDecoration(color: s.color.withOpacity(0.12), borderRadius: BorderRadius.circular(10), border: Border.all(color: s.color.withOpacity(0.5))),
+      decoration: BoxDecoration(color: s.color.withAlpha(31), borderRadius: BorderRadius.circular(10), border: Border.all(color: s.color.withAlpha(128))),
       child: Text('${s.emoji} ${name ?? ''}', style: TextStyle(fontSize: small ? 10 : 13, fontWeight: FontWeight.w700, color: s.color)),
     );
   }

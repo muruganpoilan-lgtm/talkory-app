@@ -125,7 +125,7 @@ class _HomeTabState extends State<HomeTab> {
     final secs = (w['seconds'] as num).toInt();
     final style = tierStyle(cur['key'] as String?);
     final goalHours = next == null ? (cur['minHours'] as num).toInt() : (next['minHours'] as num).toInt();
-    final progress = goalHours == 0 ? 1.0 : (secs / (goalHours * 3600)).clamp(0.0, 1.0);
+    final double progress = goalHours == 0 ? 1.0 : (secs / (goalHours * 3600)).clamp(0.0, 1.0).toDouble();
     return SoftCard(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
@@ -137,7 +137,7 @@ class _HomeTabState extends State<HomeTab> {
           const SizedBox(height: 8),
           Text(tierHours(secs), style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: style.color)),
           const SizedBox(height: 6),
-          ClipRRect(borderRadius: BorderRadius.circular(6), child: LinearProgressIndicator(value: progress, minHeight: 8, color: style.color, backgroundColor: style.color.withOpacity(0.15))),
+          ClipRRect(borderRadius: BorderRadius.circular(6), child: LinearProgressIndicator(value: progress, minHeight: 8, color: style.color, backgroundColor: style.color.withAlpha(38))),
           const SizedBox(height: 8),
           Text(
             next == null
