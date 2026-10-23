@@ -1,12 +1,12 @@
 const { pool, redis } = require('./db');
 
 // Daily online-time rule for hosts (days run on India time):
-//  - A host must be shown as "Online" for at least ONLINE_MIN_HOURS (default 3) each day.
+//  - A host must be shown as "Online" for at least ONLINE_MIN_HOURS (default 4) each day.
 //  - For every full ONLINE_PENALTY_BLOCK_MIN (default 30) minutes short, ONLINE_PENALTY_RUPEES (default 1) is taken from the host's wallet.
 //  - The wallet never goes below 0.
 //  - Only hosts who have been online at least once since this rule started are checked (nobody is charged before their first online day).
 //  - Time on "Busy" and time spent on a call do not count (set ONLINE_COUNT_CALL_TIME=1 to count call time).
-const MIN_SECONDS = Number(process.env.ONLINE_MIN_HOURS || 3) * 3600;
+const MIN_SECONDS = Number(process.env.ONLINE_MIN_HOURS || 4) * 3600;
 const BLOCK_SECONDS = Number(process.env.ONLINE_PENALTY_BLOCK_MIN || 30) * 60;
 const PENALTY_PAISE = Math.round(Number(process.env.ONLINE_PENALTY_RUPEES || 1) * 100);
 const COUNT_CALLS = process.env.ONLINE_COUNT_CALL_TIME === '1';

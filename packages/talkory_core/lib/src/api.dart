@@ -137,7 +137,7 @@ class Api {
   Future<CallSession> startCall(String partnerId) async =>
       CallSession.fromJson(await _send('POST', '/calls', {'partnerId': partnerId}));
 
-  /// {available: bool, seconds: 120, nextAt: ISO time or null}: the free 2-minute call (one every 2 hours)
+  /// {available: bool, seconds: 120, nextAt: ISO time or null}: the free 2-minute call (one every 3 hours)
   Future<Map<String, dynamic>> freeCallStatus() async => Map<String, dynamic>.from(await _send('GET', '/calls/free-status') as Map);
 
   // ---- host-started calls

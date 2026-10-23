@@ -175,7 +175,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(height: 24),
                 Text('Call rate (same for every host)', style: Theme.of(context).textTheme.titleSmall),
                 const SizedBox(height: 4),
-                Text('Callers pay ₹1.25 per minute. You earn ₹1.00 for every minute you talk.',
+                Text('Callers pay ₹10 per minute. You earn ₹6 for every minute you talk.',
                     style: Theme.of(context).textTheme.bodySmall),
                 if (_error != null)
                   Padding(padding: const EdgeInsets.only(top: 12), child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error))),

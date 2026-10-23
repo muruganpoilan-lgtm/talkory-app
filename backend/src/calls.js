@@ -30,7 +30,7 @@ router.post('/', requireAuth(['user']), async (req, res) => {
     [req.auth.id, partnerId]);
   if (blocked.rowCount) return res.status(403).json({ error: 'this host is unavailable' });
 
-  const callRate = Number(process.env.CALL_RATE_PAISE || 125); // fixed price per minute, see billing.js
+  const callRate = Number(process.env.CALL_RATE_PAISE || 1000); // fixed price per minute, see billing.js
   const minCost = Math.ceil((callRate * Number(process.env.MIN_CALL_SECONDS || 60)) / 60);
   const free = false; // the free 2-minute call is offered by hosts (see hostcalls.js), not on calls a user starts
   const w = await pool.query('SELECT balance FROM wallets WHERE account_id=$1', [req.auth.id]);

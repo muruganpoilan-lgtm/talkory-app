@@ -110,7 +110,7 @@ class _HomeTabState extends State<HomeTab> {
         ),
       );
 
-  /// Daily goal: be Online for 3 hours. Shows progress and what a shortfall costs.
+  /// Daily goal: be Online for 4 hours. Shows progress and what a shortfall costs.
   Widget _onlineGoalCard() {
     final done = (_ot!['seconds'] as num).toInt();
     final need = (_ot!['requiredSeconds'] as num).toInt();

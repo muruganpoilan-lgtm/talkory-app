@@ -2,7 +2,7 @@ const router = require('express').Router();
 const { pool, requireAuth } = require('./db');
 
 // The host agreement. Raise VERSION whenever the text changes: hosts are then asked to sign again.
-const VERSION = 1;
+const VERSION = 2;
 const CO = process.env.COMPANY_NAME || 'Talkory';
 const TEXT = `TALKORY PARTNER (HOST) AGREEMENT
 
@@ -24,7 +24,7 @@ You earn the amount shown in the app for each minute you talk and for each chat 
 You can withdraw once every 10 days, and only when your balance is at least the minimum shown in the app (₹1,500). Talkory may hold or cancel a withdrawal where it suspects fraud or breach of this agreement.
 
 6. Daily online time
-You agree to stay Online for at least 3 hours every day. For each 30 minutes short, ₹1 is deducted from your earnings, as shown in the app.
+You agree to stay Online for at least 4 hours every day, in one stretch or split across the day. The count starts again every day at midnight (India time). For each 30 minutes short, ₹1 is deducted from your earnings, as shown in the app.
 
 7. Privacy
 Users and hosts stay anonymous to each other. You will not try to find out who a user is. Talkory keeps your KYC documents private and uses them only for verification and legal compliance.

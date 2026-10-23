@@ -1,9 +1,9 @@
 const { pool } = require('./db');
 
 const FREE_SECONDS = 120; // length of the free call
-const COOLDOWN_HOURS = 2; // one free call per user in this window
+const COOLDOWN_HOURS = Number(process.env.FREE_CALL_COOLDOWN_HOURS || 3); // one free call per user in this window
 
-// One free call per user every 2 hours. A free call that was offered counts, even if the user declined or missed it,
+// One free call per user every 3 hours. A free call that was offered counts, even if the user declined or missed it,
 // so the "free for 2 minutes" message does not show on every ring.
 async function freeStatus(userId) {
   const { rows } = await pool.query(

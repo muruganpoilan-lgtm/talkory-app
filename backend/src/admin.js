@@ -80,7 +80,7 @@ router.post('/reports/:id/resolve', async (req, res) => {
   res.json({ ok: true });
 });
 
-// ---- Talkory's own earnings: what is left of every call and chat payment after the host is paid (caller pays 1.25, host 1.00 -> 0.25).
+// ---- Talkory's own earnings: what is left of every call and chat payment after the host is paid (caller pays 10, host 6 -> 4).
 // Free-call earnings (host paid, caller pays nothing) count against it. Admin takes it out to a UPI ID with "Withdraw".
 const UPI_RE = /^[a-zA-Z0-9._-]{2,64}@[a-zA-Z]{2,32}$/;
 async function earningsNumbers(q) {

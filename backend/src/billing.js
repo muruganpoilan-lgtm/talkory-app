@@ -4,9 +4,9 @@ const TICK_SECONDS = 15;
 const FREE_SECONDS = 120; // keep equal to freecall.js
 
 // Fixed pricing for every call: the caller pays CALL_RATE_PAISE per minute, the host earns CALL_HOST_PAISE per minute,
-// Talkory keeps the difference (125 / 100 / 25 paise = Rs 1.25 / Rs 1.00 / Rs 0.25). Charged exactly per minute, even though billing runs every 15 seconds.
-const CALL_RATE = Number(process.env.CALL_RATE_PAISE || 125);
-const CALL_HOST = Number(process.env.CALL_HOST_PAISE || 100);
+// Talkory keeps the difference (1000 / 600 / 400 paise = Rs 10 / Rs 6 / Rs 4, so 10 minutes = 100 coins). Charged exactly per minute, even though billing runs every 15 seconds.
+const CALL_RATE = Number(process.env.CALL_RATE_PAISE || 1000);
+const CALL_HOST = Number(process.env.CALL_HOST_PAISE || 600);
 const upTo = (perMin, tickNo) => Math.ceil((perMin * TICK_SECONDS * tickNo) / 60); // total owed after this many ticks
 
 // A busy host: from their 4th answered call of the day (India time, calls from anyone), the host earns a flat Rs 3 per minute
