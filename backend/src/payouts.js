@@ -34,11 +34,12 @@ router.get('/earnings', requireAuth(['partner']), async (req, res) => {
          FROM payouts WHERE partner_id=$1`, [id]),
     pool.query('SELECT upi_id, upi_app, kyc FROM partner_profiles WHERE account_id=$1', [id]),
     pool.query(
-      `SELECT c.id, c.started_at, c.billed_seconds, COALESCE(SUM(l.amount),0) AS earned
+      `SELECT c.id, c.user_id, u.display_name AS user_name, c.started_at, c.billed_seconds, COALESCE(SUM(l.amount),0) AS earned
          FROM calls c
+         JOIN accounts u ON u.id=c.user_id
          LEFT JOIN ledger l ON l.call_id=c.id AND l.type='call_earning' AND l.account_id=$1
         WHERE c.partner_id=$1 AND c.started_at IS NOT NULL
-        GROUP BY c.id ORDER BY c.started_at DESC LIMIT 30`, [id]),
+        GROUP BY c.id, u.display_name ORDER BY c.started_at DESC LIMIT 30`, [id]),
     pool.query(
       `SELECT id, amount, status, upi_id, requested_at, paid_at, payout_note FROM payouts
         WHERE partner_id=$1 ORDER BY requested_at DESC LIMIT 20`, [id]),
@@ -59,7 +60,7 @@ router.get('/earnings', requireAuth(['partner']), async (req, res) => {
     withdrawEveryDays: WITHDRAW_EVERY_DAYS,
     nextWithdrawAt: nextAt, // null = a withdrawal is allowed now
     recentCalls: calls.rows.map((r) => ({
-      id: r.id, startedAt: r.started_at, seconds: r.billed_seconds, earned: num(r.earned),
+      id: r.id, userId: r.user_id, userName: r.user_name, startedAt: r.started_at, seconds: r.billed_seconds, earned: num(r.earned),
     })),
     payouts: payouts.rows.map((r) => ({
       id: r.id, amount: num(r.amount), status: r.status, upiId: r.upi_id,

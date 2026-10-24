@@ -42,6 +42,13 @@ class _CallsTabState extends State<CallsTab> {
   Widget build(BuildContext context) {
     final calls = _calls;
     final scheme = Theme.of(context).colorScheme;
+    // Calls are newest first, so the first row seen for each user is the one that gets the call button
+    final seenUsers = <String>{};
+    final showCall = <Object?>{};
+    for (final c in calls ?? const []) {
+      final uid = c['userId'];
+      if (uid is String && seenUsers.add(uid)) showCall.add(c['id']);
+    }
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: RefreshIndicator(
@@ -62,6 +69,25 @@ class _CallsTabState extends State<CallsTab> {
                   leading: CircleAvatar(backgroundColor: scheme.primaryContainer, child: Icon(Icons.call_received, color: scheme.primary)),
                   title: Text('+ ${_rs(c['earned'])}', style: const TextStyle(fontWeight: FontWeight.w800, color: kInk)),
                   subtitle: Text('${_when(c['startedAt'])}  ·  ${_dur(c['seconds'])}'),
+                  trailing: !showCall.contains(c['id'])
+                      ? null
+                      : Row(mainAxisSize: MainAxisSize.min, children: [
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 90),
+                            child: Text((c['userName'] ?? 'User') as String,
+                                maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, color: kInk, fontSize: 13)),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton.filled(
+                            style: IconButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+                            tooltip: 'Call back',
+                            icon: const Icon(Icons.call),
+                            onPressed: () async {
+                              await startHostCall(context, widget.api, c['userId'] as String, (c['userName'] ?? 'User') as String);
+                              _load();
+                            },
+                          ),
+                        ]),
                 ),
               ),
           ],
