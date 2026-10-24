@@ -1,10 +1,11 @@
 const { pool, redis } = require('./db');
 
 // Daily online-time rule for hosts (days run on India time):
-//  - A host must be shown as "Online" for at least ONLINE_MIN_HOURS (default 4) each day.
+//  - A host must be shown as "Online" with the app open for at least ONLINE_MIN_HOURS (default 4) each day.
 //  - For every full ONLINE_PENALTY_BLOCK_MIN (default 30) minutes short, ONLINE_PENALTY_RUPEES (default 1) is taken from the host's wallet.
 //  - The wallet never goes below 0.
 //  - Only hosts who have been online at least once since this rule started are checked (nobody is charged before their first online day).
+//  - Time only counts while the host's app is open on screen (the app sends a heartbeat every 20 s); closed, minimised or locked does not count.
 //  - Time on "Busy" and time spent on a call do not count (set ONLINE_COUNT_CALL_TIME=1 to count call time).
 const MIN_SECONDS = Number(process.env.ONLINE_MIN_HOURS || 4) * 3600;
 const BLOCK_SECONDS = Number(process.env.ONLINE_PENALTY_BLOCK_MIN || 30) * 60;
@@ -22,6 +23,11 @@ async function track() {
     `SELECT p.account_id AS id FROM partner_profiles p JOIN accounts a ON a.id = p.account_id
       WHERE p.is_online AND NOT p.manual_busy AND p.kyc = 'approved' AND NOT a.is_blocked AND a.deleted_at IS NULL`);
   let ids = rows.map((r) => r.id);
+  // Only hosts whose app is open on screen (heartbeat seen in the last ~75 s) are counted
+  if (ids.length) {
+    const active = await Promise.all(ids.map((id) => redis.exists(`partner:active:${id}`)));
+    ids = ids.filter((_, i) => active[i]);
+  }
   if (!COUNT_CALLS && ids.length) {
     const busy = await Promise.all(ids.map((id) => redis.exists(`partner:busy:${id}`)));
     ids = ids.filter((_, i) => !busy[i]);

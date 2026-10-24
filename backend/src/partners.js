@@ -20,6 +20,12 @@ router.get('/me', requireAuth(['partner']), async (req, res) => {
   });
 });
 
+// The host app calls this every 20 s while it is open on screen. Online time only counts while this is fresh.
+router.post('/heartbeat', requireAuth(['partner']), async (req, res) => {
+  await redis.set(`partner:active:${req.auth.id}`, '1', 'EX', 75);
+  res.json({ ok: true });
+});
+
 // Today's online time against the daily minimum (shown in the partner app)
 router.get('/online-today', requireAuth(['partner']), async (req, res) => {
   res.json(await require('./onlinetime').today(req.auth.id));

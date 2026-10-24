@@ -15,8 +15,9 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int _tab = 0;
+  bool _active = true; // app is on screen (not minimised or locked)
   int _unread = 0;
   Timer? _timer;
 
@@ -27,8 +28,23 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (_) {}
   }
 
+  // Tells the server this host is looking at the app; online time only counts while these keep arriving.
+  Future<void> _beat() async {
+    if (!_active) return;
+    try {
+      await widget.api.heartbeat();
+    } catch (_) {}
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _active = state == AppLifecycleState.resumed;
+    if (_active) _beat();
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     AdminCallWatcher.instance.stop();
     _timer?.cancel();
     super.dispose();
@@ -37,8 +53,13 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadUnread();
-    _timer = Timer.periodic(const Duration(seconds: 20), (_) => _loadUnread());
+    _beat();
+    _timer = Timer.periodic(const Duration(seconds: 20), (_) {
+      _loadUnread();
+      _beat();
+    });
     // Registers this phone for call alerts and listens for accept/decline from the call screen.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       PushService.instance.start(widget.api).catchError((_) {});

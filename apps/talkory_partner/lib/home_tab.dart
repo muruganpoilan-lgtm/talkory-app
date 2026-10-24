@@ -181,7 +181,7 @@ class _HomeTabState extends State<HomeTab> {
           Text(
             met
                 ? 'Daily goal done. Thank you!'
-                : 'Stay Online for ${hm(need)} every day. For each $block minutes short, ${_rs(pen)} is deducted from your earnings at midnight. Busy and Offline time does not count.',
+                : 'Stay Online for ${hm(need)} every day. For each $block minutes short, ${_rs(pen)} is deducted from your earnings at midnight. Time counts only while the app is open on your screen and you are Online. Busy, Offline, minimised or locked time does not count.',
             style: const TextStyle(color: Colors.black54, fontSize: 12),
           ),
         ]),
