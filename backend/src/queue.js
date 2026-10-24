@@ -48,6 +48,7 @@ async function handle(job) {
   if (job.name === 'sweep') { // safety net, once a minute: heal anything a lost job could leave behind
     await hostfiles.sync().catch((e) => console.error('[hostfiles] sync failed:', e.message)); // copy host photos and KYC files into the database
     await aicheck.scan().catch((e) => console.error('[aicheck] scan failed:', e.message)); // AI-photo check
+    await require('./invoice').sweep().catch((e) => console.error('[invoice] sweep failed:', e.message)); // invoices for payouts paid by hand
     await autopayout.retryPending().catch((e) => console.error('[payout] retry failed:', e.message)); // automatic UPI payouts still waiting
     await onlinetime.track().catch((e) => console.error('[online] track failed:', e.message)); // host online-time counter
     const stuck = await pool.query(`SELECT id FROM calls WHERE status='ringing' AND created_at < now() - interval '60 seconds'`);

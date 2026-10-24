@@ -1,5 +1,7 @@
 const crypto = require('crypto');
 const { pool } = require('./db');
+const paydays = require('./paydays');
+const invoice = require('./invoice');
 
 // Automatic UPI payouts through RazorpayX. Switched on only when AUTO_PAYOUTS=1 and RAZORPAYX_ACCOUNT_NUMBER is set;
 // otherwise withdrawals stay manual (admin pays from a UPI app and taps "Mark paid").
@@ -51,6 +53,7 @@ async function refund(payoutId, note, allowFromPaid = false) {
 async function markPaid(payoutId, utr) {
   const r = await pool.query(
     `UPDATE payouts SET status='paid', paid_at=now(), reference=COALESCE($2, reference) WHERE id=$1 AND status IN ('requested','processing')`, [payoutId, utr || null]);
+  if (r.rowCount) await invoice.create(payoutId).catch((e) => console.error('[invoice] failed:', e.message)); // host and admin copies
   return r.rowCount > 0;
 }
 
@@ -58,7 +61,7 @@ async function markPaid(payoutId, utr) {
 async function send(payoutId) {
   if (!ENABLED) return;
   const p = (await pool.query(
-    `UPDATE payouts SET status='processing' WHERE id=$1 AND status='requested' AND rzp_payout_id IS NULL RETURNING partner_id, amount, upi_id`, [payoutId])).rows[0];
+    `UPDATE payouts SET status='processing' WHERE id=$1 AND status='requested' AND rzp_payout_id IS NULL RETURNING partner_id, amount, net_paise, upi_id`, [payoutId])).rows[0];
   if (!p) return; // already being handled, paid or rejected
   try {
     const prof = (await pool.query(
@@ -78,7 +81,7 @@ async function send(payoutId) {
     const out = await rzp('/payouts', {
       account_number: process.env.RAZORPAYX_ACCOUNT_NUMBER,
       fund_account_id: fundId,
-      amount: Number(p.amount),
+      amount: Number(p.net_paise ?? p.amount), // the host gets the amount after GST
       currency: 'INR',
       mode: 'UPI',
       purpose: 'payout',
@@ -103,12 +106,14 @@ async function send(payoutId) {
   }
 }
 
-// Every minute: send requests that are still waiting (not older than 2 days, so an old manual backlog is not auto-paid by surprise)
+// Every minute: send the requests whose pay day has come (the 10th, 20th and 30th, from 6 pm India time). Older manual
+// requests have no pay day and are never auto-paid by surprise.
 async function retryPending() {
   if (!ENABLED) return;
+  const t = paydays.ist();
   const { rows } = await pool.query(
-    `SELECT id FROM payouts WHERE status='requested' AND rzp_payout_id IS NULL
-        AND requested_at < now() - interval '1 minute' AND requested_at > now() - interval '2 days' ORDER BY requested_at LIMIT 20`);
+    `SELECT id FROM payouts WHERE status='requested' AND rzp_payout_id IS NULL AND pay_on IS NOT NULL
+        AND (pay_on < $1::date OR (pay_on = $1::date AND $2::int >= 18)) ORDER BY requested_at LIMIT 20`, [paydays.todayIso(), t.h]);
   for (const r of rows) await send(r.id);
 }
 

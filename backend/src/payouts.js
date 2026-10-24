@@ -2,6 +2,8 @@ const router = require('express').Router();
 const { pool, requireAuth } = require('./db');
 const autopayout = require('./autopayout');
 const { requireOwner } = require('./owner'); // approving payouts: owner only
+const paydays = require('./paydays');
+const invoice = require('./invoice');
 
 const MIN_PAYOUT_RUPEES = Number(process.env.MIN_PAYOUT_RUPEES || 1500); // minimum withdrawal
 // A host can withdraw once every this many days. Counted from the last request that was not rejected (a rejected one is refunded).
@@ -41,7 +43,7 @@ router.get('/earnings', requireAuth(['partner']), async (req, res) => {
         WHERE c.partner_id=$1 AND c.started_at IS NOT NULL
         GROUP BY c.id, u.display_name ORDER BY c.started_at DESC LIMIT 30`, [id]),
     pool.query(
-      `SELECT id, amount, status, upi_id, requested_at, paid_at, payout_note FROM payouts
+      `SELECT id, amount, status, upi_id, requested_at, paid_at, payout_note, gst_paise, net_paise, pay_on::text AS pay_on, invoice_no FROM payouts
         WHERE partner_id=$1 ORDER BY requested_at DESC LIMIT 20`, [id]),
     pool.query(lastPayoutSql, [id, String(WITHDRAW_EVERY_DAYS)]),
   ]);
@@ -58,12 +60,15 @@ router.get('/earnings', requireAuth(['partner']), async (req, res) => {
     kyc: profile.rows[0]?.kyc,
     minPayoutRupees: MIN_PAYOUT_RUPEES,
     withdrawEveryDays: WITHDRAW_EVERY_DAYS,
-    nextWithdrawAt: nextAt, // null = a withdrawal is allowed now
+    nextWithdrawAt: null, // old apps: a request is always allowed; it is paid on the next pay day
+    nextPayOn: paydays.nextPayOn(),
+    gstPercent: paydays.GST_PERCENT,
     recentCalls: calls.rows.map((r) => ({
       id: r.id, userId: r.user_id, userName: r.user_name, startedAt: r.started_at, seconds: r.billed_seconds, earned: num(r.earned),
     })),
     payouts: payouts.rows.map((r) => ({
       id: r.id, amount: num(r.amount), status: r.status, upiId: r.upi_id,
+      gst: r.gst_paise == null ? null : num(r.gst_paise), net: r.net_paise == null ? null : num(r.net_paise), payOn: r.pay_on, invoiceNo: r.invoice_no,
       requestedAt: r.requested_at, paidAt: r.paid_at, note: r.status === 'rejected' ? r.payout_note : null,
     })),
   });
@@ -96,24 +101,22 @@ router.post('/payouts', requireAuth(['partner']), async (req, res) => {
       `SELECT 1 FROM payouts WHERE partner_id=$1 AND status IN ('requested','processing')`, [req.auth.id]);
     if (open.rowCount) throw new HttpError(409, 'You already have a withdrawal in progress');
 
-    const last = (await client.query(lastPayoutSql, [req.auth.id, String(WITHDRAW_EVERY_DAYS)])).rows[0];
-    if (last && new Date(last.next_at) > new Date())
-      throw new HttpError(409, `You can withdraw once every ${WITHDRAW_EVERY_DAYS} days. Your next withdrawal is on ${fmtDay(last.next_at)}.`);
-
     const debit = await client.query(
       'UPDATE wallets SET balance = balance - $1, updated_at = now() WHERE account_id=$2 AND balance >= $1',
       [amount, req.auth.id]);
     if (!debit.rowCount) throw new HttpError(402, 'Insufficient balance');
 
+    // Paid on the next pay day (10th, 20th, 30th); GST is taken out of the amount
+    const sp = paydays.split(amount);
+    const payOn = paydays.nextPayOn();
     const payout = (await client.query(
-      'INSERT INTO payouts (partner_id, amount, upi_id, upi_app) VALUES ($1,$2,$3,$4) RETURNING id',
-      [req.auth.id, amount, p.upi_id, p.upi_app])).rows[0];
+      'INSERT INTO payouts (partner_id, amount, upi_id, upi_app, gst_paise, net_paise, pay_on) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id',
+      [req.auth.id, amount, p.upi_id, p.upi_app, sp.gst, sp.net, payOn])).rows[0];
     await client.query(
       `INSERT INTO ledger (account_id, type, amount, ref, idem_key) VALUES ($1,'payout',$2,$3,$4)`,
       [req.auth.id, -amount, payout.id, `payout:${payout.id}`]);
     await client.query('COMMIT');
-    res.json({ payoutId: payout.id });
-    if (autopayout.ENABLED) autopayout.send(payout.id).catch((e) => console.error('[payout] send failed:', e.message)); // automatic UPI payout
+    res.json({ payoutId: payout.id, payOn, gstPaise: sp.gst, netPaise: sp.net }); // sent on the pay day by the minute sweep
   } catch (e) {
     await client.query('ROLLBACK');
     if (e instanceof HttpError) return res.status(e.status).json({ error: e.message });
@@ -128,10 +131,10 @@ router.post('/payouts', requireAuth(['partner']), async (req, res) => {
 router.get('/admin/payouts', requireOwner, async (req, res) => {
   const status = req.query.status || 'requested';
   const { rows } = await pool.query(
-    `SELECT p.id, p.amount, p.status, p.upi_id, p.upi_app, p.requested_at, a.display_name, pp.kyc
+    `SELECT p.id, COALESCE(p.net_paise, p.amount) AS amount, p.amount AS gross, p.gst_paise, p.pay_on::text AS pay_on, p.status, p.upi_id, p.upi_app, p.requested_at, a.display_name, pp.kyc
        FROM payouts p JOIN accounts a ON a.id=p.partner_id JOIN partner_profiles pp ON pp.account_id=p.partner_id
       WHERE p.status=$1 ORDER BY p.requested_at ASC LIMIT 100`, [status]);
-  res.json(rows.map((r) => ({ ...r, amount: num(r.amount) })));
+  res.json(rows.map((r) => ({ ...r, amount: num(r.amount), gross: num(r.gross), gst_paise: r.gst_paise == null ? null : num(r.gst_paise) })));
 });
 
 // Call this AFTER you have actually sent the money (UPI / bank transfer / RazorpayX)
@@ -140,6 +143,7 @@ router.post('/admin/payouts/:id/paid', requireOwner, async (req, res) => {
     `UPDATE payouts SET status='paid', paid_at=now(), reference=$2
       WHERE id=$1 AND status IN ('requested','processing')`, [req.params.id, req.body.reference || null]);
   if (!r.rowCount) return res.status(409).json({ error: 'payout not pending' });
+  await invoice.create(req.params.id).catch((e) => console.error('[invoice] failed:', e.message)); // host and admin copies
   res.json({ ok: true });
 });
 

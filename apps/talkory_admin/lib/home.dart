@@ -419,8 +419,16 @@ List<_Spec> _specs() {
               return false;
             }),
         ]),
+    _Spec('Invoices', '/admin/invoices', (r) => '${r['display_name']}  ${_rs(r['net_paise'] as num)}',
+        (r) => '${r['invoice_no']} · Withdrawn ${_rs(r['amount'] as num)} · GST ${_rs(r['gst_paise'] as num)} · ${_when(r['paid_at'])}', (r) => [
+          _Act('View PDF', (c, api, r) async {
+            final err = await openInvoice(api, '/invoices/admin/${r['id']}/link');
+            if (err != null && c.mounted) _toast(c, err);
+            return false;
+          }),
+        ]),
     _Spec('Payouts', '/partner/admin/payouts', (r) => '${r['display_name']}  ${_rs(r['amount'] as num)}',
-        (r) => 'UPI ${r['upi_id']}${_appName(r['upi_app']).isEmpty ? '' : ' (${_appName(r['upi_app'])})'} · ${_when(r['requested_at'])}${r['kyc'] != 'approved' ? ' · KYC ${r['kyc']}' : ''}', (r) => [
+        (r) => 'Pay on ${r['pay_on'] ?? 'any day'} · UPI ${r['upi_id']}${_appName(r['upi_app']).isEmpty ? '' : ' (${_appName(r['upi_app'])})'} · ${_when(r['requested_at'])}${r['kyc'] != 'approved' ? ' · KYC ${r['kyc']}' : ''}', (r) => [
           if (r['status'] == 'requested' || r['status'] == 'processing') ...[
             for (final a in (r['upi_app'] == 'phonepe' ? ['phonepe', 'gpay'] : ['gpay', 'phonepe']))
               _Act('Pay via ${_appName(a)}', (c, api, r) async {
@@ -499,7 +507,7 @@ class AdminHome extends StatefulWidget {
 }
 
 /// Tabs only the owner sees (money and the list of admins).
-const _ownerTabs = {'Earnings', 'Payouts', 'Admins'};
+const _ownerTabs = {'Earnings', 'Payouts', 'Invoices', 'Admins'};
 
 Future<bool> _addAdmin(BuildContext c, Api api) async {
   final phone = await _ask(c, 'Phone number of the new admin, with country code', '+91');

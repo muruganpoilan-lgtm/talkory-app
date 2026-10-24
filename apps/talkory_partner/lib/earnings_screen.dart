@@ -85,14 +85,17 @@ class _EarningsScreenState extends State<EarningsScreen> {
     return '${t.day} ${m[t.month - 1]}';
   }
 
+  String _payDay(String? iso) {
+    final t = DateTime.tryParse(iso ?? '');
+    return t == null ? '' : _day(t);
+  }
+
   Future<void> _withdraw() async {
     final d = _d!;
     final min = d['minPayoutRupees'] as int;
-    final next = DateTime.tryParse((d['nextWithdrawAt'] as String?) ?? '')?.toLocal();
-    if (next != null && next.isAfter(DateTime.now())) return _snack('You can withdraw once every ${d['withdrawEveryDays'] ?? 10} days. Your next withdrawal is on ${_day(next)}.');
     if ((d['balance'] as int) < min * 100) return _snack('You need at least ₹$min to withdraw');
     final ok = await Navigator.of(context).push<bool>(MaterialPageRoute(
-      builder: (_) => WithdrawScreen(api: widget.api, balancePaise: d['balance'] as int, minRupees: min, upiId: d['upiId'] as String?, upiApp: d['upiApp'] as String?),
+      builder: (_) => WithdrawScreen(api: widget.api, balancePaise: d['balance'] as int, minRupees: min, upiId: d['upiId'] as String?, upiApp: d['upiApp'] as String?, gstPercent: (d['gstPercent'] as num?) ?? 18, payOn: d['nextPayOn'] as String?),
     ));
     if (ok == true) {
       _snack('Withdrawal requested');
@@ -154,17 +157,11 @@ class _EarningsScreenState extends State<EarningsScreen> {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        Builder(builder: (_) {
-                          final next = DateTime.tryParse((d['nextWithdrawAt'] as String?) ?? '')?.toLocal();
-                          final waiting = next != null && next.isAfter(DateTime.now());
-                          return Text(
-                            waiting
-                                ? 'Next withdrawal available on ${_day(next)}'
-                                : 'You can withdraw once every ${d['withdrawEveryDays'] ?? 10} days (minimum ₹${d['minPayoutRupees']})',
-                            textAlign: TextAlign.center,
-                            style: text.bodySmall?.copyWith(color: waiting ? Colors.orange.shade800 : Colors.black54),
-                          );
-                        }),
+                        Text(
+                          'Money is paid on the 10th, 20th and 30th of each month (28th in February). ${d['gstPercent'] ?? 18}% GST is deducted. Minimum ₹${d['minPayoutRupees']}. Next pay day: ${_payDay(d['nextPayOn'] as String?)}.',
+                          textAlign: TextAlign.center,
+                          style: text.bodySmall?.copyWith(color: Colors.black54),
+                        ),
                       ]),
                     ),
                   ),
@@ -191,13 +188,26 @@ class _EarningsScreenState extends State<EarningsScreen> {
                   for (final p in d['payouts'] as List)
                     ListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: Text(_rs(p['amount'])),
-                      subtitle: Text('${_when(p['requestedAt'])}  ·  ${p['upiId'] ?? ''}'),
-                      trailing: Chip(
-                        label: Text(p['status'], style: TextStyle(color: _statusColor(p['status']))),
-                        side: BorderSide(color: _statusColor(p['status'])),
-                        backgroundColor: Colors.transparent,
-                      ),
+                      title: Text(p['net'] == null ? _rs(p['amount']) : 'You get ${_rs(p['net'])}'),
+                      subtitle: Text(
+                          '${_when(p['requestedAt'])}  ·  ${p['upiId'] ?? ''}'
+                          '${p['gst'] == null ? '' : '\n${_rs(p['amount'])} − GST ${_rs(p['gst'])}'}'
+                          '${p['status'] == 'requested' && p['payOn'] != null ? '\nWill be paid on ${_payDay(p['payOn'] as String?)}' : ''}'),
+                      isThreeLine: p['gst'] != null,
+                      trailing: p['status'] == 'paid' && p['invoiceNo'] != null
+                          ? TextButton.icon(
+                              onPressed: () async {
+                                final err = await openInvoice(widget.api, '/invoices/mine/${p['id']}/link');
+                                if (err != null) _snack(err);
+                              },
+                              icon: const Icon(Icons.receipt_long, size: 18),
+                              label: const Text('Invoice'),
+                            )
+                          : Chip(
+                              label: Text(p['status'], style: TextStyle(color: _statusColor(p['status']))),
+                              side: BorderSide(color: _statusColor(p['status'])),
+                              backgroundColor: Colors.transparent,
+                            ),
                     ),
                   const SizedBox(height: 16),
                   Text('Recent calls', style: text.titleMedium),

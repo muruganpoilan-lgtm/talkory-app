@@ -3,10 +3,11 @@ import 'package:talkory_core/talkory_core.dart';
 
 /// Withdraw money to GPay or PhonePe (UPI). Shown from the Earnings screen.
 class WithdrawScreen extends StatefulWidget {
-  const WithdrawScreen({super.key, required this.api, required this.balancePaise, required this.minRupees, this.upiId, this.upiApp});
+  const WithdrawScreen({super.key, required this.api, required this.balancePaise, required this.minRupees, this.upiId, this.upiApp, this.gstPercent = 18, this.payOn});
   final Api api;
   final int balancePaise, minRupees;
-  final String? upiId, upiApp;
+  final String? upiId, upiApp, payOn;
+  final num gstPercent;
   @override
   State<WithdrawScreen> createState() => _WithdrawScreenState();
 }
@@ -104,12 +105,31 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
         TextField(
           controller: _amount,
           keyboardType: TextInputType.number,
+          onChanged: (_) => setState(() {}),
           decoration: InputDecoration(labelText: 'Amount (₹)', helperText: 'Minimum ₹${widget.minRupees}', border: const OutlineInputBorder(), prefixText: '₹ '),
         ),
         Align(
           alignment: Alignment.centerLeft,
           child: TextButton(onPressed: () => setState(() => _amount.text = '${widget.balancePaise ~/ 100}'), child: const Text('Withdraw everything')),
         ),
+        Builder(builder: (_) {
+          final r = int.tryParse(_amount.text.trim()) ?? 0;
+          final gst = (r * widget.gstPercent / 100);
+          final pay = DateTime.tryParse(widget.payOn ?? '');
+          const m = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          return Card(
+            color: const Color(0xFFF4F0FF),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Withdrawal ₹$r'),
+                Text('GST ${widget.gstPercent}%: − ₹${gst.toStringAsFixed(2)}'),
+                Text('You receive ₹${(r - gst).toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.w800)),
+                if (pay != null) Text('Paid on ${pay.day} ${m[pay.month - 1]}. You get an invoice after payment.', style: const TextStyle(color: Colors.black54, fontSize: 12)),
+              ]),
+            ),
+          );
+        }),
         const SizedBox(height: 4),
         Text('Receive money in', style: text.titleSmall),
         const SizedBox(height: 8),
@@ -142,7 +162,7 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
           child: _busy ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : Text('Withdraw to $name'),
         ),
         const SizedBox(height: 8),
-        Text('You can withdraw once every 10 days. The money is sent to this UPI ID after the request is processed.', textAlign: TextAlign.center, style: text.bodySmall?.copyWith(color: Colors.black54)),
+        Text('Money is sent to this UPI ID on the next pay day (10th, 20th or 30th of the month).', textAlign: TextAlign.center, style: text.bodySmall?.copyWith(color: Colors.black54)),
       ]),
     );
   }

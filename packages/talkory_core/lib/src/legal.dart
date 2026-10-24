@@ -7,6 +7,20 @@ import 'api.dart';
 Future<void> openLegal(Api api, String page) =>
     launchUrl(Uri.parse('${api.baseUrl}/legal/$page'), mode: LaunchMode.externalApplication);
 
+/// Opens a payout invoice (PDF) in the browser. [linkPath] is '/invoices/mine/<payoutId>/link' (host) or '/invoices/admin/<payoutId>/link' (admin).
+/// Returns an error message, or null when it opened.
+Future<String?> openInvoice(Api api, String linkPath) async {
+  try {
+    final r = await api.adminGet(linkPath);
+    final ok = await launchUrl(Uri.parse('${api.baseUrl}${(r as Map)['url']}'), mode: LaunchMode.externalApplication);
+    return ok ? null : 'Could not open the invoice';
+  } on ApiException catch (e) {
+    return e.message;
+  } catch (_) {
+    return 'Network error. Try again.';
+  }
+}
+
 /// Pass [onAccountDeleted] to also show "Delete my account".
 /// Opens the mail app addressed to support.
 Future<void> openSupport(String email) =>
