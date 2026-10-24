@@ -66,9 +66,10 @@ const admin = require('express').Router();
 admin.use(requireAuth(['admin']));
 admin.get('/', async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT a.id, a.display_name, c.full_name, c.version, c.signed_at, c.ip
+    `SELECT a.id, a.display_name, c.full_name, c.version, c.signed_at, c.ip,
+            (SELECT h.id FROM host_files h WHERE h.account_id=a.id AND h.kind='agreement' ORDER BY h.created_at DESC LIMIT 1) AS agreement_id
        FROM partner_contracts c JOIN accounts a ON a.id=c.partner_id ORDER BY c.signed_at DESC LIMIT 200`);
   res.json(rows);
 });
 
-module.exports = { router, admin, isSigned, VERSION };
+module.exports = { router, admin, isSigned, VERSION, TEXT };

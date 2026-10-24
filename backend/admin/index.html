@@ -57,7 +57,7 @@ const TABS={
  records:{url:'/admin/host-records',cols:['Host','KYC','Saved in database','Last saved'],
   row:r=>[esc(r.display_name)+' <span class="mut">('+esc(r.phone)+')</span>',esc(r.kyc),(r.files||[]).length+' files',when(r.last_at)],
   acts:r=>[['Open records','',null,()=>viewRecords(r)]]},
- contracts:{url:'/admin/contracts',cols:['Host','Signed as','When','IP'],row:r=>[esc(r.display_name),esc(r.full_name),when(r.signed_at),esc(r.ip||'')],acts:r=>[]},
+ contracts:{url:'/admin/contracts',cols:['Host','Signed as','When','IP'],row:r=>[esc(r.display_name),esc(r.full_name),when(r.signed_at),esc(r.ip||'')],acts:r=>r.agreement_id?[['View agreement','',null,()=>viewRecords({display_name:r.display_name,files:[{id:r.agreement_id,kind:'agreement',at:r.signed_at}]})]]:[]},
  payouts:{url:'/partner/admin/payouts',cols:['Partner','Amount','UPI ID','Requested'],
   row:r=>[esc(r.display_name)+(r.kyc!=='approved'?' <span class="err">(KYC '+r.kyc+')</span>':''),rs(r.amount),esc(r.upi_id)+(r.upi_app?' <span class="mut">('+(r.upi_app==='gpay'?'GPay':'PhonePe')+')</span>':''),when(r.requested_at)],
   acts:r=>[...(r.status==='requested'||r.status==='processing'?(r.upi_app==='phonepe'?['phonepe','gpay']:['gpay','phonepe']).map(a=>['Pay via '+(a==='gpay'?'GPay':'PhonePe'),'',null,()=>payInApp(a,r)]):[]),['Mark paid','ok','/partner/admin/payouts/'+r.id+'/paid',()=>({reference:prompt('Payment reference (UPI txn id):','')??null}),'Confirm you have sent '+rs(r.amount)+' to '+r.upi_id+'?'],

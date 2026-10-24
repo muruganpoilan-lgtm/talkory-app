@@ -412,7 +412,13 @@ List<_Spec> _specs() {
             return false;
           }),
         ]),
-    _Spec('Contracts', '/admin/contracts', (r) => '${r['display_name']}', (r) => 'Signed as ${r['full_name']} · ${_when(r['signed_at'])}', (r) => []),
+    _Spec('Contracts', '/admin/contracts', (r) => '${r['display_name']}', (r) => 'Signed as ${r['full_name']} · ${_when(r['signed_at'])}', (r) => [
+          if (r['agreement_id'] != null)
+            _Act('View agreement', (c, api, r) async {
+              await _showText(c, api, '/admin/host-records/file/${r['agreement_id']}');
+              return false;
+            }),
+        ]),
     _Spec('Payouts', '/partner/admin/payouts', (r) => '${r['display_name']}  ${_rs(r['amount'] as num)}',
         (r) => 'UPI ${r['upi_id']}${_appName(r['upi_app']).isEmpty ? '' : ' (${_appName(r['upi_app'])})'} · ${_when(r['requested_at'])}${r['kyc'] != 'approved' ? ' · KYC ${r['kyc']}' : ''}', (r) => [
           if (r['status'] == 'requested' || r['status'] == 'processing') ...[

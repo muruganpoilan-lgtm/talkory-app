@@ -25,8 +25,23 @@ async function copyFile(dir, name, accountId, kind, mime) {
   await save(accountId, kind, file, mime || mimeOf(file), buf);
 }
 
+// Hosts who signed before agreement copies were saved: build the copy from their signing record.
+async function backfillAgreements() {
+  const contract = require('./contract');
+  const { rows } = await pool.query(
+    `SELECT c.partner_id, c.version, c.full_name, c.ip, c.signed_at FROM partner_contracts c
+      WHERE NOT EXISTS (SELECT 1 FROM host_files h WHERE h.account_id=c.partner_id AND h.kind='agreement')`);
+  for (const r of rows) {
+    const at = new Date(r.signed_at).toISOString();
+    const text = Number(r.version) === contract.VERSION ? contract.TEXT : `(The exact wording of version ${r.version} was not stored. The signing record above is kept as proof.)`;
+    const body = `TALKORY HOST AGREEMENT (version ${r.version})\nSigned by: ${r.full_name}\nSigned at: ${at}\nIP address: ${r.ip || ''}\n\n${text}\n`;
+    await save(r.partner_id, 'agreement', `v${r.version}@${at}`, 'text/plain; charset=utf-8', Buffer.from(body, 'utf8'));
+  }
+}
+
 // Once a minute, from the queue sweep: copy whatever is not in the database yet
 async function sync() {
+  await backfillAgreements().catch((e) => console.error('[hostfiles] agreement backfill failed:', e.message));
   const kyc = await pool.query(
     `SELECT d.account_id, d.kind, d.file_name, d.mime FROM kyc_documents d
       WHERE NOT EXISTS (SELECT 1 FROM host_files h WHERE h.account_id=d.account_id AND h.ref=d.file_name AND h.kind IN ('kyc_id','kyc_selfie'))
