@@ -12,7 +12,8 @@ class ContractScreen extends StatefulWidget {
 class _ContractScreenState extends State<ContractScreen> {
   final _name = TextEditingController();
   Map<String, dynamic>? _c;
-  bool _agree = false, _busy = false;
+  final _pad = GlobalKey<SignaturePadState>();
+  bool _agree = false, _busy = false, _drawn = false;
   String? _error;
 
   @override
@@ -44,7 +45,12 @@ class _ContractScreenState extends State<ContractScreen> {
       _error = null;
     });
     try {
-      await widget.api.signContract(_name.text.trim());
+      final png = await _pad.currentState?.toPngBase64();
+      if (png == null) {
+        setState(() => _error = 'Please draw your signature');
+        return;
+      }
+      await widget.api.signContract(_name.text.trim(), png);
       if (mounted) Navigator.pop(context, true);
     } on ApiException catch (e) {
       setState(() => _error = e.message);
@@ -86,6 +92,9 @@ class _ContractScreenState extends State<ContractScreen> {
                             decoration: const InputDecoration(labelText: 'Type your full name (as on your ID)', border: OutlineInputBorder()),
                             onChanged: (_) => setState(() {}),
                           ),
+                          const SizedBox(height: 10),
+                          SignaturePad(key: _pad, height: 120, onChanged: () => setState(() => _drawn = !(_pad.currentState?.isEmpty ?? true))),
+                          Align(alignment: Alignment.centerRight, child: TextButton(onPressed: () => _pad.currentState?.clear(), child: const Text('Clear signature'))),
                           CheckboxListTile(
                             contentPadding: EdgeInsets.zero,
                             controlAffinity: ListTileControlAffinity.leading,
@@ -97,7 +106,7 @@ class _ContractScreenState extends State<ContractScreen> {
                           SizedBox(
                             width: double.infinity,
                             child: FilledButton(
-                              onPressed: _busy || !_agree || _name.text.trim().length < 3 ? null : _sign,
+                              onPressed: _busy || !_agree || !_drawn || _name.text.trim().length < 3 ? null : _sign,
                               child: _busy ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Sign agreement'),
                             ),
                           ),

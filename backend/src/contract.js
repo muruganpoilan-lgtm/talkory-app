@@ -2,8 +2,8 @@ const router = require('express').Router();
 const { pool, requireAuth } = require('./db');
 
 // The host agreement. Raise VERSION whenever the text changes: hosts are then asked to sign again.
-const VERSION = 2;
-const CO = process.env.COMPANY_NAME || 'Talkory';
+const VERSION = 3;
+const CO = process.env.COMPANY_NAME || 'Talkory Tech';
 const TEXT = `TALKORY PARTNER (HOST) AGREEMENT
 
 This agreement is between ${CO} ("Talkory") and you, the host ("Partner").
@@ -35,7 +35,7 @@ Talkory may suspend or remove your account if you break this agreement or the ru
 9. Law
 This agreement is governed by the laws of India. Disputes will be handled by the courts of the city where ${CO} is registered.
 
-By typing your full name and tapping Sign, you confirm that you have read and agree to this agreement.`;
+By typing your full name, drawing your signature and tapping Sign, you confirm that you have read and agree to this agreement.`;
 
 router.get('/', requireAuth(['partner']), async (req, res) => {
   const row = (await pool.query('SELECT version, full_name, signed_at FROM partner_contracts WHERE partner_id=$1', [req.auth.id])).rows[0];
@@ -46,6 +46,11 @@ router.post('/sign', requireAuth(['partner']), async (req, res) => {
   const name = String(req.body.fullName || '').trim().replace(/\s+/g, ' ');
   if (name.length < 3 || name.length > 80 || !/^[\p{L} .'-]+$/u.test(name)) return res.status(400).json({ error: 'Type your full name as on your ID' });
   if (req.body.agree !== true) return res.status(400).json({ error: 'Tick the box to agree' });
+  const b64 = String(req.body.signaturePng || '');
+  if (!b64 || b64.length > 280000) return res.status(400).json({ error: 'Please draw your signature' });
+  const png = Buffer.from(b64, 'base64');
+  if (png.length < 200 || png.length > 200000 || !png.subarray(0, 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47])))
+    return res.status(400).json({ error: 'Please sign again' });
   const p = (await pool.query('SELECT kyc FROM partner_profiles WHERE account_id=$1', [req.auth.id])).rows[0];
   if (p?.kyc !== 'approved') return res.status(409).json({ error: 'You can sign after your verification (KYC) is approved' });
   await pool.query(
@@ -53,6 +58,7 @@ router.post('/sign', requireAuth(['partner']), async (req, res) => {
      ON CONFLICT (partner_id) DO UPDATE SET version=EXCLUDED.version, full_name=EXCLUDED.full_name, ip=EXCLUDED.ip, signed_at=now()`,
     [req.auth.id, VERSION, name, String(req.ip || '').slice(0, 64)]);
   await require('./hostfiles').saveAgreement(req.auth.id, VERSION, name, String(req.ip || '').slice(0, 64), TEXT).catch((e) => console.error('[hostfiles] agreement copy failed:', e.message)); // permanent copy in the database
+  await require('./hostfiles').saveSignature(req.auth.id, VERSION, png).catch((e) => console.error('[hostfiles] signature copy failed:', e.message));
   res.json({ ok: true });
 });
 

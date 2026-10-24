@@ -70,6 +70,11 @@ async function saveAgreement(partnerId, version, fullName, ip, text) {
   await save(partnerId, 'agreement', `v${version}@${at}`, 'text/plain; charset=utf-8', Buffer.from(body, 'utf8'));
 }
 
+// The drawn signature that goes with the agreement above
+async function saveSignature(partnerId, version, png) {
+  await save(partnerId, 'signature', `v${version}@${new Date().toISOString()}`, 'image/png', png);
+}
+
 // ---- admin panel: one record per host with every saved file
 const admin = router;
 admin.use(requireAuth(['admin']));
@@ -97,4 +102,4 @@ admin.get('/file/:id', async (req, res) => {
   res.send(f.data);
 });
 
-module.exports = { sync, saveAgreement, admin };
+module.exports = { sync, saveAgreement, saveSignature, admin };

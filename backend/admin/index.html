@@ -142,7 +142,7 @@ async function viewDocs(id){
     d.querySelector('button').onclick=()=>{d.close();d.remove();URL.revokeObjectURL(a);URL.revokeObjectURL(b)};
     document.body.appendChild(d);d.showModal()}catch(e){alert(e.message)}}
 async function viewRecords(r){
-  const names={kyc_id:'KYC ID photo',kyc_selfie:'KYC selfie',photo:'Profile photo',photo_pending:'Profile photo waiting for review',agreement:'Signed agreement'};
+  const names={kyc_id:'KYC ID photo',kyc_selfie:'KYC selfie',photo:'Profile photo',photo_pending:'Profile photo waiting for review',agreement:'Signed agreement',signature:'Host signature'};
   const d=document.createElement('dialog');d.style.cssText='width:min(760px,96vw)';
   d.innerHTML='<h3 style="margin:0 0 8px">'+esc(r.display_name)+'</h3><div id="rb" class="mut">Loading…</div><p><button>Close</button></p>';
   document.body.appendChild(d);d.showModal();const urls=[];

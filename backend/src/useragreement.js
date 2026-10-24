@@ -3,7 +3,7 @@ const { pool, requireAuth } = require('./db');
 
 // The user agreement. Raise VERSION whenever the text changes: users are then asked to sign again.
 const VERSION = 1;
-const CO = process.env.COMPANY_NAME || 'Talkory';
+const CO = process.env.COMPANY_NAME || 'Talkory Tech';
 const TEXT = `TALKORY USER AGREEMENT
 
 This agreement is between ${CO} ("Talkory") and you, the user.
