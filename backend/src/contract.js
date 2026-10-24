@@ -21,7 +21,7 @@ You will be polite and respectful. You will not share your phone number, social 
 You earn the amount shown in the app for each minute you talk and for each chat message you receive. Talkory keeps the rest as its service fee. Earnings are paid to your UPI ID.
 
 5. Withdrawals
-Withdrawals are paid on the 10th, 20th and 30th of each month (the last day of February instead of the 30th), and only when your balance is at least the minimum shown in the app (₹1,500). GST at 18% is deducted from every withdrawal, and you get an invoice after each payment. Talkory may hold or cancel a withdrawal where it suspects fraud or breach of this agreement.
+Withdrawals are paid on the 10th, 20th and 30th of each month (the last day of February instead of the 30th), and only when your balance is at least the minimum shown in the app (₹500). GST at 18% is deducted from every withdrawal, and you get an invoice after each payment. Talkory may hold or cancel a withdrawal where it suspects fraud or breach of this agreement.
 
 6. Daily online time
 You agree to stay Online for at least 4 hours every day, in one stretch or split across the day. The count starts again every day at midnight (India time). For each 30 minutes short, ₹1 is deducted from your earnings, as shown in the app.

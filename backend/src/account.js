@@ -9,7 +9,7 @@ const { PUBLIC: INTRO_PUBLIC, PENDING: INTRO_PENDING } = require('./intros');
 // Recognition levels by total minutes talked (no perks attached; change the numbers freely)
 const LEVELS = [['New', 0], ['Silver', 60], ['Gold', 300], ['Platinum', 1000]];
 const GSTIN = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
-const MIN_PAYOUT = 50000; // paise; keep in sync with MIN_PAYOUT_RUPEES in payouts.js
+const MIN_PAYOUT = Math.round(Number(process.env.MIN_PAYOUT_RUPEES || 500) * 100); // paise; same setting as the minimum withdrawal in payouts.js
 const fail = (status, message) => Object.assign(new Error(message), { status });
 
 // "Deletion" removes everything personal but keeps the account row, calls and ledger so the books still add up.

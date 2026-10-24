@@ -5,7 +5,7 @@ const { requireOwner } = require('./owner'); // approving payouts: owner only
 const paydays = require('./paydays');
 const invoice = require('./invoice');
 
-const MIN_PAYOUT_RUPEES = Number(process.env.MIN_PAYOUT_RUPEES || 1500); // minimum withdrawal
+const MIN_PAYOUT_RUPEES = Number(process.env.MIN_PAYOUT_RUPEES || 500); // minimum withdrawal
 // A host can withdraw once every this many days. Counted from the last request that was not rejected (a rejected one is refunded).
 const WITHDRAW_EVERY_DAYS = Number(process.env.WITHDRAW_EVERY_DAYS || 10);
 const lastPayoutSql = `SELECT requested_at, requested_at + ($2 || ' days')::interval AS next_at FROM payouts
