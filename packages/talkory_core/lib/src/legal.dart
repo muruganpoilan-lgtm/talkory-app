@@ -32,6 +32,7 @@ void showLegalSheet(BuildContext context, Api api, {VoidCallback? onAccountDelet
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           ListTile(leading: const Icon(Icons.description_outlined), title: const Text('Terms of Service'), onTap: () => openLegal(api, 'terms')),
           ListTile(leading: const Icon(Icons.privacy_tip_outlined), title: const Text('Privacy Policy'), onTap: () => openLegal(api, 'privacy')),
+          ListTile(leading: const Icon(Icons.shield_outlined), title: const Text('Safety'), onTap: () => openLegal(api, 'safety')),
           if (onAccountDeleted != null)
             ListTile(
               leading: const Icon(Icons.delete_outline, color: Colors.red),
