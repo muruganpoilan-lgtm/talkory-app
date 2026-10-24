@@ -280,79 +280,88 @@ class HostCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final canCall = p.status == 'online';
-    final dot = p.status == 'busy' ? Colors.orange : p.status == 'offline' ? Colors.grey : Colors.green;
-    final muted = TextStyle(color: scheme.onSurfaceVariant, fontSize: 12);
+    final stColor = p.status == 'busy' ? Colors.orange.shade800 : p.status == 'offline' ? Colors.grey.shade600 : Colors.green.shade700;
+    final ringColor = p.status == 'busy' ? Colors.orange : p.status == 'offline' ? Colors.grey.shade400 : Colors.green;
+    final stLabel = p.status == 'busy' ? 'BUSY' : p.status == 'offline' ? 'OFFLINE' : 'ONLINE';
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(22),
         boxShadow: const [BoxShadow(color: Color(0x121B1740), blurRadius: 18, offset: Offset(0, 6))],
       ),
-      child: Row(children: [
-        Stack(children: [
-          ProfileAvatar(baseUrl: baseUrl, name: p.name, url: p.avatarUrl, radius: 32),
-          Positioned(
-            right: 0,
-            bottom: 2,
-            child: Container(
-              width: 16,
-              height: 16,
-              decoration: BoxDecoration(color: dot, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 3)),
-            ),
-          ),
-        ]),
-        const SizedBox(width: 14),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        SizedBox(
+          width: 92,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Stack(clipBehavior: Clip.none, alignment: Alignment.topCenter, children: [
+              Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: ringColor, width: 3)),
+                child: ProfileAvatar(baseUrl: baseUrl, name: p.name, url: p.avatarUrl, radius: 40),
+              ),
+              Positioned(
+                bottom: -10,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 4, offset: Offset(0, 1))],
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.star_rounded, size: 13, color: Color(0xFFFFB020)),
+                    const SizedBox(width: 2),
+                    Text(p.rating.toStringAsFixed(1), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: kInk)),
+                  ]),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 16),
+            Text(stLabel, style: TextStyle(color: stColor, fontWeight: FontWeight.w800, letterSpacing: 1, fontSize: 11)),
+          ]),
+        ),
+        const SizedBox(width: 12),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              Flexible(child: Text(p.name, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: kInk))),
-              if (p.verified) const Padding(padding: EdgeInsets.only(left: 6), child: Icon(Icons.verified, size: 17, color: Colors.blue)),
-            ]),
-            if (p.tagline.isNotEmpty) Text(p.tagline, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: scheme.onSurface, fontSize: 13)),
-            const SizedBox(height: 2),
-            Text(p.languages.join(', '), maxLines: 1, overflow: TextOverflow.ellipsis, style: muted),
-            const SizedBox(height: 6),
-            Row(children: [
-              const Icon(Icons.star_rounded, size: 16, color: Color(0xFFFFB020)),
-              const SizedBox(width: 2),
-              Flexible(
-                child: Text('${p.rating.toStringAsFixed(1)} · ${formatCoins(p.ratePerMin)} coins/min${p.status == 'busy' ? ' · Busy' : p.status == 'offline' ? ' · Offline' : ''}',
-                    maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: kInk)),
+              Flexible(child: Text(p.name, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: kInk))),
+              if (p.verified) const Padding(padding: EdgeInsets.only(left: 5), child: Icon(Icons.verified, size: 17, color: Colors.blue)),
+              const Spacer(),
+              InkWell(
+                onTap: onChat,
+                borderRadius: BorderRadius.circular(16),
+                child: const Padding(padding: EdgeInsets.all(4), child: Icon(Icons.chat_bubble_outline, size: 20, color: kRoyal)),
               ),
             ]),
-            if (p.introUrl != null) Padding(padding: const EdgeInsets.only(top: 6), child: IntroButton(baseUrl: baseUrl, url: p.introUrl!)),
-          ]),
-        ),
-        const SizedBox(width: 8),
-        Column(mainAxisSize: MainAxisSize.min, children: [
-          Opacity(
-            opacity: canCall ? 1 : 0.4,
-            child: Material(
-              color: Colors.transparent,
-              child: Ink(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(gradient: brandGradient(scheme.primary), shape: BoxShape.circle),
-                child: InkWell(
-                  customBorder: const CircleBorder(),
-                  onTap: canCall ? onCall : null,
-                  child: const Icon(Icons.call, color: Colors.white, size: 22),
+            if (p.tagline.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Text(p.tagline, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: kInk, fontSize: 13))),
+            const SizedBox(height: 2),
+            Text(p.languages.join(', '), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+            const SizedBox(height: 10),
+            Row(children: [
+              if (p.introUrl != null) ...[
+                IntroButton(baseUrl: baseUrl, url: p.introUrl!),
+                const SizedBox(width: 8),
+              ],
+              Expanded(
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: kRoyal,
+                    foregroundColor: Colors.white,
+                    shape: const StadiumBorder(),
+                    minimumSize: const Size(0, 38),
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                  ),
+                  onPressed: canCall ? onCall : null,
+                  icon: const Icon(Icons.call, size: 16),
+                  label: Text('${formatCoins(p.ratePerMin)}/min', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800)),
                 ),
               ),
-            ),
-          ),
-          const SizedBox(height: 4),
-          IconButton(
-            onPressed: onChat,
-            tooltip: 'Chat',
-            visualDensity: VisualDensity.compact,
-            icon: Icon(Icons.chat_bubble_outline, size: 20, color: scheme.primary),
-          ),
-        ]),
+            ]),
+          ]),
+        ),
       ]),
     );
   }
