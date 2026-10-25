@@ -34,7 +34,7 @@ async function api(path,body){
   if(r.status===401&&token){logout();throw Error('Session expired')}
   if(!r.ok)throw Error(d.error||'Request failed');return d}
 function logout(){token='';isOwner=null;sessionStorage.removeItem('t');render()}
-function login(){$('#app').innerHTML=`<div class="box"><h2>Talkory Admin</h2>
+function login(){$('#app').innerHTML=`<div class="box"><img src="/panel/logo.png" alt="Talkory Tech" style="width:130px;height:130px;justify-self:center"><h2 style="text-align:center">Talkory Admin</h2>
 <input id="ph" placeholder="+91XXXXXXXXXX" value="${esc(phone)}"><input id="cd" placeholder="OTP" style="display:${phone?'':'none'}">
 <button class="pri" id="go">${phone?'Verify':'Send OTP'}</button><div class="err" id="e"></div></div>`;
   $('#go').onclick=async()=>{try{const p=$('#ph').value.trim();

@@ -121,17 +121,12 @@ class _LoginScreenState extends State<LoginScreen> {
         child: ListView(
           padding: EdgeInsets.fromLTRB(24, top + 28, 24, 24),
           children: [
-            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Container(
-                width: 42,
-                height: 42,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(gradient: const LinearGradient(colors: [kRoyalDeep, kRoyal]), borderRadius: BorderRadius.circular(10)),
-                child: const Text('T', style: TextStyle(color: kGold, fontSize: 26, fontWeight: FontWeight.w900)),
+            Center(child: Image.asset('assets/logo.png', package: 'talkory_core', height: 120)),
+            if (widget.title != 'Talkory')
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(widget.title.replaceFirst('Talkory ', '').toUpperCase(), textAlign: TextAlign.center, style: const TextStyle(color: kRoyal, fontSize: 13, fontWeight: FontWeight.w800, letterSpacing: 3)),
               ),
-              const SizedBox(width: 10),
-              Text(widget.title, style: const TextStyle(color: kRoyal, fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
-            ]),
             const SizedBox(height: 18),
             _picture(),
             const SizedBox(height: 10),

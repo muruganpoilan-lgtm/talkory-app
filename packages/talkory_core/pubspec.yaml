@@ -21,3 +21,4 @@ dependencies:
 flutter:
   assets:
     - assets/avatars/
+    - assets/logo.png

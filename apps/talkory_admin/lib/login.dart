@@ -48,10 +48,18 @@ class _AdminLoginState extends State<AdminLogin> {
       body: ListView(padding: EdgeInsets.zero, children: [
         RoyalBox(
           padding: EdgeInsets.fromLTRB(24, MediaQuery.of(context).padding.top + 56, 24, 40),
-          child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Talkory Admin', style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w800)),
-            SizedBox(height: 8),
-            Text('Team sign-in', style: TextStyle(color: kGold, fontSize: 15, fontWeight: FontWeight.w600)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(
+              width: 96,
+              height: 96,
+              margin: const EdgeInsets.only(bottom: 18),
+              padding: const EdgeInsets.all(6),
+              decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+              child: Image.asset('assets/logo.png', package: 'talkory_core'),
+            ),
+            const Text('Talkory Admin', style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            const Text('Team sign-in', style: TextStyle(color: kGold, fontSize: 15, fontWeight: FontWeight.w600)),
           ]),
         ),
         Padding(
