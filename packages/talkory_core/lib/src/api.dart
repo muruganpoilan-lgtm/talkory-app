@@ -117,7 +117,29 @@ class Api {
       'acceptedTerms': acceptedTerms,
     });
     token = data['token'];
-    await (await SharedPreferences.getInstance()).setString('token', token!);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('token', token!);
+    // Remember this phone: next time this number logs in here without an OTP
+    if (data['deviceToken'] is String) await prefs.setString('device:$role:$phone', data['deviceToken'] as String);
+  }
+
+  /// Log in without an OTP on a phone that passed the OTP before. Returns false when an OTP is needed instead.
+  Future<bool> deviceLogin({required String phone, required String role}) async {
+    final prefs = await SharedPreferences.getInstance();
+    final dev = prefs.getString('device:$role:$phone');
+    if (dev == null) return false;
+    try {
+      final data = await _send('POST', '/auth/device-login', {'phone': phone, 'role': role, 'deviceToken': dev});
+      token = data['token'];
+      await prefs.setString('token', token!);
+      return true;
+    } on ApiException catch (e) {
+      if (e.status == 401) {
+        await prefs.remove('device:$role:$phone'); // no longer valid: use the OTP
+        return false;
+      }
+      rethrow;
+    }
   }
 
   // ---- user app

@@ -6,6 +6,7 @@ const sms = require('./sms');
 // Bump this (or set TERMS_VERSION) whenever the Terms/Privacy text changes: everyone must accept again at next login
 const TERMS_VERSION = process.env.TERMS_VERSION || '2026-10-03';
 const E164 = /^\+\d{8,15}$/;
+const hashToken = (t) => crypto.createHash('sha256').update(String(t)).digest('hex');
 
 // 1) Request OTP (rate-limited: 1 per 30s, 5 attempts)
 router.post('/request-otp', async (req, res) => {
@@ -69,6 +70,34 @@ router.post('/verify-otp', async (req, res) => {
     await pool.query('UPDATE accounts SET terms_version=$1, terms_accepted_at=now() WHERE id=$2', [TERMS_VERSION, acc.id]);
   }
 
+  // Remember this phone: next time it can log in without an OTP (not for admins)
+  let deviceToken = null;
+  if (acc.role !== 'admin') {
+    deviceToken = crypto.randomBytes(32).toString('hex');
+    await pool.query('INSERT INTO trusted_devices (account_id, token_hash) VALUES ($1,$2)', [acc.id, hashToken(deviceToken)]);
+    await pool.query(
+      `DELETE FROM trusted_devices WHERE account_id=$1 AND id NOT IN
+         (SELECT id FROM trusted_devices WHERE account_id=$1 ORDER BY last_used_at DESC LIMIT 5)`, [acc.id]); // keep the 5 newest phones
+  }
+  res.json({ token: signToken(acc), deviceToken, account: { id: acc.id, role: acc.role, displayName: acc.display_name } });
+});
+
+// 3) Log in on a remembered phone: no OTP. Anything unusual answers "otp_required" and the app falls back to the OTP.
+router.post('/device-login', async (req, res) => {
+  const { phone, deviceToken, role = 'user' } = req.body;
+  const needOtp = () => res.status(401).json({ error: 'otp_required' });
+  if (!E164.test(phone || '') || typeof deviceToken !== 'string' || deviceToken.length !== 64 || !['user', 'partner'].includes(role)) return needOtp();
+  const tries = await redis.incr(`dev:tries:${phone}`);
+  await redis.expire(`dev:tries:${phone}`, 600);
+  if (tries > 10) return res.status(429).json({ error: 'too many attempts' });
+
+  const acc = (await pool.query(
+    `SELECT a.* FROM accounts a JOIN trusted_devices d ON d.account_id=a.id
+      WHERE a.phone=$1 AND d.token_hash=$2 AND a.deleted_at IS NULL`, [phone, hashToken(deviceToken)])).rows[0];
+  if (!acc || acc.role !== role) return needOtp();
+  if (acc.is_blocked) return res.status(403).json({ error: 'account blocked' });
+  if (acc.terms_version !== TERMS_VERSION) return needOtp(); // terms changed: they must accept again, which happens with the OTP
+  await pool.query('UPDATE trusted_devices SET last_used_at=now() WHERE token_hash=$1', [hashToken(deviceToken)]);
   res.json({ token: signToken(acc), account: { id: acc.id, role: acc.role, displayName: acc.display_name } });
 });
 
