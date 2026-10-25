@@ -26,6 +26,24 @@ router.post('/heartbeat', requireAuth(['partner']), async (req, res) => {
   res.json({ ok: true });
 });
 
+// Users who have the app open right now (for the host's "Users online" tab). Names only: no photo, no phone number.
+const ONLINE_WINDOW_MS = 75 * 1000;
+router.get('/online-users', requireAuth(['partner']), async (req, res) => {
+  const me = (await pool.query(`SELECT 1 FROM partner_profiles WHERE account_id=$1 AND kyc='approved'`, [req.auth.id])).rowCount;
+  if (!me) return res.json([]);
+  await redis.zremrangebyscore('users:online', 0, Date.now() - 10 * 60 * 1000); // tidy up
+  const ids = await redis.zrangebyscore('users:online', Date.now() - ONLINE_WINDOW_MS, '+inf');
+  if (!ids.length) return res.json([]);
+  const { rows } = await pool.query(
+    `SELECT a.id, a.display_name AS name,
+            EXISTS (SELECT 1 FROM calls c WHERE c.user_id=a.id AND c.status IN ('ringing','active')) AS busy
+       FROM accounts a
+      WHERE a.id = ANY($1::uuid[]) AND a.role='user' AND NOT a.is_blocked AND a.deleted_at IS NULL
+        AND NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id=$2 AND b.blocked_id=a.id) OR (b.blocker_id=a.id AND b.blocked_id=$2))
+      ORDER BY busy, a.display_name LIMIT 100`, [ids, req.auth.id]);
+  res.json(rows);
+});
+
 // Today's online time against the daily minimum (shown in the partner app)
 router.get('/online-today', requireAuth(['partner']), async (req, res) => {
   res.json(await require('./onlinetime').today(req.auth.id));

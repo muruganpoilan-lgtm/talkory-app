@@ -18,7 +18,8 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+  bool _active = true; // app is on screen
   int _tab = 0;
   int? _balance; // paise
   int _unread = 0;
@@ -30,12 +31,17 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _beat();
     loadBalance();
     _loadUnread();
     SharedPreferences.getInstance().then((p) {
       if (mounted) setState(() => _language = p.getString('pref_language'));
     }).catchError((_) {});
-    _timer = Timer.periodic(const Duration(seconds: 20), (_) => _loadUnread());
+    _timer = Timer.periodic(const Duration(seconds: 20), (_) {
+      _loadUnread();
+      _beat();
+    });
     _ringPoll = Timer.periodic(const Duration(seconds: 3), (_) => _checkIncoming());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       UserPush.instance.start(widget.api);
@@ -43,6 +49,20 @@ class _HomeScreenState extends State<HomeScreen> {
     });
     // A few seconds later, so the location box does not collide with the notification box.
     Future.delayed(const Duration(seconds: 4), () { if (mounted) LocationShare.share(widget.api); });
+  }
+
+  // Tells the server this user is on screen, so hosts can see them in "Users online"
+  Future<void> _beat() async {
+    if (!_active) return;
+    try {
+      await widget.api.userHeartbeat();
+    } catch (_) {}
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _active = state == AppLifecycleState.resumed;
+    if (_active) _beat();
   }
 
   /// New users, and users after the agreement changes, must read and sign it before anything else.
@@ -117,6 +137,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     AdminCallWatcher.instance.stop();
     _ringPoll?.cancel();
     _timer?.cancel();

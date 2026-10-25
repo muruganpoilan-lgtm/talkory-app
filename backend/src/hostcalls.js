@@ -36,9 +36,12 @@ router.post('/', requireAuth(['partner']), async (req, res) => {
   const user = (await pool.query(`SELECT id FROM accounts WHERE id=$1 AND role='user' AND NOT is_blocked`, [userId])).rows[0];
   if (!user) return res.status(404).json({ error: 'user not found' });
 
-  // Only people the host already talks to: the user must have written first (hosts cannot start a conversation)
+  // The host may call a user who wrote to them before, or a user who is online right now (the "Users online" list)
   const thread = await pool.query('SELECT 1 FROM messages WHERE user_id=$1 AND partner_id=$2 LIMIT 1', [userId, req.auth.id]);
-  if (!thread.rowCount) return res.status(403).json({ error: 'you can only call users who have messaged you' });
+  if (!thread.rowCount) {
+    const seen = await redis.zscore('users:online', userId);
+    if (!seen || Date.now() - Number(seen) > 75 * 1000) return res.status(403).json({ error: 'this user is not online right now' });
+  }
 
   const blocked = await pool.query(
     'SELECT 1 FROM blocks WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1)', [req.auth.id, userId]);

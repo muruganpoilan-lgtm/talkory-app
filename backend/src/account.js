@@ -68,6 +68,12 @@ async function deleteAccount(id, { force = false } = {}) {
   await redis.sadd('blocked', id); // any login token still in circulation stops working immediately
 }
 
+// The user app calls this every 20 s while it is open on screen: that is what "online" means for a user.
+router.post('/heartbeat', requireAuth(['user']), async (req, res) => {
+  await redis.zadd('users:online', Date.now(), req.auth.id);
+  res.json({ ok: true });
+});
+
 // The signed-in person's own details (their own phone number is shown only to them)
 router.get('/me', requireAuth(['user', 'partner']), async (req, res) => {
   const { rows } = await pool.query('SELECT role, display_name, phone, avatar_url, gst_number FROM accounts WHERE id=$1', [req.auth.id]);
