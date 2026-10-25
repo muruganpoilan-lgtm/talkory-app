@@ -5,7 +5,14 @@ const { GST_PERCENT } = require('./paydays');
 const CO = process.env.COMPANY_NAME || 'Talkory Tech';
 const ADDRESS = process.env.COMPANY_ADDRESS || '105A, Green groov, Jeyam Nagar, Kanchivakkam, Sriperumbudur, Chennai - 601301, India';
 const GSTIN = process.env.COMPANY_GSTIN || '';
-const LOGO = require('./invoice_logo.json'); // Talkory Tech logo, 240x240, RGB + transparency, pre-compressed for the PDF
+// Talkory Tech logo, 240x240, RGB + transparency, pre-compressed for the PDF. If the file is ever missing the invoice still works (no logo).
+let LOGO;
+try {
+  LOGO = require('./invoice_logo.json');
+} catch {
+  const z = require('zlib');
+  LOGO = { w: 1, h: 1, rgb: z.deflateSync(Buffer.from([255, 255, 255])).toString('base64'), alpha: z.deflateSync(Buffer.from([0])).toString('base64') };
+}
 
 const rs = (paise) => 'Rs. ' + (Number(paise) / 100).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const dmy = (d) => new Date(d).toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' });
