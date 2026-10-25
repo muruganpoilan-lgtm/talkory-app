@@ -111,11 +111,18 @@ class _WalletScreenState extends State<WalletScreen> {
       'refund' => (Icons.undo, 'Refund'),
       _ => (Icons.tune, 'Adjustment'),
     };
-    final sub = [_when(it['at']), if (kind == 'call') _dur((it['seconds'] ?? 0) as int), if (kind == 'chat') '${it['seconds']} message${it['seconds'] == 1 ? '' : 's'}'].join('  ·  ');
+    final orderId = it['order_id'] as String?;
+    final sub = [_when(it['at']), if (kind == 'topup' && orderId != null) 'Tap for invoice', if (kind == 'call') _dur((it['seconds'] ?? 0) as int), if (kind == 'chat') '${it['seconds']} message${it['seconds'] == 1 ? '' : 's'}'].join('  ·  ');
     return SoftCard(
       margin: const EdgeInsets.symmetric(vertical: 4),
       child: ListTile(
-        leading: CircleAvatar(backgroundColor: const Color(0xFFEDE6FB), foregroundColor: kRoyal, child: Icon(icon, size: 20)),
+        onTap: kind == 'topup' && orderId != null
+            ? () async {
+                final err = await openInvoice(widget.api, '/invoices/receipt/$orderId/link');
+                if (err != null) _snack(err);
+              }
+            : null,
+        leading: CircleAvatar(backgroundColor: const Color(0xFFEDE6FB), foregroundColor: kRoyal, child: Icon(kind == 'topup' && orderId != null ? Icons.receipt_long : icon, size: 20)),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: Text(sub),
         trailing: Text('${amount >= 0 ? '+' : '−'}${formatCoins(amount.abs())}',

@@ -56,6 +56,7 @@ async function creditTopup(orderId, paymentId) {
       `UPDATE topup_orders SET status='paid', razorpay_payment_id=$1, paid_at=now() WHERE id=$2`,
       [paymentId, order.id]);
     await client.query('COMMIT');
+    require('./invoice').createReceipt(order.id).catch((e) => console.error('[invoice] receipt failed:', e.message)); // invoice for the user
     return order;
   } catch (e) {
     await client.query('ROLLBACK');
@@ -80,17 +81,18 @@ router.get('/history', requireAuth(['user']), async (req, res) => {
   const page = Math.max(0, parseInt(req.query.page, 10) || 0);
   const { rows } = await pool.query(
     `SELECT 'call' AS kind, c.id::text AS id, SUM(l.amount)::bigint AS amount, MAX(l.created_at) AS at,
-            a.display_name AS counterpart, c.billed_seconds AS seconds
+            a.display_name AS counterpart, c.billed_seconds AS seconds, NULL::text AS order_id
        FROM ledger l JOIN calls c ON c.id = l.call_id JOIN accounts a ON a.id = c.partner_id
       WHERE l.account_id = $1 AND l.type = 'call_debit'
       GROUP BY c.id, a.display_name, c.billed_seconds
      UNION ALL
-     SELECT 'chat' AS kind, 'chat-' || MAX(l.id)::text, SUM(l.amount)::bigint, MAX(l.created_at), a.display_name, COUNT(*)::int
+     SELECT 'chat' AS kind, 'chat-' || MAX(l.id)::text, SUM(l.amount)::bigint, MAX(l.created_at), a.display_name, COUNT(*)::int, NULL::text
        FROM ledger l JOIN messages m ON l.ref = 'msg:' || m.id::text JOIN accounts a ON a.id = m.partner_id
       WHERE l.account_id = $1 AND l.type = 'chat_debit'
       GROUP BY m.partner_id, a.display_name, date_trunc('day', l.created_at)
      UNION ALL
-     SELECT l.type::text, l.id::text, l.amount, l.created_at, NULL::text, NULL::int
+     SELECT l.type::text, l.id::text, l.amount, l.created_at, NULL::text, NULL::int,
+            (SELECT o.id::text FROM topup_orders o JOIN topup_invoices i ON i.order_id=o.id WHERE l.type='topup' AND o.razorpay_payment_id = l.ref)
        FROM ledger l WHERE l.account_id = $1 AND l.type IN ('topup', 'refund', 'adjustment')
      ORDER BY at DESC LIMIT ${PAGE} OFFSET $2`, [req.auth.id, page * PAGE]);
   res.json(rows.map((r) => ({ ...r, amount: Number(r.amount) })));

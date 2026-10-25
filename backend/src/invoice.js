@@ -5,25 +5,30 @@ const { GST_PERCENT } = require('./paydays');
 const CO = process.env.COMPANY_NAME || 'Talkory Tech';
 const ADDRESS = process.env.COMPANY_ADDRESS || '105A, Green groov, Jeyam Nagar, Kanchivakkam, Sriperumbudur, Chennai - 601301, India';
 const GSTIN = process.env.COMPANY_GSTIN || '';
+const LOGO = require('./invoice_logo.json'); // Talkory Tech logo, 240x240, RGB + transparency, pre-compressed for the PDF
 
 const rs = (paise) => 'Rs. ' + (Number(paise) / 100).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const dmy = (d) => new Date(d).toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' });
 
 // ---- a tiny one-page PDF writer (no libraries): lines of text in Helvetica
+const imgRgb = Buffer.from(LOGO.rgb, 'base64'), imgAlpha = Buffer.from(LOGO.alpha, 'base64');
 const clean = (s) => String(s ?? '').replace(/[^\x20-\x7e]/g, '?').replace(/([\\()])/g, '\\$1');
-function makePdf(items) { // items: { t, x, y, size, bold } ; and { rule: y }
+function makePdf(items) { // items: { t, x, y, size, bold } ; { rule: y } ; { logo: [x, y, size] }
   let c = '';
   for (const it of items) {
+    if (it.logo) { const [x, y, sz] = it.logo; c += `q ${sz} 0 0 ${sz} ${x} ${y} cm /Im1 Do Q\n`; continue; }
     if (it.rule != null) { c += `0.6 w 50 ${it.rule} m 545 ${it.rule} l S\n`; continue; }
     c += `BT /${it.bold ? 'F2' : 'F1'} ${it.size || 11} Tf ${it.x} ${it.y} Td (${clean(it.t)}) Tj ET\n`;
   }
   const objs = [
     '<< /Type /Catalog /Pages 2 0 R >>',
     '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> /XObject << /Im1 7 0 R >> >> /Contents 6 0 R >>',
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>',
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>',
     `<< /Length ${Buffer.byteLength(c, 'latin1')} >>\nstream\n${c}endstream`,
+    `<< /Type /XObject /Subtype /Image /Width ${LOGO.w} /Height ${LOGO.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /SMask 8 0 R /Length ${imgRgb.length} >>\nstream\n${imgRgb.toString('latin1')}\nendstream`,
+    `<< /Type /XObject /Subtype /Image /Width ${LOGO.w} /Height ${LOGO.h} /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length ${imgAlpha.length} >>\nstream\n${imgAlpha.toString('latin1')}\nendstream`,
   ];
   let out = '%PDF-1.4\n';
   const offs = [];
@@ -38,10 +43,12 @@ function buildPdf(d) {
   const L = [];
   let y = 790;
   const line = (t, o = {}) => { L.push({ t, x: o.x ?? 50, y, size: o.size, bold: o.bold }); y -= o.gap ?? 18; };
-  line(CO, { size: 18, bold: true, gap: 16 });
-  line(ADDRESS, { size: 9, gap: 12 });
-  if (GSTIN) line('GSTIN: ' + GSTIN, { size: 9, gap: 12 });
-  line('', { gap: 8 });
+  L.push({ logo: [50, 725, 72] });
+  y = 772;
+  line(CO, { x: 134, size: 18, bold: true, gap: 16 });
+  line(ADDRESS, { x: 134, size: 8, gap: 12 });
+  if (GSTIN) line('GSTIN: ' + GSTIN, { x: 134, size: 9, gap: 12 });
+  y = 700;
   line('PAYOUT INVOICE', { size: 15, bold: true, gap: 22 });
   line('Invoice no: ' + d.invoice_no, { size: 11, gap: 15 });
   line('Date: ' + dmy(d.paid_at), { size: 11, gap: 15 });
@@ -62,6 +69,61 @@ function buildPdf(d) {
   line('The GST shown was deducted from your earnings and is kept by ' + CO + ' for payment to the tax authority.', { size: 9, gap: 12 });
   line('Please keep this invoice for your records. This is a computer-generated document and needs no signature.', { size: 9, gap: 12 });
   return makePdf(L);
+}
+
+// Receipt for a paid coin purchase (what the user paid by UPI / card)
+const TOPUP_GST_PERCENT = Number(process.env.TOPUP_GST_PERCENT ?? 18);
+function buildReceiptPdf(d) {
+  const L = [];
+  let y = 772;
+  const line = (t, o = {}) => { L.push({ t, x: o.x ?? 50, y, size: o.size, bold: o.bold }); y -= o.gap ?? 18; };
+  L.push({ logo: [50, 725, 72] });
+  line(CO, { x: 134, size: 18, bold: true, gap: 16 });
+  line(ADDRESS, { x: 134, size: 8, gap: 12 });
+  if (GSTIN) line('GSTIN: ' + GSTIN, { x: 134, size: 9, gap: 12 });
+  y = 700;
+  line('PAYMENT INVOICE', { size: 15, bold: true, gap: 22 });
+  line('Invoice no: ' + d.invoice_no, { gap: 15 });
+  line('Date: ' + dmy(d.paid_at), { gap: 15 });
+  line('Payment ID: ' + (d.payment_id || '-'), { gap: 22 });
+  L.push({ rule: y + 10 }); y -= 8;
+  line('Billed to', { bold: true, gap: 16 });
+  line(d.user_name, { gap: 15 });
+  line('Mobile: ' + d.phone_masked, { gap: 22 });
+  L.push({ rule: y + 10 }); y -= 8;
+  const row = (a, b, bold) => { L.push({ t: a, x: 50, y, bold }); L.push({ t: b, x: 400, y, bold }); y -= 20; };
+  row('Description', 'Amount', true);
+  row(`Talkory coins: ${d.coins} coins (1 coin = Rs. 1 of call and chat time)`, rs(d.pay), false);
+  if (GSTIN && TOPUP_GST_PERCENT > 0) {
+    const taxable = Math.round(d.pay * 100 / (100 + TOPUP_GST_PERCENT));
+    row('   of which value of coins', rs(taxable), false);
+    row(`   of which GST at ${TOPUP_GST_PERCENT}%`, rs(d.pay - taxable), false);
+  }
+  L.push({ rule: y + 12 }); y -= 6;
+  row('Total paid', rs(d.pay), true);
+  y -= 14;
+  line('Paid online through UPI / card. The amount shown includes all applicable taxes.', { size: 9, gap: 12 });
+  line('Coins are used for calls and chats in the app. This is a computer-generated document and needs no signature.', { size: 9, gap: 12 });
+  return makePdf(L);
+}
+
+// Make (once) the receipt of a paid coin purchase. Safe to call again.
+async function createReceipt(orderId) {
+  const d = (await pool.query(
+    `SELECT o.id, o.amount, o.pay_amount, o.razorpay_payment_id AS payment_id, o.paid_at, a.display_name AS user_name, a.phone
+       FROM topup_orders o JOIN accounts a ON a.id=o.account_id
+      WHERE o.id=$1 AND o.status='paid' AND NOT EXISTS (SELECT 1 FROM topup_invoices i WHERE i.order_id=o.id)`, [orderId])).rows[0];
+  if (!d) return false;
+  const no = (await pool.query(
+    `SELECT 'TT/R/' || to_char(now() AT TIME ZONE 'Asia/Kolkata','YYMM') || '/' || lpad(nextval('receipt_seq')::text, 5, '0') AS n`)).rows[0].n;
+  const ph = String(d.phone || '');
+  const masked = ph.length > 4 ? ph.slice(0, 3) + 'XXXXXX' + ph.slice(-4) : 'XXXX';
+  const pdf = buildReceiptPdf({
+    invoice_no: no, paid_at: d.paid_at, payment_id: d.payment_id, user_name: d.user_name, phone_masked: masked,
+    coins: Number(d.amount) / 100, pay: Number(d.pay_amount ?? d.amount),
+  });
+  await pool.query('INSERT INTO topup_invoices (order_id, invoice_no, pdf) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING', [orderId, no, pdf]);
+  return true;
 }
 
 // Make (once) the invoice of a paid payout. Safe to call again.
@@ -95,6 +157,8 @@ async function create(payoutId) {
 async function sweep() {
   const { rows } = await pool.query(`SELECT id FROM payouts WHERE status='paid' AND net_paise IS NOT NULL AND invoice_no IS NULL LIMIT 20`);
   for (const r of rows) await create(r.id);
+  const t = await pool.query(`SELECT o.id FROM topup_orders o WHERE o.status='paid' AND NOT EXISTS (SELECT 1 FROM topup_invoices i WHERE i.order_id=o.id) LIMIT 20`);
+  for (const r of t.rows) await createReceipt(r.id);
 }
 
 // ---- download links. The apps open a PDF in the browser, which cannot send the login header, so they ask for a 5-minute link.
@@ -108,6 +172,20 @@ router.get('/mine/:id/link', requireAuth(['partner']), async (req, res) => {
   const ok = (await pool.query('SELECT 1 FROM payout_invoices i JOIN payouts p ON p.id=i.payout_id WHERE i.payout_id=$1 AND p.partner_id=$2', [req.params.id, req.auth.id])).rowCount;
   if (!ok) return res.status(404).json({ error: 'Invoice is not ready yet' });
   res.json({ url: linkFor(req.params.id, 'host') });
+});
+// user: link to the receipt of one of my own coin purchases
+router.get('/receipt/:id/link', requireAuth(['user']), async (req, res) => {
+  if (!ID_RE.test(req.params.id)) return res.status(404).json({ error: 'not found' });
+  const ok = (await pool.query('SELECT 1 FROM topup_invoices i JOIN topup_orders o ON o.id=i.order_id WHERE i.order_id=$1 AND o.account_id=$2', [req.params.id, req.auth.id])).rowCount;
+  if (!ok) return res.status(404).json({ error: 'Invoice is not ready yet' });
+  res.json({ url: linkFor(req.params.id, 'user') });
+});
+// admin: link to any receipt
+router.get('/admin-receipt/:id/link', requireAuth(['admin']), async (req, res) => {
+  if (!ID_RE.test(req.params.id)) return res.status(404).json({ error: 'not found' });
+  const ok = (await pool.query('SELECT 1 FROM topup_invoices WHERE order_id=$1', [req.params.id])).rowCount;
+  if (!ok) return res.status(404).json({ error: 'Invoice is not ready yet' });
+  res.json({ url: linkFor(req.params.id, 'admin') });
 });
 // admin: link to any invoice
 router.get('/admin/:id/link', requireAuth(['admin']), async (req, res) => {
@@ -123,7 +201,7 @@ router.get('/:file', async (req, res) => {
     const t = jwt.verify(String(req.query.t || ''), process.env.JWT_SECRET);
     if (t.inv !== id || !ID_RE.test(id)) throw new Error('bad');
   } catch { return res.status(403).send('This link has expired. Open the invoice again from the app.'); }
-  const row = (await pool.query('SELECT invoice_no, pdf FROM payout_invoices WHERE payout_id=$1', [id])).rows[0];
+  const row = (await pool.query('SELECT invoice_no, pdf FROM payout_invoices WHERE payout_id=$1 UNION ALL SELECT invoice_no, pdf FROM topup_invoices WHERE order_id=$1', [id])).rows[0];
   if (!row) return res.status(404).send('Not found');
   res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="invoice-${row.invoice_no.replace(/\//g, '-')}.pdf"`, 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' }).send(row.pdf);
 });
@@ -139,4 +217,12 @@ admin.get('/', async (req, res) => {
   res.json(rows.map((r) => ({ ...r, amount: Number(r.amount), gst_paise: Number(r.gst_paise), net_paise: Number(r.net_paise) })));
 });
 
-module.exports = { create, sweep, router, admin, buildPdf };
+admin.get('/receipts', async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT o.id, i.invoice_no, a.display_name, o.amount, COALESCE(o.pay_amount, o.amount) AS paid, o.paid_at
+       FROM topup_invoices i JOIN topup_orders o ON o.id=i.order_id JOIN accounts a ON a.id=o.account_id
+      ORDER BY o.paid_at DESC LIMIT 200`);
+  res.json(rows.map((r) => ({ ...r, amount: Number(r.amount), paid: Number(r.paid) })));
+});
+
+module.exports = { create, createReceipt, sweep, router, admin, buildPdf, buildReceiptPdf };

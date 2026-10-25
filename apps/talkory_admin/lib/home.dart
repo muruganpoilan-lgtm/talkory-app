@@ -427,6 +427,14 @@ List<_Spec> _specs() {
             return false;
           }),
         ]),
+    _Spec('Receipts', '/admin/invoices/receipts', (r) => '${r['display_name']}  ${_rs(r['paid'] as num)}',
+        (r) => '${r['invoice_no']} · ${_rs(r['amount'] as num)} coins · ${_when(r['paid_at'])}', (r) => [
+          _Act('View PDF', (c, api, r) async {
+            final err = await openInvoice(api, '/invoices/admin-receipt/${r['id']}/link');
+            if (err != null && c.mounted) _toast(c, err);
+            return false;
+          }),
+        ]),
     _Spec('Payouts', '/partner/admin/payouts', (r) => '${r['display_name']}  ${_rs(r['amount'] as num)}',
         (r) => 'Pay on ${r['pay_on'] ?? 'any day'} · UPI ${r['upi_id']}${_appName(r['upi_app']).isEmpty ? '' : ' (${_appName(r['upi_app'])})'} · ${_when(r['requested_at'])}${r['kyc'] != 'approved' ? ' · KYC ${r['kyc']}' : ''}', (r) => [
           if (r['status'] == 'requested' || r['status'] == 'processing') ...[
@@ -507,7 +515,7 @@ class AdminHome extends StatefulWidget {
 }
 
 /// Tabs only the owner sees (money and the list of admins).
-const _ownerTabs = {'Earnings', 'Payouts', 'Invoices', 'Admins'};
+const _ownerTabs = {'Earnings', 'Payouts', 'Invoices', 'Receipts', 'Admins'};
 
 Future<bool> _addAdmin(BuildContext c, Api api) async {
   final phone = await _ask(c, 'Phone number of the new admin, with country code', '+91');

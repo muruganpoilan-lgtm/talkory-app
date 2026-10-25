@@ -145,11 +145,7 @@ class _CallTabState extends State<CallTab> {
               ),
             ]),
             const SizedBox(height: 16),
-            Row(children: const [
-              LogoBadge(size: 38),
-              SizedBox(width: 10),
-              Text('Talkory', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
-            ]),
+            const Text('Talkory', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
             const SizedBox(height: 2),
             const Text('Talk to someone who listens', style: TextStyle(color: Colors.white70, fontSize: 14)),
           ]),
@@ -170,8 +166,6 @@ class _CallTabState extends State<CallTab> {
                     selectedColor: kInk,
                     backgroundColor: Colors.white,
                     side: BorderSide.none,
-                    elevation: 3,
-                    shadowColor: const Color(0x554B22B0),
                     shape: const StadiumBorder(),
                     labelStyle: TextStyle(color: _language == l ? Colors.white : kInk, fontWeight: FontWeight.w500),
                     onSelected: (_) {
@@ -209,9 +203,7 @@ class _CallTabState extends State<CallTab> {
                   final group = list.where((p) => p.status == st).toList();
                   if (group.isEmpty) continue;
                   items.add(st);
-                  for (var k = 0; k < group.length; k += 2) {
-                    items.add(group.sublist(k, k + 2 > group.length ? group.length : k + 2));
-                  }
+                  items.addAll(group);
                 }
                 return ListView.builder(
                   padding: const EdgeInsets.only(bottom: 16),
@@ -230,17 +222,8 @@ class _CallTabState extends State<CallTab> {
                         ]),
                       );
                     }
-                    final pair = it as List<Partner>;
-                    Widget cell(Partner h) => Expanded(child: HostCard(p: h, baseUrl: widget.api.baseUrl, onCall: () => _call(h), onChat: () => _chat(h)));
-                    return Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
-                      child: IntrinsicHeight(
-                        child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                          cell(pair[0]),
-                          if (pair.length > 1) cell(pair[1]) else const Expanded(child: SizedBox()),
-                        ]),
-                      ),
-                    );
+                    final h = it as Partner;
+                    return HostCard(p: h, baseUrl: widget.api.baseUrl, onCall: () => _call(h), onChat: () => _chat(h));
                   },
                 );
               },
@@ -298,124 +281,85 @@ class HostCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final canCall = p.status == 'online';
-    final stColor = p.status == 'busy' ? Colors.orange : p.status == 'offline' ? Colors.grey : Colors.greenAccent.shade400;
-    final stLabel = p.status == 'busy' ? 'Busy' : p.status == 'offline' ? 'Offline' : 'Online';
-    const tints = [Color(0xFFF0C4E0), Color(0xFFC4D6F2), Color(0xFFDCEBC0), Color(0xFFF0DCC0), Color(0xFFD8CCF2), Color(0xFFC0EBE3)];
-    final tint = tints[p.name.codeUnits.fold<int>(0, (a, c) => a + c) % tints.length];
-    final ring = p.status == 'busy' ? Colors.orange : p.status == 'offline' ? Colors.grey.shade400 : Colors.green;
-    final photo = Container(
-      color: tint,
-      alignment: Alignment.center,
-      child: Container(
-        padding: const EdgeInsets.all(3),
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: Colors.white,
-          border: Border.all(color: ring, width: 3),
-          boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 10, offset: Offset(0, 4))],
-        ),
-        child: ProfileAvatar(baseUrl: baseUrl, name: p.name, url: p.avatarUrl, radius: 42),
-      ),
-    );
-    Widget chip(Widget child, Color bg) => Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(12)),
-          child: child,
-        );
+    final stColor = p.status == 'busy' ? Colors.orange.shade800 : p.status == 'offline' ? Colors.grey.shade600 : Colors.green.shade700;
+    final ringColor = p.status == 'busy' ? Colors.orange : p.status == 'offline' ? Colors.grey.shade400 : Colors.green;
+    final stLabel = p.status == 'busy' ? 'BUSY' : p.status == 'offline' ? 'OFFLINE' : 'ONLINE';
     return Container(
-      margin: const EdgeInsets.all(6),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: const [BoxShadow(color: Color(0x141B1740), blurRadius: 16, offset: Offset(0, 6))],
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: const [BoxShadow(color: Color(0x121B1740), blurRadius: 18, offset: Offset(0, 6))],
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Padding(
-          padding: const EdgeInsets.all(8),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(18),
-            child: AspectRatio(
-              aspectRatio: 1,
-              child: Stack(fit: StackFit.expand, children: [
-                photo,
-                Positioned(
-                  left: 8,
-                  top: 8,
-                  child: chip(
-                    Row(mainAxisSize: MainAxisSize.min, children: [
-                      Container(width: 8, height: 8, decoration: BoxDecoration(color: stColor, shape: BoxShape.circle)),
-                      const SizedBox(width: 5),
-                      Text(stLabel, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
-                    ]),
-                    const Color(0x99000000),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        SizedBox(
+          width: 92,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Stack(clipBehavior: Clip.none, alignment: Alignment.topCenter, children: [
+              Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: ringColor, width: 3)),
+                child: ProfileAvatar(baseUrl: baseUrl, name: p.name, url: p.avatarUrl, radius: 40),
+              ),
+              Positioned(
+                bottom: -10,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 4, offset: Offset(0, 1))],
                   ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.star_rounded, size: 13, color: Color(0xFFFFB020)),
+                    const SizedBox(width: 2),
+                    Text(p.rating.toStringAsFixed(1), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: kInk)),
+                  ]),
                 ),
-                Positioned(
-                  right: 8,
-                  top: 8,
-                  child: chip(
-                    Row(mainAxisSize: MainAxisSize.min, children: [
-                      const Icon(Icons.star_rounded, size: 13, color: kGold),
-                      const SizedBox(width: 2),
-                      Text(p.rating.toStringAsFixed(1), style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
-                    ]),
-                    const Color(0x99000000),
-                  ),
-                ),
-              ]),
-            ),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
-          child: Row(children: [
-            Flexible(child: Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: kInk))),
-            if (p.verified) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.verified, size: 16, color: Colors.blue)),
+              ),
+            ]),
+            const SizedBox(height: 16),
+            Text(stLabel, style: TextStyle(color: stColor, fontWeight: FontWeight.w800, letterSpacing: 1, fontSize: 11)),
           ]),
         ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 2, 12, 0),
-          child: Text(p.languages.join(' · '), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
-        ),
-        if (p.tagline.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 2, 12, 0),
-            child: Text(p.tagline, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: kInk, fontSize: 12)),
-          ),
-        if (p.introUrl != null) Padding(padding: const EdgeInsets.fromLTRB(8, 4, 8, 0), child: IntroButton(baseUrl: baseUrl, url: p.introUrl!)),
-        const Spacer(),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
-          child: Row(children: [
-            InkWell(
-              onTap: onChat,
-              customBorder: const CircleBorder(),
-              child: Container(
-                width: 40,
-                height: 40,
-                decoration: const BoxDecoration(color: Color(0xFFEDE7FA), shape: BoxShape.circle),
-                child: const Icon(Icons.chat_bubble_outline, size: 19, color: kRoyal),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Flexible(child: Text(p.name, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: kInk))),
+              if (p.verified) const Padding(padding: EdgeInsets.only(left: 5), child: Icon(Icons.verified, size: 17, color: Colors.blue)),
+              const Spacer(),
+              InkWell(
+                onTap: onChat,
+                borderRadius: BorderRadius.circular(16),
+                child: const Padding(padding: EdgeInsets.all(4), child: Icon(Icons.chat_bubble_outline, size: 20, color: kRoyal)),
               ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: kGold,
-                  foregroundColor: kInk,
-                  disabledBackgroundColor: const Color(0xFFE6E2EE),
-                  shape: const StadiumBorder(),
-                  minimumSize: const Size(0, 40),
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
+            ]),
+            if (p.tagline.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Text(p.tagline, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: kInk, fontSize: 13))),
+            const SizedBox(height: 2),
+            Text(p.languages.join(', '), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+            const SizedBox(height: 10),
+            Row(children: [
+              if (p.introUrl != null) ...[
+                IntroButton(baseUrl: baseUrl, url: p.introUrl!),
+                const SizedBox(width: 8),
+              ],
+              Expanded(
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: kRoyal,
+                    foregroundColor: Colors.white,
+                    shape: const StadiumBorder(),
+                    minimumSize: const Size(0, 38),
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                  ),
+                  onPressed: canCall ? onCall : null,
+                  icon: const Icon(Icons.call, size: 16),
+                  label: Text('${formatCoins(p.ratePerMin)}/min', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800)),
                 ),
-                onPressed: canCall ? onCall : null,
-                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  const Icon(Icons.call, size: 16),
-                  const SizedBox(width: 4),
-                  Flexible(child: Text('${formatCoins(p.ratePerMin)}/min', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800))),
-                ]),
               ),
-            ),
+            ]),
           ]),
         ),
       ]),

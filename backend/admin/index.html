@@ -60,6 +60,8 @@ const TABS={
  contracts:{url:'/admin/contracts',cols:['Host','Signed as','When','IP'],row:r=>[esc(r.display_name),esc(r.full_name),when(r.signed_at),esc(r.ip||'')],acts:r=>r.agreement_id?[['View agreement','',null,()=>viewRecords({display_name:r.display_name,files:[{id:r.agreement_id,kind:'agreement',at:r.signed_at}]})]]:[]},
  invoices:{url:'/admin/invoices',cols:['Invoice','Host','Withdrawn','GST','Paid to host','Paid'],row:r=>[esc(r.invoice_no),esc(r.display_name),rs(r.amount),rs(r.gst_paise),rs(r.net_paise),when(r.paid_at)],
   acts:r=>[['View PDF','',null,()=>openInvoice(r.id)]]},
+ receipts:{url:'/admin/invoices/receipts',cols:['Invoice','User','Coins','Paid','When'],row:r=>[esc(r.invoice_no),esc(r.display_name),rs(r.amount),rs(r.paid),when(r.paid_at)],
+  acts:r=>[['View PDF','',null,()=>openInvoice(r.id,'/invoices/admin-receipt/')]]},
  payouts:{url:'/partner/admin/payouts',cols:['Partner','Pay (after GST)','UPI ID','Pay on','Requested'],
   row:r=>[esc(r.display_name)+(r.kyc!=='approved'?' <span class="err">(KYC '+r.kyc+')</span>':''),rs(r.amount)+(r.gst_paise!=null?' <span class="mut">(of '+rs(r.gross)+', GST '+rs(r.gst_paise)+')</span>':''),esc(r.upi_id)+(r.upi_app?' <span class="mut">('+(r.upi_app==='gpay'?'GPay':'PhonePe')+')</span>':''),esc(r.pay_on||'any day'),when(r.requested_at)],
   acts:r=>[...(r.status==='requested'||r.status==='processing'?(r.upi_app==='phonepe'?['phonepe','gpay']:['gpay','phonepe']).map(a=>['Pay via '+(a==='gpay'?'GPay':'PhonePe'),'',null,()=>payInApp(a,r)]):[]),['Mark paid','ok','/partner/admin/payouts/'+r.id+'/paid',()=>({reference:prompt('Payment reference (UPI txn id):','')??null}),'Confirm you have sent '+rs(r.amount)+' to '+r.upi_id+'?'],
@@ -157,8 +159,8 @@ async function viewRecords(r){
       else{const u=URL.createObjectURL(await x.blob());urls.push(u);html+=label+'<img src="'+u+'" style="max-width:100%;max-height:60vh">'}
     }catch(e){html+='<div class="err">'+esc(names[f.kind]||f.kind)+': could not load</div>'}}
   d.querySelector('#rb').outerHTML='<div>'+(html||'No files saved yet.')+'</div>'}
-async function openInvoice(id){
-  const r=await fetch('/invoices/admin/'+id+'/link',{headers:{Authorization:'Bearer '+token}});if(!r.ok)return alert('Invoice is not ready yet');
+async function openInvoice(id,base){
+  const r=await fetch((base||'/invoices/admin/')+id+'/link',{headers:{Authorization:'Bearer '+token}});if(!r.ok)return alert('Invoice is not ready yet');
   window.open((await r.json()).url,'_blank')}
 async function viewSignature(id){
   const r=await fetch(`/admin/agreements/${id}/signature`,{headers:{Authorization:'Bearer '+token}});if(!r.ok)return alert('Signature missing');
@@ -232,7 +234,7 @@ async function newMeeting(){
       d.close();d.remove();
       if(r.status==='live')meetingRoom(r.id,title);else{alert('Meeting scheduled. Invited people have been notified.');render()}
     }catch(e){alert(e.message)}}}
-const OWNER_TABS=['earnings','payouts','invoices','admins'];let isOwner=null;
+const OWNER_TABS=['earnings','payouts','invoices','receipts','admins'];let isOwner=null;
 async function addAdmin(){
   const phone=prompt('Phone number of the new admin, with country code (example +919876543210):','+91');if(!phone)return;
   const name=prompt('Name of the new admin:','Admin');if(name===null)return;
