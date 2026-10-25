@@ -110,8 +110,23 @@ class FloatingNav extends StatelessWidget {
 }
 
 /// Gradient banner at the top of a tab (title, optional subtitle and a widget on the right).
+/// The Talkory Tech logo in a small white circle, for the top of the main screens.
+class LogoBadge extends StatelessWidget {
+  const LogoBadge({super.key, this.size = 40});
+  final double size;
+  @override
+  Widget build(BuildContext context) => Container(
+        width: size,
+        height: size,
+        padding: EdgeInsets.all(size * 0.08),
+        decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+        child: Image.asset('assets/logo.png', package: 'talkory_core'),
+      );
+}
+
 class GradientHeader extends StatelessWidget {
-  const GradientHeader({super.key, required this.title, this.subtitle, this.trailing, this.bottomPadding = 28});
+  const GradientHeader({super.key, required this.title, this.subtitle, this.trailing, this.bottomPadding = 28, this.showLogo = false});
+  final bool showLogo;
   final String title;
   final String? subtitle;
   final Widget? trailing;
@@ -123,6 +138,7 @@ class GradientHeader extends StatelessWidget {
     return RoyalBox(
       padding: EdgeInsets.fromLTRB(20, top + 16, 20, bottomPadding),
       child: Row(children: [
+        if (showLogo) const Padding(padding: EdgeInsets.only(right: 12), child: LogoBadge(size: 46)),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(title, style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800, letterSpacing: -0.5)),

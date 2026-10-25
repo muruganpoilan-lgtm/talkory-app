@@ -203,6 +203,7 @@ class _HomeTabState extends State<HomeTab> {
           padding: const EdgeInsets.only(bottom: 16),
           children: [
             GradientHeader(
+              showLogo: true,
               title: name.isEmpty ? 'Talkory Partner' : 'Hi, $name',
               subtitle: 'Talkory Partner',
               bottomPadding: 56,
