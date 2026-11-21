@@ -286,6 +286,7 @@ class Api {
   Future<void> heartbeat() async { await _send('POST', '/partners/heartbeat'); }
   /// User app: "my screen is on" signal, every 20 s while open. This is what makes a user show as online to hosts.
   Future<void> userHeartbeat() async { await _send('POST', '/account/heartbeat'); }
+  Future<List<String>> nicknameSuggestions() async => (((await _send('GET', '/partners/nickname-suggestions')) as List?) ?? []).map((e) => '$e').toList();
   Future<void> setShowOnline(bool on) async { await _send('PUT', '/account/show-online', {'showOnline': on}); }
   /// Host app: users who have the app open now. Each: {id, name, busy}.
   Future<List<Map<String, dynamic>>> onlineUsers() async => ((await _send('GET', '/partners/online-users')) as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();

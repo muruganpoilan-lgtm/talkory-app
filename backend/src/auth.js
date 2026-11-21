@@ -45,6 +45,10 @@ router.post('/verify-otp', async (req, res) => {
     if (!isAdult) return res.status(400).json({ error: 'must confirm 18+' });
     if (!acceptedTerms) return res.status(400).json({ error: 'Please accept the Terms and Privacy Policy' });
     if (!displayName) return res.status(400).json({ error: 'displayName required' });
+    if (role === 'partner') {
+      const dup = await pool.query(`SELECT 1 FROM accounts WHERE role='partner' AND deleted_at IS NULL AND lower(display_name)=lower($1) LIMIT 1`, [displayName]);
+      if (dup.rowCount) return res.status(400).json({ error: 'That name is already taken. Please pick another one.' });
+    }
     const client = await pool.connect();
     try {
       await client.query('BEGIN');

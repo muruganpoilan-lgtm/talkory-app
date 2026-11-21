@@ -70,14 +70,14 @@ class _PartnerAppState extends State<PartnerApp> {
       navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       theme: talkoryTheme(const Color(0xFF5B3DF5)),
-      home: _loggedIn
+      home: SplashGate(subtitle: 'Partner', child: _loggedIn
           ? SetupGate(api: widget.api, onLogout: _logout) // dashboard only after KYC is approved and the agreement is signed
           : LoginScreen(
               api: widget.api,
               role: 'partner',
               title: 'Talkory Partner',
               onLoggedIn: () => setState(() => _loggedIn = true),
-            ),
+            )),
     );
   }
 }

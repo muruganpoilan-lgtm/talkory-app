@@ -39,6 +39,7 @@ services:
       SIGHTENGINE_USER: ${SIGHTENGINE_USER:-}
       SIGHTENGINE_SECRET: ${SIGHTENGINE_SECRET:-}
       COMPANY_NAME: ${COMPANY_NAME:-}
+      INACTIVE_DELETE_DAYS: ${INACTIVE_DELETE_DAYS:-}
       FIREBASE_SERVICE_ACCOUNT: /secrets/firebase-service-account.json
     volumes:
       - ./secrets:/secrets:ro

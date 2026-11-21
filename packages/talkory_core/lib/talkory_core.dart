@@ -17,3 +17,4 @@ export 'src/signature_pad.dart';
 export 'src/tier.dart';
 export 'src/splash.dart';
 export 'src/block_reasons.dart';
+export 'src/nickname_chips.dart';

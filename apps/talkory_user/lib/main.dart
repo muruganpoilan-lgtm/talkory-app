@@ -28,7 +28,7 @@ class _TalkoryAppState extends State<TalkoryApp> {
       scaffoldMessengerKey: messengerKey,
       debugShowCheckedModeBanner: false,
       theme: talkoryTheme(const Color(0xFF5B3DF5)),
-      home: _loggedIn
+      home: SplashGate(child: _loggedIn
           ? HomeScreen(api: widget.api, onLogout: () async {
               await UserPush.instance.stop();
               await widget.api.logout();
@@ -39,7 +39,7 @@ class _TalkoryAppState extends State<TalkoryApp> {
               role: 'user',
               title: 'Talkory',
               onLoggedIn: () => setState(() => _loggedIn = true),
-            ),
+            )),
     );
   }
 }

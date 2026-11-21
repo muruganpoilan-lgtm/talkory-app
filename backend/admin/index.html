@@ -68,7 +68,7 @@ const TABS={
            ['Reject','bad','/partner/admin/payouts/'+r.id+'/reject',()=>({}),'Reject and refund the partner wallet?']]},
  kyc:{url:'/admin/kyc',cols:['Partner','Languages','Rate/min','Bio','Joined'],
   row:r=>[esc(r.display_name)+aiTag(r.ai),esc((r.languages||[]).join(', ')),rs(r.rate_per_min),esc(r.bio),when(r.created_at)],
-  acts:r=>[['View documents','',null,()=>viewDocs(r.id)],['Approve','ok','/admin/kyc/'+r.id,()=>({status:'approved'})],['Reject','bad','/admin/kyc/'+r.id,()=>({status:'rejected',note:prompt('Reason the partner will see:','Photo unclear, please resubmit')||''})]]},
+  acts:r=>[['View documents','',null,()=>viewDocs(r.id)],['Rename','',null,async()=>{const n=prompt('New display name for '+r.display_name+':',r.display_name);if(!n||!n.trim())return;try{await api('/admin/accounts/'+r.id+'/rename',{name:n.trim()});render()}catch(x){alert(x.message)}}],['Approve','ok','/admin/kyc/'+r.id,()=>({status:'approved'})],['Reject','bad','/admin/kyc/'+r.id,()=>({status:'rejected',note:prompt('Reason the partner will see:','Photo unclear, please resubmit')||''})]]},
  reports:{url:'/admin/reports',cols:['Reported','Reason','By','Reports','Date'],
   row:r=>[esc(r.reported)+' <span class="mut">('+r.reported_role+(r.is_blocked?', blocked':'')+')</span>',esc(r.reason),esc(r.reporter),r.total_reports,when(r.created_at)],
   acts:r=>[['Dismiss','','/admin/reports/'+r.id+'/resolve',()=>({block:false})],['Block account','bad','/admin/reports/'+r.id+'/resolve',()=>({block:true}),'Block '+r.reported+'? They can no longer log in.']]},

@@ -9,6 +9,54 @@ const MIN_RATE = 5, MAX_RATE = 200; // rupees per minute
 // Keep contact details out of public profiles: phone numbers, handles, links
 const LEAKS = /(\+?\d[\d\s-]{6,}\d|@|https?:|www\.)/i;
 
+// Friendly nicknames hosts can tap instead of typing a name. Kept on the server so the list can change without an app update.
+const NICKNAMES = [
+  'Meera', 'Anaya', 'Kavya', 'Diya', 'Riya', 'Isha', 'Myra', 'Tara', 'Nisha', 'Aarohi', 'Aanya', 'Avni', 'Ira', 'Navya', 'Pari', 'Saanvi', 'Siya', 'Trisha', 'Veda', 'Zara',
+  'Jasmine', 'Rose', 'Lily', 'Lotus', 'Mallika', 'Sunflower', 'Orchid', 'Daisy', 'Mogra', 'Champa', 'Tulip', 'Marigold', 'Lavender', 'Blossom', 'Petal', 'Willow', 'Fern', 'Ivy', 'Poppy', 'Iris',
+  'Stella', 'Luna', 'Star', 'Aurora', 'Sunny', 'Moonlight', 'Dawn', 'Pearl', 'Ruby', 'Coral', 'Amber', 'Diamond', 'Crystal', 'Opal', 'Sapphire', 'Emerald', 'Sparkle', 'Twinkle', 'Cloud', 'Rainbow',
+  'Cherry', 'Honey', 'Candy', 'Mango', 'Cookie', 'Peach', 'Sugar', 'Pixie', 'Bubbles', 'Cupcake', 'Muffin', 'Sprinkle', 'Caramel', 'Butterscotch', 'Jellybean', 'Marshmallow', 'Lollipop', 'Berry', 'Cinnamon', 'Toffee',
+  'Thenmozhi', 'Kayal', 'Mullai', 'Ilakkiya', 'Selvi', 'Anbu', 'Poonguzhali', 'Madhu', 'Aruvi', 'Vennila', 'Kanmani', 'Thamarai', 'Mathi', 'Nila', 'Ezhil', 'Kavin', 'Pavai', 'Yazhini', 'Oviya', 'Iniya',
+  'Serene', 'Grace', 'Hope', 'Joy', 'Faith', 'Harmony', 'Melody', 'Aria', 'Bliss', 'Charm', 'Ananya', 'Shanti', 'Sukhi', 'Priya', 'Mitra', 'Sakhi', 'Dost', 'Sathi', 'Nandhini', 'Anjali',
+  'Aadhya', 'Aarna', 'Advika', 'Amaira', 'Anvi', 'Avantika', 'Bhavya', 'Charvi', 'Dhriti', 'Eesha',
+  'Gauri', 'Hansika', 'Ishita', 'Jiya', 'Kiara', 'Lavanya', 'Mahi', 'Naina', 'Prisha', 'Rhea',
+  'Shreya', 'Tanvi', 'Urvi', 'Vanya', 'Yashvi', 'Anika', 'Ahana', 'Kiyana', 'Mishka', 'Gulmohar',
+  'Chameli', 'Rajni', 'Kamal', 'Genda', 'Peony', 'Camellia', 'Magnolia', 'Wisteria', 'Hazel', 'Olive',
+  'Sage', 'Clover', 'Meadow', 'Breeze', 'Brook', 'Ocean', 'Shell', 'Lagoon', 'Misty', 'Sunrise',
+  'Sunset', 'Twilight', 'Skylar', 'Ripple', 'Dewdrop', 'Raindrop', 'Snowflake', 'Frost', 'Topaz', 'Jade',
+  'Onyx', 'Garnet', 'Beryl', 'Jewel', 'Gem', 'Glitter', 'Shimmer', 'Glow', 'Radiance', 'Halo',
+  'Spark', 'Gleam', 'Nova', 'Comet', 'Galaxy', 'Orion', 'Celeste', 'Lyra', 'Astra', 'Selene',
+  'Eclipse', 'Cosmos', 'Zenith', 'Vega', 'Aster', 'Ember', 'Blaze', 'Jelly', 'Fudge', 'Brownie',
+  'Pancake', 'Waffle', 'Mochi', 'Truffle', 'Praline', 'Nutmeg', 'Vanilla', 'Mint', 'Ginger', 'Saffron',
+  'Cocoa', 'Latte', 'Biscuit', 'Jalebi', 'Laddu', 'Barfi', 'Rasgulla', 'Kulfi', 'Gulkand', 'Sherbet',
+  'Pudding', 'Macaron', 'Donut', 'Pretzel', 'Popcorn', 'Sundae', 'Gelato', 'Thendral', 'Mayil', 'Kuyil',
+  'Kili', 'Malar', 'Poovizhi', 'Tamilselvi', 'Meenal', 'Janani', 'Keerthi', 'Abirami', 'Aishwarya', 'Bhuvana',
+  'Deepa', 'Dhanya', 'Gayathri', 'Harini', 'Indhu', 'Jothi', 'Kalai', 'Lakshmi', 'Maheswari', 'Nithya',
+  'Pavithra', 'Revathi', 'Sandhya', 'Thara', 'Uma', 'Vidhya', 'Yamini', 'Buddy', 'Pal', 'Sunshine',
+  'Smiley', 'Cheery', 'Giggles', 'Happy', 'Lucky', 'Cozy', 'Snuggle', 'Angel', 'Darling', 'Dreamer',
+  'Wanderer', 'Whisper', 'Echo', 'Muse', 'Spirit', 'Wisdom', 'Candle', 'Lantern', 'Compass', 'Anchor',
+  'Journey', 'Story', 'Poem', 'Rhyme', 'Song', 'Lullaby', 'Serenade', 'Ankita', 'Bindiya', 'Chhavi',
+  'Disha', 'Esha', 'Falguni', 'Geeta', 'Heena', 'Ila', 'Jhanvi', 'Kajal', 'Lata', 'Manya',
+  'Neha', 'Ojal', 'Pooja', 'Quina', 'Rupa', 'Sneha', 'Tanya', 'Usha', 'Vidya', 'Yuvika',
+  'Zoya', 'Aisha', 'Rani', 'Roshni', 'Sitara', 'Sapna', 'Tamanna',
+];
+
+// True when another host already uses this name (not case sensitive)
+async function nameTaken(name, exceptId) {
+  const { rows } = await pool.query(
+    `SELECT 1 FROM accounts WHERE role='partner' AND deleted_at IS NULL AND lower(display_name)=lower($1) AND ($2::uuid IS NULL OR id<>$2::uuid) LIMIT 1`,
+    [name, exceptId || null]);
+  return rows.length > 0;
+}
+
+// Nickname suggestions that nobody uses yet. Public, because new hosts need it while signing up.
+router.get('/nickname-suggestions', async (req, res) => {
+  const { rows } = await pool.query(`SELECT lower(display_name) AS n FROM accounts WHERE role='partner' AND deleted_at IS NULL`);
+  const used = new Set(rows.map((r) => r.n));
+  const free = NICKNAMES.filter((n) => !used.has(n.toLowerCase()));
+  for (let i = free.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [free[i], free[j]] = [free[j], free[i]]; }
+  res.json(free.slice(0, 12));
+});
+
 router.get('/me', requireAuth(['partner']), async (req, res) => {
   const { rows } = await pool.query(
     `SELECT a.display_name, a.avatar_url, p.avatar_status, p.avatar_note, p.tagline, p.is_online, p.manual_busy, p.intro_url, p.intro_status, p.intro_note, p.bio, p.languages, p.rate_per_min, p.payout_share, p.kyc
@@ -66,6 +114,7 @@ router.put('/me', requireAuth(['partner']), async (req, res) => {
   if (bio.length > 300) return bad('Bio can be up to 300 characters');
   if (tagline.length > 40) return bad('Tagline can be up to 40 characters');
   if (LEAKS.test(name) || LEAKS.test(bio) || LEAKS.test(tagline)) return bad('Please remove phone numbers, links and social handles');
+  if (await nameTaken(name, req.auth.id)) return bad('That name is already taken. Please pick another one.');
   if (!langs.length || langs.length > 5 || langs.some((l) => !LANGUAGES.includes(l))) return bad('Choose 1 to 5 languages');
   // the call price is fixed for everyone (see billing.js), so the rate sent by the app is ignored
 
@@ -149,3 +198,4 @@ router.get('/', requireAuth(['user']), async (req, res) => {
 });
 
 module.exports = router;
+module.exports.nameTaken = nameTaken;

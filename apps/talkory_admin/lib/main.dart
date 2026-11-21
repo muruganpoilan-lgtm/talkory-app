@@ -31,9 +31,9 @@ class _AdminAppState extends State<AdminApp> {
       title: 'Talkory Admin',
       debugShowCheckedModeBanner: false,
       theme: talkoryTheme(const Color(0xFF5B3DF5)),
-      home: _loggedIn
+      home: SplashGate(subtitle: 'Admin', child: _loggedIn
           ? AdminHome(api: widget.api, onLogout: _logout)
-          : AdminLogin(api: widget.api, onLoggedIn: () => setState(() => _loggedIn = true)),
+          : AdminLogin(api: widget.api, onLoggedIn: () => setState(() => _loggedIn = true))),
     );
   }
 }

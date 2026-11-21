@@ -145,6 +145,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   maxLength: 30,
                   decoration: const InputDecoration(labelText: 'Display name', helperText: 'Shown to callers instead of your number', border: OutlineInputBorder()),
                 ),
+                NicknameChips(api: widget.api, onPick: (n) => setState(() => _name.text = n)),
                 const SizedBox(height: 16),
                 TextField(
                   controller: _tagline,

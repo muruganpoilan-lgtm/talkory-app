@@ -37,6 +37,20 @@ router.get('/kyc/:id/document/:kind', async (req, res) => {
     { cacheControl: false, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
 });
 
+// Change a person's display name (for example when a name is not suitable)
+router.post('/accounts/:id/rename', async (req, res) => {
+  const name = String(req.body.name || '').trim();
+  if (name.length < 2 || name.length > 30) return res.status(400).json({ error: 'Name must be 2 to 30 characters' });
+  const me = await pool.query('SELECT role FROM accounts WHERE id=$1', [req.params.id]);
+  if (!me.rows[0]) return res.status(404).json({ error: 'not found' });
+  if (me.rows[0].role === 'partner') {
+    const dup = await pool.query(`SELECT 1 FROM accounts WHERE role='partner' AND deleted_at IS NULL AND lower(display_name)=lower($1) AND id<>$2 LIMIT 1`, [name, req.params.id]);
+    if (dup.rowCount) return res.status(400).json({ error: 'Another host already has that name' });
+  }
+  await pool.query('UPDATE accounts SET display_name=$1 WHERE id=$2', [name, req.params.id]);
+  res.json({ ok: true });
+});
+
 // For deletion requests that arrive by email/web form. Verify the requester owns the number first.
 router.post('/accounts/:id/delete', async (req, res) => {
   try {

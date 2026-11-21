@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'nickname_chips.dart';
 import 'api.dart';
 import 'legal.dart';
 import 'theme.dart';
@@ -187,6 +188,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 controller: _name,
                 decoration: const InputDecoration(labelText: 'Display name', helperText: 'Only for new accounts. Shown instead of your number.', border: OutlineInputBorder()),
               ),
+              if (widget.role == 'partner') NicknameChips(api: widget.api, onPick: (n) => setState(() => _name.text = n)),
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                 TextButton(onPressed: _busy ? null : () => setState(() { _otpSent = false; _error = null; _code.clear(); }), child: const Text('Change number')),
                 TextButton(onPressed: _busy ? null : _resend, child: const Text('Resend code')),
