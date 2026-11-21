@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'api.dart';
+import 'block_reasons.dart';
 
 const _reasons = ['Abusive or offensive language', 'Harassment or threats', 'Sexual or inappropriate content', 'Spam or promotion', 'Other'];
 
@@ -56,6 +57,16 @@ class _PostCallScreenState extends State<PostCallScreen> {
   }
 
   Future<void> _block() async {
+    if (!widget.canRate) {
+      // Host: pick one of three reasons; it is sent to the admin team as a report, then the user is blocked.
+      final reason = await askBlockReason(context, widget.peerName);
+      if (reason == null) return;
+      await _run(() async {
+        if (!_reported) { try { await widget.api.reportCall(widget.callId, reason); } catch (_) {} }
+        await widget.api.blockCall(widget.callId);
+      }, onOk: () => setState(() { _blocked = true; _reported = true; }), ok: '${widget.peerName} is blocked');
+      return;
+    }
     final yes = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(

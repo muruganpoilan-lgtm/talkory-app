@@ -1,0 +1,10 @@
+{$DOMAIN} {
+	encode gzip
+
+	# Optional: lock the admin panel to your own IP (uncomment and edit)
+	# @panel path /panel*
+	# @notmine not remote_ip 203.0.113.10
+	# respond @panel @notmine 403
+
+	reverse_proxy api:3000
+}

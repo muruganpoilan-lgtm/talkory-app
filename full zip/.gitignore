@@ -1,0 +1,9 @@
+.env
+secrets/*
+!secrets/.gitkeep
+backups/*
+!backups/.gitkeep
+node_modules/
+dist/
+build/
+.dart_tool/

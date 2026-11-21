@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'api.dart';
+import 'block_reasons.dart';
 import 'call_screen.dart';
 import 'post_call_screen.dart';
 import 'ringer.dart';
@@ -304,6 +305,19 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _block() async {
+    if (!widget.isUser) {
+      // Host: pick one of three reasons; it is sent to the admin team as a report, then the user is blocked.
+      final reason = await askBlockReason(context, widget.otherName);
+      if (reason == null) return;
+      try {
+        try { await widget.api.reportChat(widget.otherId, reason); } catch (_) {} // the block still goes ahead if the report fails
+        await widget.api.blockChat(widget.otherId);
+        if (mounted) Navigator.of(context).pop();
+      } on ApiException catch (e) {
+        _toast(e.message);
+      }
+      return;
+    }
     final yes = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -352,10 +366,12 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           PopupMenuButton<String>(
             onSelected: (v) => v == 'report' ? _report() : _block(),
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'report', child: Text('Report')),
-              PopupMenuItem(value: 'block', child: Text('Block')),
-            ],
+            itemBuilder: (_) => widget.isUser
+                ? const [
+                    PopupMenuItem(value: 'report', child: Text('Report')),
+                    PopupMenuItem(value: 'block', child: Text('Block')),
+                  ]
+                : const [PopupMenuItem(value: 'block', child: Text('Block user'))],
           ),
         ],
       ),
