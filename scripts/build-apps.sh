@@ -76,6 +76,11 @@ allprojects {
             }
         }
     }
+    // Android's lint check crashes on some plugin code when the build machine runs Java 17 (NoSuchMethodError: List.removeLast).
+    // Lint is only a style check and does not change the app, so it is switched off for release builds.
+    tasks.configureEach { t ->
+        if (t.name.startsWith('lintVital') || t.name.startsWith('lintAnalyze') || t.name.startsWith('lintReport')) t.enabled = false
+    }
 }
 GRADLE_END
 }
