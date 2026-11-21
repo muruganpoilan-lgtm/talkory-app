@@ -70,13 +70,24 @@ async function deleteAccount(id, { force = false } = {}) {
 
 // The user app calls this every 20 s while it is open on screen: that is what "online" means for a user.
 router.post('/heartbeat', requireAuth(['user']), async (req, res) => {
-  await redis.zadd('users:online', Date.now(), req.auth.id);
+  // A user who switched "Show me as online" off is never put on the list (and so cannot be called out of the blue either).
+  const { rows } = await pool.query('SELECT show_online FROM accounts WHERE id=$1', [req.auth.id]);
+  if (rows[0] && rows[0].show_online === false) await redis.zrem('users:online', req.auth.id);
+  else await redis.zadd('users:online', Date.now(), req.auth.id);
   res.json({ ok: true });
+});
+
+// The "Show me as online to hosts" switch in the user app
+router.put('/show-online', requireAuth(['user']), async (req, res) => {
+  const on = req.body.showOnline !== false;
+  await pool.query('UPDATE accounts SET show_online=$1 WHERE id=$2', [on, req.auth.id]);
+  if (!on) await redis.zrem('users:online', req.auth.id);
+  res.json({ showOnline: on });
 });
 
 // The signed-in person's own details (their own phone number is shown only to them)
 router.get('/me', requireAuth(['user', 'partner']), async (req, res) => {
-  const { rows } = await pool.query('SELECT role, display_name, phone, avatar_url, gst_number FROM accounts WHERE id=$1', [req.auth.id]);
+  const { rows } = await pool.query('SELECT role, display_name, phone, avatar_url, gst_number, show_online FROM accounts WHERE id=$1', [req.auth.id]);
   const a = rows[0];
   const col = a.role === 'user' ? 'user_id' : 'partner_id';
   const t = await pool.query(`SELECT COALESCE(SUM(billed_seconds), 0) AS s FROM calls WHERE ${col}=$1 AND status='ended'`, [req.auth.id]);
@@ -85,7 +96,7 @@ router.get('/me', requireAuth(['user', 'partner']), async (req, res) => {
   LEVELS.forEach(([, from], i) => { if (minutes >= from) idx = i; });
   const next = LEVELS[idx + 1];
   res.json({
-    role: a.role, displayName: a.display_name, phone: a.phone, avatarUrl: a.avatar_url, gstNumber: a.gst_number || '',
+    role: a.role, displayName: a.display_name, phone: a.phone, avatarUrl: a.avatar_url, gstNumber: a.gst_number || '', showOnline: a.show_online !== false,
     supportEmail: process.env.SUPPORT_EMAIL || '',
     minutes, level: LEVELS[idx][0], nextLevel: next ? next[0] : null, nextAt: next ? next[1] : null, levelFrom: LEVELS[idx][1],
   });

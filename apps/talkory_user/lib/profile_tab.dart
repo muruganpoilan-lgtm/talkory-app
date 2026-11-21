@@ -206,6 +206,24 @@ class _ProfileTabState extends State<ProfileTab> {
           ),
         ),
         const SizedBox(height: 8),
+        SwitchListTile(
+          secondary: const Icon(Icons.visibility_outlined),
+          title: const Text('Show me as online'),
+          subtitle: const Text('Hosts can see your name in their online list'),
+          value: (_me?['showOnline'] as bool?) ?? true,
+          onChanged: (v) async {
+            final old = _me;
+            setState(() => _me = {...?_me, 'showOnline': v});
+            try {
+              await widget.api.setShowOnline(v);
+            } catch (_) {
+              if (mounted) {
+                setState(() => _me = old);
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not change this. Please try again.')));
+              }
+            }
+          },
+        ),
         ListTile(
           leading: const Icon(Icons.shield_outlined),
           title: const Text('Privacy & Security'),
