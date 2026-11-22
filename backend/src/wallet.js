@@ -13,6 +13,16 @@ const PACKS = [
   { id: 'p1000', pay: 1000, coins: 1200, tag: 'Best value' },
 ];
 
+// First recharge: a user's very first paid top-up gets free coins on top.
+// Bonus = 100% of the pack price (double coins), up to 200 free coins. Change these two numbers to adjust the offer.
+const FIRST_BONUS_PCT = 100;
+const FIRST_BONUS_MAX = 200;
+const firstBonusFor = (pay) => Math.min(FIRST_BONUS_MAX, Math.floor((pay * FIRST_BONUS_PCT) / 100));
+async function isFirstRecharge(accountId) {
+  const { rows } = await pool.query(`SELECT 1 FROM topup_orders WHERE account_id=$1 AND status='paid' LIMIT 1`, [accountId]);
+  return !rows[0];
+}
+
 const hmac = (secret, data) => crypto.createHmac('sha256', secret).update(data).digest('hex');
 const safeEqual = (a, b) => {
   const x = Buffer.from(String(a)), y = Buffer.from(String(b));
@@ -42,6 +52,14 @@ async function creditTopup(orderId, paymentId) {
     const order = rows[0];
     if (!order) { await client.query('ROLLBACK'); return null; }
     if (order.status === 'paid') { await client.query('COMMIT'); return order; }
+    if (Number(order.first_bonus) > 0) {
+      // two orders opened before the first payment: only the first one paid keeps the bonus
+      const before = await client.query(`SELECT 1 FROM topup_orders WHERE account_id=$1 AND status='paid' AND id<>$2 LIMIT 1`, [order.account_id, order.id]);
+      if (before.rowCount) {
+        order.amount = Number(order.amount) - Number(order.first_bonus) * 100;
+        await client.query('UPDATE topup_orders SET amount=$1, first_bonus=0 WHERE id=$2', [order.amount, order.id]);
+      }
+    }
 
     const ins = await client.query(
       `INSERT INTO ledger (account_id, type, amount, ref, idem_key)
@@ -103,13 +121,24 @@ router.get('/history', requireAuth(['user']), async (req, res) => {
 });
 
 // Step 1: create a Razorpay order for the app to open checkout with
-router.get('/packs', requireAuth(['user']), (req, res) => res.json(PACKS));
+// Coin packs. On a user's first recharge every pack shows its free bonus coins (coins already include them).
+router.get('/packs', requireAuth(['user']), async (req, res) => {
+  if (!(await isFirstRecharge(req.auth.id))) return res.json(PACKS);
+  res.json(PACKS.map((p) => {
+    const bonus = firstBonusFor(p.pay);
+    return { ...p, coins: p.coins + bonus, firstBonus: bonus, tag: `🎁 First recharge offer: +${bonus} free coins` };
+  }));
+});
 
 router.post('/topup', requireAuth(['user']), async (req, res) => {
   let pay, coins, packId = null;
   const pack = req.body.packId ? PACKS.find((p) => p.id === req.body.packId) : null;
   if (req.body.packId && !pack) return res.status(400).json({ error: 'Choose a pack' });
-  if (pack) { pay = pack.pay; coins = pack.coins; packId = pack.id; }
+  let firstBonus = 0;
+  if (pack) {
+    pay = pack.pay; coins = pack.coins; packId = pack.id;
+    if (await isFirstRecharge(req.auth.id)) { firstBonus = firstBonusFor(pay); coins += firstBonus; }
+  }
   else { // older app versions send a plain amount: 1 coin per rupee
     const rupees = Number(req.body.amountRupees);
     if (!Number.isInteger(rupees) || rupees < MIN_RUPEES || rupees > MAX_RUPEES)
@@ -126,8 +155,8 @@ router.post('/topup', requireAuth(['user']), async (req, res) => {
       notes: { account_id: req.auth.id, pack: packId || '' },
     });
     await pool.query(
-      'INSERT INTO topup_orders (account_id, razorpay_order_id, amount, pay_amount, pack_id) VALUES ($1,$2,$3,$4,$5)',
-      [req.auth.id, order.id, amount, payAmount, packId]);
+      'INSERT INTO topup_orders (account_id, razorpay_order_id, amount, pay_amount, pack_id, first_bonus) VALUES ($1,$2,$3,$4,$5,$6)',
+      [req.auth.id, order.id, amount, payAmount, packId, firstBonus]);
     res.json({ orderId: order.id, keyId: process.env.RAZORPAY_KEY_ID, amount: payAmount, currency: 'INR' });
   } catch (e) {
     console.error('create order failed', e.message);
