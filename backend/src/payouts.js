@@ -24,12 +24,17 @@ const num = (v) => Number(v ?? 0);
 // Everything the earnings screen needs, in one call (all money in paise)
 router.get('/earnings', requireAuth(['partner']), async (req, res) => {
   const id = req.auth.id;
-  const [wallet, sums, payoutSums, profile, calls, payouts, last] = await Promise.all([
+  const [wallet, sums, fines, payoutSums, profile, calls, payouts, last] = await Promise.all([
     pool.query('SELECT balance FROM wallets WHERE account_id=$1', [id]),
     pool.query(
       `SELECT COALESCE(SUM(amount),0) AS total,
               COALESCE(SUM(amount) FILTER (WHERE ${IST_DAY}),0) AS today
          FROM ledger WHERE account_id=$1 AND type IN ('call_earning','gift_earning')`, [id]),
+    // Missed-call fines: shown on their own so the balance is never a mystery
+    pool.query(
+      `SELECT COALESCE(-SUM(amount),0) AS total,
+              COALESCE(-SUM(amount) FILTER (WHERE ${IST_DAY}),0) AS today
+         FROM ledger WHERE account_id=$1 AND ref='missed_penalty'`, [id]),
     pool.query(
       `SELECT COALESCE(SUM(amount) FILTER (WHERE status='paid'),0) AS withdrawn,
               COALESCE(SUM(amount) FILTER (WHERE status IN ('requested','processing')),0) AS pending
@@ -53,6 +58,8 @@ router.get('/earnings', requireAuth(['partner']), async (req, res) => {
     balance: num(wallet.rows[0]?.balance),
     totalEarned: num(sums.rows[0].total),
     today: num(sums.rows[0].today),
+    fines: num(fines.rows[0].total), // taken off for missed calls
+    finesToday: num(fines.rows[0].today),
     withdrawn: num(payoutSums.rows[0].withdrawn),
     pending: num(payoutSums.rows[0].pending),
     upiId: profile.rows[0]?.upi_id ?? null,

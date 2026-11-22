@@ -14,6 +14,8 @@ async function finishCall(callId, status, from = ['ringing', 'active']) {
     if (status === 'missed' && rows[0].initiated_by !== 'partner') {
       await pool.query('UPDATE partner_profiles SET is_online=false, manual_busy=false WHERE account_id=$1', [rows[0].partner_id]);
       await redis.srem('partners:online', rows[0].partner_id);
+      // Too many ignored calls in one day costs the host a fine (see missedcalls.js)
+      require('./missedcalls').chargeIfNeeded(rows[0].partner_id).catch((e) => console.error('[missed] fine failed:', e.message));
     }
     // Never answered: stop the partner's phone from ringing
     if (!rows[0].started_at && rows[0].initiated_by !== 'partner') push.notifyCallCancelled(rows[0].partner_id, callId).catch(() => {});

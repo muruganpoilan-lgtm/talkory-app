@@ -157,6 +157,9 @@ const TABS={
  referrals:{url:'/admin/referrals',cols:['Who shared','Friend who joined','Code','Friend got','They earned','When'],
   row:r=>[esc(r.referrer)+' <span class="mut">'+esc(r.referrer_phone||'')+'</span>',esc(r.friend)+' <span class="mut">'+esc(r.friend_phone||'')+'</span>',esc(r.code),(r.friend_coins||0)+' coins',r.paid_at?'<b class="ok">'+(r.reward_coins||0)+' coins</b>':'<span class="mut">Waiting for first recharge</span>',when(r.created_at)],
   acts:r=>[]},
+ missedfines:{url:'/admin/missed-fines',cols:['Host','Phone','Charged','Calls missed that day','When'],
+  row:r=>[esc(r.display_name),esc(r.phone||''),'<b class="err">'+rs(-r.amount)+'</b>',r.missed,when(r.created_at)],
+  acts:r=>[]},
  intros:{url:'/admin/intros',cols:['Host'],row:r=>[esc(r.display_name)],
   acts:r=>[['Listen','',null,()=>listenIntro(r.id)],['Approve','ok','/admin/intros/'+r.id,()=>({status:'approved'})],['Reject','bad','/admin/intros/'+r.id,()=>({status:'rejected',note:prompt('Reason the host will see:','Please re-record: clear voice, no contact details')||''})]]},
  locations:{url:'/admin/locations',cols:['Name','Role','Approx. location','Updated'],
@@ -401,11 +404,12 @@ const META={overview:['Overview','What needs your attention right now','home'],
  invoices:['Host invoices','Invoices for every host payout','receipt','No host invoices yet.'],
  receipts:['User receipts','Receipts for coins users bought','receipt','No receipts yet.'],
  referrals:['Refer and earn','Who brought in whom, and the coins it has cost','users','Nobody has used a referral code yet.'],
+ missedfines:['Missed call charges','Hosts charged for letting user calls ring out','moon','No host has been charged yet.'],
  admins:['Team','People who can sign in to this panel','shield','Only you so far. Add an admin to share the work.'],
  quality:['Call quality','How fast calls connect, how many drop, and on which phones (last 7 days)','video','No call reports yet. They arrive from the new app version.'],
  crashes:['App crashes','Errors the apps reported','flag','No crashes reported.']};
 const GROUPS=[['',['overview']],['Hosts',['kyc','photos','intros','records','contracts','inactive']],['Users and safety',['reports','blocked','peopleblocks','blockhistory','agreements','locations']],
- ['Talk',['support','video','meetings']],['App health',['quality','crashes']],['Money',['earnings','payouts','invoices','receipts','referrals']],['Team',['admins']]];
+ ['Talk',['support','video','meetings']],['App health',['quality','crashes']],['Money',['earnings','payouts','invoices','receipts','referrals','missedfines']],['Team',['admins']]];
 // what counts as "waiting" for the badges and the overview
 const COUNT_SRC={kyc:['/admin/kyc'],photos:['/admin/avatars'],intros:['/admin/intros'],support:['/admin/tickets',r=>r.needs_reply],
  reports:['/admin/reports'],payouts:['/partner/admin/payouts',r=>r.status==='requested'||r.status==='processing']};

@@ -147,6 +147,20 @@ class _EarningsScreenState extends State<EarningsScreen> {
                           _stat(context, 'Pending payout', d['pending']),
                           _stat(context, 'Withdrawn', d['withdrawn']),
                         ]),
+                        // Only shown once something has been taken off, so it is never a worry for hosts who answer
+                        if (((d['fines'] as int?) ?? 0) > 0) ...[
+                          const SizedBox(height: 12),
+                          Row(children: [
+                            Expanded(
+                              child: Column(children: [
+                                Text('Missed call charges', style: text.labelMedium?.copyWith(color: Theme.of(context).colorScheme.error)),
+                                const SizedBox(height: 2),
+                                Text('- ${_rs(d['fines'])}', style: text.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.error)),
+                              ]),
+                            ),
+                          ]),
+                        ],
                         const SizedBox(height: 16),
                         SizedBox(
                           width: double.infinity,
