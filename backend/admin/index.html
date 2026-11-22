@@ -66,6 +66,13 @@ td.act{white-space:nowrap}td.act>div{display:flex;gap:6px;justify-content:flex-e
 .lcard img{width:72px;height:72px;border-radius:18px;justify-self:center}.lcard h1{margin:0;text-align:center;font-size:22px;letter-spacing:-.02em}
 .lcard p{margin:-8px 0 4px;text-align:center}.lcard label{display:grid;gap:5px;font-size:13px;font-weight:600}
 .lcard button.pri{justify-content:center;padding:12px;font-size:14px}.link{background:none;border:0;color:var(--pri);justify-content:center}
+/* signed agreement */
+.sdoc{border:1px solid var(--line);border-radius:12px;background:var(--soft);padding:18px 20px;margin-top:6px}
+.sdoc h4{margin:0 0 12px;font-size:15px;text-align:center}.sbody{white-space:pre-wrap;font:13.5px/1.65 Georgia,"Times New Roman",serif;max-height:46vh;overflow:auto;padding-right:6px}
+.ssig{margin-top:18px;padding-top:14px;border-top:1px dashed var(--line);display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.sline{background:#fff;border-bottom:1.5px solid #222;border-radius:8px 8px 0 0;padding:6px 14px 4px;min-width:240px;text-align:center}.sline img{max-height:96px;max-width:260px;display:block;margin:auto}
+.smeta{display:grid;justify-items:end;font-size:12.5px;color:var(--mut)}.smeta b{color:var(--ink);font-size:13.5px}
+.dact{display:flex;gap:8px;justify-content:flex-end;margin:14px 0 0}
 /* dialogs */
 dialog{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:18px;padding:22px;box-shadow:0 30px 80px -20px rgba(20,10,50,.45)}
 dialog::backdrop{background:rgba(18,12,35,.45);backdrop-filter:blur(3px)}dialog h3{font-size:18px;letter-spacing:-.01em}
@@ -121,7 +128,7 @@ const TABS={
  records:{url:'/admin/host-records',cols:['Host','KYC','Saved in database','Last saved'],
   row:r=>[esc(r.display_name)+' <span class="mut">('+esc(r.phone)+')</span>',esc(r.kyc),(r.files||[]).length+' files',when(r.last_at)],
   acts:r=>[['Open records','',null,()=>viewRecords(r)]]},
- contracts:{url:'/admin/contracts',cols:['Host','Signed as','When','IP'],row:r=>[esc(r.display_name),esc(r.full_name),when(r.signed_at),esc(r.ip||'')],acts:r=>r.agreement_id?[['View agreement','',null,()=>viewRecords({display_name:r.display_name,files:[{id:r.agreement_id,kind:'agreement',at:r.signed_at}]})]]:[]},
+ contracts:{url:'/admin/contracts',cols:['Host','Signed as','When','IP'],row:r=>[esc(r.display_name),esc(r.full_name),when(r.signed_at),esc(r.ip||'')],acts:r=>r.agreement_id?[['View signed agreement','',null,()=>viewRecords({display_name:r.display_name,files:[{id:r.agreement_id,kind:'agreement',at:r.signed_at},...(r.signature_id?[{id:r.signature_id,kind:'signature',at:r.signed_at}]:[])]})]]:[]},
  invoices:{url:'/admin/invoices',cols:['Invoice','Host','Withdrawn','GST','Paid to host','Paid'],row:r=>[esc(r.invoice_no),esc(r.display_name),rs(r.amount),rs(r.gst_paise),rs(r.net_paise),when(r.paid_at)],
   acts:r=>[['View PDF','',null,()=>openInvoice(r.id)]]},
  receipts:{url:'/admin/invoices/receipts',cols:['Invoice','User','Coins','Paid','When'],row:r=>[esc(r.invoice_no),esc(r.display_name),rs(r.amount),rs(r.paid),when(r.paid_at)],
@@ -209,20 +216,46 @@ async function viewDocs(id){
     d.innerHTML=`<div style="display:flex;gap:12px;flex-wrap:wrap"><div><div class="mut">ID</div><img src="${a}" style="max-width:420px;max-height:70vh"></div><div><div class="mut">Selfie</div><img src="${b}" style="max-width:420px;max-height:70vh"></div></div><p><button>Close</button></p>`;
     d.querySelector('button').onclick=()=>{d.close();d.remove();URL.revokeObjectURL(a);URL.revokeObjectURL(b)};
     document.body.appendChild(d);d.showModal()}catch(e){alert(e.message)}}
+// The agreement text and the drawn signature are saved as two files: show them as one signed document, signature at the bottom
+function signedDoc(text,sig,big){
+  const [head,...rest]=String(text).split('\n\n');const body=rest.join('\n\n')||head;
+  const hv=k=>{const m=head.match(new RegExp('^'+k+':\\s*(.*)$','m'));return m?m[1].trim():''};
+  const title=(head.split('\n')[0]||'Host agreement').trim(),by=hv('Signed by'),at=hv('Signed at'),ip=hv('IP address');
+  return `<div class="sdoc${big?' big':''}"><h4>${esc(title)}</h4><div class="sbody">${esc(body.trim())}</div>
+<div class="ssig"><div class="sline">${sig?'<img src="'+sig+'" alt="Signature">':'<span class="mut">No drawn signature saved</span>'}</div>
+<div class="smeta"><b>${esc(by||'—')}</b><span>Signed ${at?esc(when(at)):''}</span>${ip?'<span>IP '+esc(ip)+'</span>':''}</div></div></div>`}
+function printDoc(name,html){const w=window.open('','_blank');if(!w)return alert('Allow pop-ups to print');
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(name)} - signed agreement</title><style>
+body{font:14px/1.6 Georgia,serif;color:#111;margin:40px auto;max-width:720px;padding:0 20px}
+h4{font:700 18px system-ui,sans-serif;text-align:center;margin:0 0 20px}.sbody{white-space:pre-wrap}
+.ssig{margin-top:36px;display:flex;justify-content:flex-end}.sline{border-bottom:1.5px solid #111;padding:0 10px 4px;min-width:260px;text-align:center}
+.sline img{max-height:110px;max-width:280px}.smeta{display:none}.ssig{flex-direction:column;align-items:flex-end}
+.pm{text-align:right;font:13px system-ui,sans-serif;margin-top:6px;display:grid;gap:2px}</style></head><body>${html.replace('<div class="smeta">','<div class="pm">')}</body></html>`);
+  w.document.close();w.onload=()=>w.print();setTimeout(()=>{try{w.print()}catch(_){}},600)}
 async function viewRecords(r){
   const names={kyc_id:'KYC ID photo',kyc_selfie:'KYC selfie',photo:'Profile photo',photo_pending:'Profile photo waiting for review',agreement:'Signed agreement',signature:'Host signature'};
-  const d=document.createElement('dialog');d.style.cssText='width:min(760px,96vw)';
-  d.innerHTML='<h3 style="margin:0 0 8px">'+esc(r.display_name)+'</h3><div id="rb" class="mut">Loading…</div><p><button>Close</button></p>';
+  const d=document.createElement('dialog');d.style.cssText='width:min(780px,96vw)';
+  d.innerHTML='<h3 style="margin:0 0 8px">'+esc(r.display_name)+'</h3><div id="rb" class="mut">Loading…</div><p class="dact"><button id="rc">Close</button></p>';
   document.body.appendChild(d);d.showModal();const urls=[];
-  d.querySelector('button').onclick=()=>{d.close();d.remove();urls.forEach(u=>URL.revokeObjectURL(u))};
-  let html='';
-  for(const f of (r.files||[])){
-    try{const x=await fetch('/admin/host-records/file/'+f.id,{headers:{Authorization:'Bearer '+token}});if(!x.ok)throw Error();
-      const t=x.headers.get('Content-Type')||'',label='<div class="mut" style="margin-top:12px">'+esc(names[f.kind]||f.kind)+' · '+when(f.at)+'</div>';
-      if(t.startsWith('text/'))html+=label+'<pre style="white-space:pre-wrap;max-height:40vh;overflow:auto;background:#f6f6f6;padding:10px;border-radius:8px">'+esc(await x.text())+'</pre>';
-      else{const u=URL.createObjectURL(await x.blob());urls.push(u);html+=label+'<img src="'+u+'" style="max-width:100%;max-height:60vh">'}
+  d.querySelector('#rc').onclick=()=>{d.close();d.remove();urls.forEach(u=>URL.revokeObjectURL(u))};
+  const files=r.files||[],last=k=>files.filter(f=>f.kind===k).pop();
+  const agr=last('agreement'),sig=last('signature');
+  const fetchFile=async f=>{const x=await fetch('/admin/host-records/file/'+f.id,{headers:{Authorization:'Bearer '+token}});if(!x.ok)throw Error();return x};
+  let html='',docHtml='';
+  if(agr){try{const text=await (await fetchFile(agr)).text();let su='';
+      if(sig){try{su=URL.createObjectURL(await (await fetchFile(sig)).blob());urls.push(su)}catch(_){}}
+      docHtml=signedDoc(text,su);
+      html+='<div class="mut" style="margin-top:4px">Signed agreement · '+when(agr.at)+'</div>'+docHtml;
+    }catch(e){html+='<div class="err">Signed agreement: could not load</div>'}}
+  for(const f of files){
+    if(f===agr||f===sig||(agr&&(f.kind==='agreement'||f.kind==='signature')))continue; // older copies are replaced by the newest signed document
+    try{const x=await fetchFile(f);
+      const t=x.headers.get('Content-Type')||'',label='<div class="mut" style="margin-top:16px">'+esc(names[f.kind]||f.kind)+' · '+when(f.at)+'</div>';
+      if(t.startsWith('text/'))html+=label+'<pre style="white-space:pre-wrap;max-height:40vh;overflow:auto;background:var(--soft);padding:10px;border-radius:8px">'+esc(await x.text())+'</pre>';
+      else{const u=URL.createObjectURL(await x.blob());urls.push(u);html+=label+'<img src="'+u+'" style="max-width:100%;max-height:60vh;border-radius:10px">'}
     }catch(e){html+='<div class="err">'+esc(names[f.kind]||f.kind)+': could not load</div>'}}
-  d.querySelector('#rb').outerHTML='<div>'+(html||'No files saved yet.')+'</div>'}
+  d.querySelector('#rb').outerHTML='<div>'+(html||'No files saved yet.')+'</div>';
+  if(docHtml){const b=document.createElement('button');b.className='pri';b.textContent='Print or save as PDF';b.onclick=()=>printDoc(r.display_name,docHtml);d.querySelector('.dact').prepend(b)}}
 async function openInvoice(id,base){
   const r=await fetch((base||'/invoices/admin/')+id+'/link',{headers:{Authorization:'Bearer '+token}});if(!r.ok)return alert('Invoice is not ready yet');
   window.open((await r.json()).url,'_blank')}
