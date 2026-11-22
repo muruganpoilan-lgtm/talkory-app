@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:talkory_core/talkory_core.dart';
+import 'refer_screen.dart';
 
 class ProfileTab extends StatefulWidget {
   const ProfileTab({
@@ -203,6 +204,19 @@ class _ProfileTabState extends State<ProfileTab> {
             subtitle: const Text('Add coins and see your activity'),
             trailing: const Icon(Icons.chevron_right),
             onTap: widget.onWallet,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Card(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: ListTile(
+            leading: Icon(Icons.card_giftcard, color: Colors.pink.shade400),
+            title: const Text('Refer and earn'),
+            subtitle: const Text('Share your code: 50 coins for every friend'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => ReferScreen(api: widget.api)),
+            ),
           ),
         ),
         const SizedBox(height: 8),

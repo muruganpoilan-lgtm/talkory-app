@@ -113,6 +113,7 @@ class _WalletScreenState extends State<WalletScreen> {
       'call' => (Icons.call_made, 'Call with ${it['counterpart']}'),
       'refund' => (Icons.undo, 'Refund'),
       'checkin' => (Icons.redeem, 'Daily reward'),
+      'referral' => (Icons.people_outline, 'Refer and earn'),
       _ => (Icons.tune, 'Adjustment'),
     };
     final orderId = it['order_id'] as String?;

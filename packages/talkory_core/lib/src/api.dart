@@ -372,6 +372,12 @@ class Api {
   Future<void> reportChat(String otherId, String reason) => _send('POST', '/chat/$otherId/report', {'reason': reason});
   Future<void> blockChat(String otherId, {String? reason}) => _send('POST', '/chat/$otherId/block', {'reason': reason});
 
+  // ---- refer and earn
+  Future<Map<String, dynamic>> referral() async =>
+      Map<String, dynamic>.from(await _send('GET', '/referrals/me'));
+  Future<Map<String, dynamic>> useReferralCode(String code) async =>
+      Map<String, dynamic>.from(await _send('POST', '/referrals/claim', {'code': code}));
+
   // ---- customer support tickets (both apps)
   /// [{id, subject, status, customer_unread, updated_at, last_body}]
   Future<List<Map<String, dynamic>>> supportTickets() async =>
