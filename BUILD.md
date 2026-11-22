@@ -14,20 +14,40 @@ Output in `dist/`: `talkory_user.apk`, `talkory_partner.apk` (install on a phone
 `ORG` becomes the app ids (e.g. `com.yourcompany.talkory_user`). Choose it once: it must match your Firebase app and cannot change after publishing.
 Test on a connected phone first: `cd apps/talkory_user && flutter run --dart-define=API_URL=https://api.yourdomain.com`
 
-## Signing for Google Play (once per app)
+## Signing key (do this once, for all three apps)
+
+Until this is set up, every build is signed with a throwaway key: testers must uninstall the old
+app before installing a new one, and Google Play will not accept the upload at all.
+
+Make the key (anywhere with Docker or Java, the VPS included):
 ```
-keytool -genkey -v -keystore ~/talkory-upload.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+bash scripts/make-signing-key.sh
 ```
-Keep that file and its passwords safe and backed up: losing them means you cannot update the app as before.
-Create `apps/<app>/android/key.properties`:
-```
-storePassword=...
-keyPassword=...
-keyAlias=upload
-storeFile=/full/path/to/talkory-upload.jks
-```
-Then in `android/app/build.gradle.kts` (follow Flutter's "Build and release an Android app" > Signing page for your Flutter version) read that file and
-point `signingConfigs.release` and `buildTypes.release` at it. Rebuild with the script.
+It asks for one password and writes `talkory-upload.jks` plus `talkory-upload.jks.base64`.
+
+**Back up the .jks file and its password.** If you lose them you can never update the apps on
+Google Play again under the same listing. Never commit them, and never paste them into a chat.
+
+Then add four repository secrets at
+*GitHub > Settings > Secrets and variables > Actions*:
+
+| Secret | Value |
+|---|---|
+| `ANDROID_KEYSTORE_BASE64` | the whole contents of `talkory-upload.jks.base64` |
+| `ANDROID_KEYSTORE_PASSWORD` | the password you chose |
+| `ANDROID_KEY_ALIAS` | `upload` |
+| `ANDROID_KEY_PASSWORD` | the same password |
+
+From then on every "Build Android apps" run is signed with that key, and new versions install
+over old ones. The key only ever exists in those secrets and in your backup, never in the repo.
+
+Each run also sets the Android version code from the run number, so uploads to Google Play always
+count upwards. Tick **Also build the .aab files** in the workflow when you need the Play upload
+files; leave it off for ordinary APK testing, which is faster.
+
+Building on your own machine instead of GitHub: set `TALKORY_KEYSTORE` to the full path of the
+.jks, plus `TALKORY_KEYSTORE_PASSWORD`, `TALKORY_KEY_ALIAS` and `TALKORY_KEY_PASSWORD`, then run
+`scripts/build-apps.sh` as usual.
 
 ## iPhone (on a Mac)
 1. `ORG=... bash scripts/build-apps.sh` has already created `ios/` and added the usage texts and background modes. Run `flutter pub get` in each app.

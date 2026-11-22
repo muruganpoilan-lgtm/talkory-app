@@ -39,11 +39,32 @@ if os.path.exists(m):
     s = re.sub(r'android:label="[^"]*"', f'android:label="{label}"', s, count=1)
     open(m, 'w').write(s)
 
+# Signs every release build with one fixed key, so a new version installs over the old one.
+# Without TALKORY_KEYSTORE the build falls back to a throwaway debug key, as before.
+SIGNING_KTS = '''
+    // Talkory release signing: see BUILD.md > Signing key.
+    val talkoryStore = System.getenv("TALKORY_KEYSTORE")?.takeIf { it.isNotBlank() && file(it).exists() }
+    signingConfigs {
+        create("talkory") {
+            if (talkoryStore != null) {
+                storeFile = file(talkoryStore)
+                storePassword = System.getenv("TALKORY_KEYSTORE_PASSWORD") ?: ""
+                keyAlias = System.getenv("TALKORY_KEY_ALIAS")?.takeIf { it.isNotBlank() } ?: "upload"
+                keyPassword = System.getenv("TALKORY_KEY_PASSWORD") ?: ""
+            }
+        }
+    }
+'''
+
 for name in ('android/app/build.gradle.kts', 'android/app/build.gradle'):  # Firebase/Agora need a newer minimum than Flutter's default
     g = os.path.join(d, name)
     if os.path.exists(g):
         s = open(g).read()
         s = re.sub(r'minSdk(Version)?\s*=?\s*(flutter\.minSdkVersion|\d+)', 'minSdk = 23' if name.endswith('.kts') else 'minSdkVersion 23', s)
+        if name.endswith('.kts') and 'TALKORY_KEYSTORE' not in s:
+            s = s.replace('android {', 'android {' + SIGNING_KTS, 1)
+            s = re.sub(r'signingConfig\s*=\s*signingConfigs\.getByName\("debug"\)',
+                       'signingConfig = if (talkoryStore != null) signingConfigs.getByName("talkory") else signingConfigs.getByName("debug")', s)
         open(g, 'w').write(s)
 
 pl = os.path.join(d, 'ios/Runner/Info.plist')
@@ -101,13 +122,19 @@ build_app() { # project_name label "PERMISSIONS" "ios modes" needs_firebase(yes|
   if [[ "$fb" == yes && -z "$SKIP_FLUTTER" && -z "${FIREBASE_API_KEY:-}" && ! -f "$dir/android/app/google-services.json" ]]; then
     echo "NOTE: Firebase is not configured, so $label will work but will not ring for incoming calls (see BUILD.md > Firebase)."
   fi
-  [[ -f "$dir/android/key.properties" ]] || echo "NOTE: no android/key.properties, so this build is debug-signed: fine for testing, not for Google Play (see BUILD.md)."
+  if [[ -n "${TALKORY_KEYSTORE:-}" && -f "${TALKORY_KEYSTORE:-}" ]]; then
+    echo "Signing with your upload key: this version installs over the last one."
+  else
+    echo "NOTE: no signing key (TALKORY_KEYSTORE), so this build is debug-signed: testers must uninstall the old app first, and Google Play will not take it. See BUILD.md > Signing key."
+  fi
   [[ -n "$SKIP_FLUTTER" ]] && return 0
   local app_id="${FIREBASE_APP_ID:-}"
   [[ "$name" == talkory_user && -n "$FIREBASE_USER_APP_ID" ]] && app_id="$FIREBASE_USER_APP_ID"
   local defs=(--dart-define=API_URL="$API_URL" --dart-define=SENTRY_DSN="$SENTRY_DSN"
     --dart-define=FIREBASE_API_KEY="${FIREBASE_API_KEY:-}" --dart-define=FIREBASE_APP_ID="${app_id}"
     --dart-define=FIREBASE_SENDER_ID="${FIREBASE_SENDER_ID:-}" --dart-define=FIREBASE_PROJECT_ID="${FIREBASE_PROJECT_ID:-}")
+  # Google Play needs a higher version number on every upload; the workflow passes the run number.
+  if [[ -n "${BUILD_NUMBER:-}" ]]; then defs+=(--build-number="$BUILD_NUMBER"); fi
   (cd "$dir" && flutter pub get && flutter build apk --release "${defs[@]}" && { [[ -n "${APK_ONLY:-}" ]] || flutter build appbundle --release "${defs[@]}"; })
   mkdir -p dist
   cp "$dir/build/app/outputs/flutter-apk/app-release.apk" "dist/$label.apk"

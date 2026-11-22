@@ -12,6 +12,11 @@ on:
         description: 'App id prefix (apps become <org>.talkory_user, <org>.talkory_partner and <org>.talkory_admin)'
         required: false
         default: 'com.talkory'
+      play_bundle:
+        description: 'Also build the .aab files to upload to Google Play (slower)'
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -31,11 +36,28 @@ jobs:
           channel: stable
           cache: true
       - run: flutter --version
+      # The signing key lives only in repository secrets, never in the repo. Without it the build
+      # still works and is debug-signed, exactly as before.
+      - name: Set up the signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            printf '%s' "$KEYSTORE_BASE64" | tr -d '[:space:]' | base64 -d > "$RUNNER_TEMP/talkory-upload.jks"
+            echo "TALKORY_KEYSTORE=$RUNNER_TEMP/talkory-upload.jks" >> "$GITHUB_ENV"
+            echo "Signing key ready: these builds install over the previous version."
+          else
+            echo "No ANDROID_KEYSTORE_BASE64 secret set, so this build is debug-signed (testers must uninstall the old app first)."
+          fi
       - name: Build all APKs
         env:
           API_URL: ${{ inputs.api_url }}
           ORG: ${{ inputs.org }}
-          APK_ONLY: '1'
+          APK_ONLY: ${{ inputs.play_bundle && '' || '1' }}
+          BUILD_NUMBER: ${{ github.run_number }}
+          TALKORY_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          TALKORY_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          TALKORY_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           # Optional repository secrets (Settings > Secrets and variables > Actions). Leave unset to skip.
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
@@ -49,5 +71,6 @@ jobs:
           name: talkory-apks
           path: |
             dist/*.apk
+            dist/*.aab
             dist/admin-*.txt
           if-no-files-found: error
