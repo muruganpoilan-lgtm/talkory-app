@@ -197,4 +197,16 @@ async function notifyMeeting(accountIds, { title, body }) {
   }
 }
 
-module.exports = { notifyIncomingCall, notifyCallCancelled, notifyMessage, notifyGift, notifyHostOnline, notifyBestFriendsOnline, notifyAdminVideoCall, notifyMeeting };
+// Book-next-slot: the host is free now and kept for this user for a short time
+async function notifySlotReady(userId, hostId, hostName, holdSeconds) {
+  if (!enabled) return;
+  const first = String(hostName || 'Your host').split(/\s+/)[0].slice(0, 30);
+  const { rows } = await pool.query('SELECT DISTINCT push_token FROM devices WHERE account_id=$1', [userId]);
+  await sendToTokens(rows.map((r) => r.push_token), {
+    notification: { title: `⏰ ${first} is free now!`, body: `Your booked slot: call within ${Math.round(holdSeconds / 60)} minutes or the next person gets the turn.` },
+    data: { type: 'slot_ready', hostId: String(hostId) },
+    android: { priority: 'high', ttl: holdSeconds * 1000 },
+  }, 'slot-ready');
+}
+
+module.exports = { notifySlotReady, notifyIncomingCall, notifyCallCancelled, notifyMessage, notifyGift, notifyHostOnline, notifyBestFriendsOnline, notifyAdminVideoCall, notifyMeeting };

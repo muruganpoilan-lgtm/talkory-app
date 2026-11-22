@@ -51,6 +51,7 @@ async function handle(job) {
     await require('./invoice').sweep().catch((e) => console.error('[invoice] sweep failed:', e.message)); // invoices for payouts paid by hand
     await autopayout.retryPending().catch((e) => console.error('[payout] retry failed:', e.message)); // automatic UPI payouts still waiting
     await onlinetime.track().catch((e) => console.error('[online] track failed:', e.message)); // host online-time counter
+    await require('./slots').sweep().catch((e) => console.error('[slots] sweep failed:', e.message)); // booked slots whose turn expired
     const stuck = await pool.query(`SELECT id FROM calls WHERE status='ringing' AND created_at < now() - interval '60 seconds'`);
     for (const r of stuck.rows) await finishCall(r.id, 'missed', ['ringing']);
     const active = await pool.query(

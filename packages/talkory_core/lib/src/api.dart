@@ -56,9 +56,11 @@ class Partner {
         avatarUrl = j['avatar_url'],
         introUrl = j['intro_url'],
         verified = j['verified'] == true,
-        favourite = j['favourite'] == true;
+        favourite = j['favourite'] == true,
+        booked = j['booked'] as int?;
   final String id, name, bio, tagline;
   bool favourite; // heart button: this user gets an alert when the host comes online
+  int? booked; // place in this busy host's line (Book next), or null
   final String? introUrl; // approved voice intro, path like /intros/abc.m4a
   final String? avatarUrl; // path like /avatars/abc.jpg, prefix with Api.baseUrl
   final List<String> languages;
@@ -157,6 +159,10 @@ class Api {
     final data = await _send('GET', '/partners/best-friends') as List;
     return data.map((e) => Partner.fromJson(e)).toList();
   }
+
+  /// Book next slot with a busy host (on: true joins the line, false leaves it). Returns the place in line.
+  Future<int?> bookSlot(String partnerId, bool on) async =>
+      (await _send('POST', '/partners/$partnerId/book', {'on': on}) as Map)['position'] as int?;
 
   /// Heart button on a host card.
   Future<void> setFavourite(String partnerId, bool on) => _send('POST', '/partners/$partnerId/favourite', {'on': on});

@@ -8,6 +8,7 @@ async function finishCall(callId, status, from = ['ringing', 'active']) {
     [status, callId, from]);
   if (rows[0]) {
     await redis.del(`partner:busy:${rows[0].partner_id}`);
+    require('./slots').offerNext(rows[0].partner_id).catch((e) => console.error('[slots] offer:', e.message)); // host is free: next booked user's turn
     // A call nobody picked up means the host is not really there (app closed, phone off, no signal):
     // take them offline so users stop seeing a green dot. They switch back on when they return.
     if (status === 'missed' && rows[0].initiated_by !== 'partner') {

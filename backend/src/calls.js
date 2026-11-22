@@ -37,6 +37,9 @@ router.post('/', requireAuth(['user']), async (req, res) => {
   const w = await pool.query('SELECT balance FROM wallets WHERE account_id=$1', [req.auth.id]);
   if (!free && Number(w.rows[0].balance) < minCost) return res.status(402).json({ error: 'insufficient balance', required: minCost });
 
+  if (!(await require('./slots').canCall(partnerId, req.auth.id)))
+    return res.status(409).json({ error: 'This host is kept for a user who booked a slot. Tap "Book next" to get in line.' });
+
   // Atomic busy lock: only one call per partner
   if (!(await redis.set(`partner:busy:${partnerId}`, req.auth.id, 'EX', CALL_MAX_SECONDS, 'NX')))
     return res.status(409).json({ error: 'partner busy' });

@@ -404,6 +404,7 @@ class HostCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
+            if (p.status == 'busy' && api != null) Expanded(child: BookSlotButton(api: api!, p: p)) else
             Expanded(
               child: FilledButton(
                 style: FilledButton.styleFrom(
@@ -471,6 +472,63 @@ class _FavouriteHeartState extends State<FavouriteHeart> {
         child: Icon(on ? Icons.favorite : Icons.favorite_border, size: 22, color: on ? const Color(0xFFE53970) : Colors.grey.shade500,
             semanticLabel: on ? 'Remove from favourites' : 'Add to favourites'),
       ),
+    );
+  }
+}
+
+/// On a busy host's card: join the line ("Book next"). When the host is free, the first in line gets an alert
+/// and the host is kept for them for 2 minutes. Tap again to leave the line.
+class BookSlotButton extends StatefulWidget {
+  const BookSlotButton({super.key, required this.api, required this.p});
+  final Api api;
+  final Partner p;
+
+  @override
+  State<BookSlotButton> createState() => _BookSlotButtonState();
+}
+
+class _BookSlotButtonState extends State<BookSlotButton> {
+  bool _busy = false;
+
+  Future<void> _tap() async {
+    if (_busy) return;
+    final join = widget.p.booked == null;
+    setState(() => _busy = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final pos = await widget.api.bookSlot(widget.p.id, join);
+      if (!mounted) return;
+      setState(() => widget.p.booked = pos);
+      messenger.showSnackBar(SnackBar(
+          content: Text(join
+              ? "You're #$pos in line. We'll alert you when ${widget.p.name} is free, and keep the call for you for 2 minutes."
+              : 'You left the line')));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e is ApiException ? e.message : 'Network error. Try again.')));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pos = widget.p.booked;
+    return FilledButton(
+      style: FilledButton.styleFrom(
+        backgroundColor: pos == null ? Colors.orange.shade300 : const Color(0xFFEDE7FA),
+        foregroundColor: pos == null ? kInk : kRoyal,
+        shape: const StadiumBorder(),
+        minimumSize: const Size(0, 40),
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+      ),
+      onPressed: _busy ? null : _tap,
+      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Icon(pos == null ? Icons.event_available : Icons.hourglass_top, size: 16),
+        const SizedBox(width: 4),
+        Flexible(
+            child: Text(pos == null ? 'Book next' : 'In line #$pos',
+                maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800))),
+      ]),
     );
   }
 }

@@ -5,6 +5,7 @@ const contract = require('./contract');
 const tier = require('./tier');
 const { profanity, tooManyDigits, hasEmail } = require('./wordfilter');
 const billing = require('./billing');
+const slots = require('./slots');
 // the per-minute price this user pays (VIP users see their cheaper price on every host card)
 const priceFor = async (userId) => billing.rateFor({ is_vip: await billing.isVip(userId) });
 
@@ -160,7 +161,7 @@ router.post('/online', requireAuth(['partner']), async (req, res) => {
   if (on && !rows[0].languages.length) return res.status(400).json({ error: 'Complete your profile (languages) before going online' });
 
   await pool.query('UPDATE partner_profiles SET is_online=$1, manual_busy=$2 WHERE account_id=$3', [on, status === 'busy', req.auth.id]);
-  if (status === 'online') await redis.sadd('partners:online', req.auth.id);
+  if (status === 'online') { await redis.sadd('partners:online', req.auth.id); slots.offerNext(req.auth.id).catch(() => {}); } // back online: next booked user's turn
   else await redis.srem('partners:online', req.auth.id);
   res.json({ online: on, status });
   if (status === 'online') {
@@ -191,7 +192,7 @@ router.get('/best-friends', requireAuth(['user']), async (req, res) => {
       WHERE p.is_online AND p.kyc='approved' AND NOT a.is_blocked
         AND NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id=a.id AND b.blocked_id=$1) OR (b.blocker_id=$1 AND b.blocked_id=a.id))
       ORDER BY f.last_called DESC LIMIT 5`, [req.auth.id]);
-  const busy = await Promise.all(rows.map((r) => redis.exists(`partner:busy:${r.id}`)));
+  const busy = await Promise.all(rows.map(async (r) => (await redis.exists(`partner:busy:${r.id}`)) || (await slots.heldForOther(r.id, req.auth.id))));
   const price = await priceFor(req.auth.id);
   res.json(rows.map((r, i) => ({ ...r, rate_per_min: price, busy: !!busy[i] || r.manual_busy, verified: true })));
 });
@@ -213,17 +214,35 @@ router.get('/', requireAuth(['user']), async (req, res) => {
       ORDER BY p.is_online DESC, p.rating_avg DESC LIMIT 100`,
     [lang || null, req.auth.id, q || null, all]);
 
-  const inCall = await Promise.all(rows.map((r) => redis.exists(`partner:busy:${r.id}`)));
+  const inCall = await Promise.all(rows.map(async (r) => (await redis.exists(`partner:busy:${r.id}`)) || (await slots.heldForOther(r.id, req.auth.id)))); // on a call, or kept for a booked user
+  const booked = await Promise.all(rows.map((r) => slots.position(r.id, req.auth.id)));
   const rank = { online: 0, busy: 1, offline: 2 };
   const price = await priceFor(req.auth.id);
   const out = rows.map((r, i) => {
     const status = !r.is_online ? 'offline' : (inCall[i] || r.manual_busy) ? 'busy' : 'online';
     const { is_online, manual_busy, ...rest } = r;
-    return { ...rest, rate_per_min: price, status, busy: status === 'busy', verified: true }; // only KYC-approved hosts are listed
+    return { ...rest, rate_per_min: price, status, busy: status === 'busy', booked: booked[i], verified: true }; // only KYC-approved hosts are listed
   });
   // online first, then busy, then offline; favourites first inside each group; rating order kept otherwise (stable sort)
   out.sort((x, y) => rank[x.status] - rank[y.status] || (y.favourite === true) - (x.favourite === true));
   res.json(out);
+});
+
+// Book next slot with a busy host: { on: true } joins the line, { on: false } leaves it. Answers your place in line.
+router.post('/:id/book', requireAuth(['user']), async (req, res) => {
+  if (!/^[0-9a-f-]{36}$/i.test(req.params.id)) return res.status(404).json({ error: 'not found' });
+  if (req.body.on === false) { await slots.leave(req.params.id, req.auth.id); return res.json({ position: null }); }
+  const h = (await pool.query(`SELECT p.is_online FROM partner_profiles p JOIN accounts a ON a.id=p.account_id
+    WHERE p.account_id=$1 AND p.kyc='approved' AND NOT a.is_blocked AND a.deleted_at IS NULL`, [req.params.id])).rows[0];
+  if (!h) return res.status(404).json({ error: 'not found' });
+  if (!h.is_online) return res.status(409).json({ error: 'This host is offline. Tap the heart to get an alert when they come online.' });
+  try {
+    const position = await slots.join(req.params.id, req.auth.id);
+    await slots.offerNext(req.params.id); // in case the host is already free
+    res.json({ position });
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message });
+  }
 });
 
 // Heart button: mark or unmark a host as a favourite. { on: true | false }
