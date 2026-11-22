@@ -92,6 +92,8 @@ function payInApp(app,r){const q='pa='+encodeURIComponent(r.upi_id)+'&pn='+encod
   location.href=(app==='gpay'?'tez://upi/pay?':'phonepe://pay?')+q;
   setTimeout(()=>{if(!document.hidden&&confirm('Could not open the app. Open any UPI app instead?'))location.href='upi://pay?'+q},1500)}
 const aiTag=v=>typeof v==='number'?' <span class="'+(v>=0.5?'err':'mut')+'">'+(v>=0.5?'⚠ ':'')+'AI check: '+Math.round(v*100)+'%</span>':'';
+// Agora network quality 1 (excellent) to 6 (down), averaged
+const qual=q=>q==null?'–':(q<=2?'<span class="ok">Good':q<=3.5?'<span>Fair':'<span class="err">Poor')+' ('+q+')</span>';
 const rs=p=>'₹'+(p/100).toLocaleString('en-IN',{minimumFractionDigits:2});
 const when=d=>d?new Date(d).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'}):'';
 async function api(path,body){
@@ -157,6 +159,14 @@ const TABS={
  support:{url:'/admin/tickets',cols:['Customer','Subject','Last message','Updated'],
   row:r=>[esc(r.display_name)+' <span class="mut">('+r.role+', '+esc(r.phone)+')</span>',(r.needs_reply?'<b class="err">● </b>':'')+esc(r.subject),esc((r.last_body||'').slice(0,120)),when(r.updated_at)],
   acts:r=>[['Open & reply','',null,()=>openTicket(r.id)],['Close','bad','/admin/tickets/'+r.id+'/close',()=>({}),'Close this ticket?']]},
+ quality:{url:'/admin/health/quality',cols:['Phone','Calls','Connect time','Dropped (network)','Network'],
+  row:r=>r.kind==='summary'
+   ?['<b>Last 7 days</b>','<b>'+r.calls+'</b>','Host '+(r.host_connect_s??'–')+'s · User '+(r.user_connect_s??'–')+'s',(r.drop_pct??0)+'%',qual(r.quality)]
+   :[esc(r.device),r.calls,(r.connect_s??'–')+'s',(r.drop_pct??0)>10?'<b class="err">'+r.drop_pct+'%</b>':(r.drop_pct??0)+'%',qual(r.quality)],
+  acts:r=>[]},
+ crashes:{url:'/admin/health/crashes',cols:['When','Who','Phone','Error'],
+  row:r=>[when(r.created_at),esc(r.display_name||'')+' <span class="mut">('+(r.role==='partner'?'host':'user')+')</span>',esc(r.device||'')+' <span class="mut">'+esc(r.os||'')+'</span>',esc((r.error||'').slice(0,160))],
+  acts:r=>[['Details','',null,()=>{const d=document.createElement('dialog');d.style.cssText='width:min(760px,96vw)';d.innerHTML='<h3 style="margin:0 0 8px">'+esc(r.error||'Crash')+'</h3><pre style="white-space:pre-wrap;max-height:60vh;overflow:auto;background:var(--soft);padding:12px;border-radius:10px;font-size:12px">'+esc(r.stack||'No stack trace')+'</pre><p class="dact"><button>Close</button></p>';d.querySelector('button').onclick=()=>{d.close();d.remove()};document.body.appendChild(d);d.showModal()}]]},
  photos:{url:'/admin/avatars',cols:['Host'],row:r=>[esc(r.display_name)+aiTag(r.ai)],
   acts:r=>[['View photo','',null,()=>viewPhoto(r.id)],['Approve','ok','/admin/avatars/'+r.id,()=>({status:'approved'})],['Reject','bad','/admin/avatars/'+r.id,()=>({status:'rejected',note:prompt('Reason the host will see:','Please use a clear photo of yourself with no text or contact details')||''})]]}};
 
@@ -375,9 +385,11 @@ const META={overview:['Overview','What needs your attention right now','home'],
  payouts:['Payouts','Host withdrawal requests to pay','send','No payouts to send.'],
  invoices:['Host invoices','Invoices for every host payout','receipt','No host invoices yet.'],
  receipts:['User receipts','Receipts for coins users bought','receipt','No receipts yet.'],
- admins:['Team','People who can sign in to this panel','shield','Only you so far. Add an admin to share the work.']};
+ admins:['Team','People who can sign in to this panel','shield','Only you so far. Add an admin to share the work.'],
+ quality:['Call quality','How fast calls connect, how many drop, and on which phones (last 7 days)','video','No call reports yet. They arrive from the new app version.'],
+ crashes:['App crashes','Errors the apps reported','flag','No crashes reported.']};
 const GROUPS=[['',['overview']],['Hosts',['kyc','photos','intros','records','contracts','inactive']],['Users and safety',['reports','agreements','locations']],
- ['Talk',['support','video','meetings']],['Money',['earnings','payouts','invoices','receipts']],['Team',['admins']]];
+ ['Talk',['support','video','meetings']],['App health',['quality','crashes']],['Money',['earnings','payouts','invoices','receipts']],['Team',['admins']]];
 // what counts as "waiting" for the badges and the overview
 const COUNT_SRC={kyc:['/admin/kyc'],photos:['/admin/avatars'],intros:['/admin/intros'],support:['/admin/tickets',r=>r.needs_reply],
  reports:['/admin/reports'],payouts:['/partner/admin/payouts',r=>r.status==='requested'||r.status==='processing']};

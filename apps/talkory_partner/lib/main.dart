@@ -41,6 +41,7 @@ Future<void> main() async {
 
   final api = Api();
   await api.load();
+  AppReports.init(api); // crash and call-quality reports (App health in the admin panel)
   runApp(PartnerApp(api: api));
 }
 

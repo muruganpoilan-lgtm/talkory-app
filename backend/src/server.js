@@ -36,6 +36,8 @@ app.use('/calls', require('./calls'));
 app.use('/host-calls', require('./hostcalls'));
 app.use('/wallet', wallet.router);
 app.use('/checkin', require('./checkin')); // daily check-in coins and streak
+app.use('/reports', require('./reports').router); // call-quality and crash reports from the apps
+app.use('/admin/health', require('./reports').admin);
 app.get('/legal/support', (req, res) => res.type('html').send(require('./support')(process.env.SUPPORT_EMAIL)));
 app.use('/legal', express.static(path.join(__dirname, '../legal'), { extensions: ['html'] })); // /legal/terms, /legal/privacy
 app.use('/account', require('./account').router);

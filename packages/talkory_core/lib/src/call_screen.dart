@@ -7,6 +7,7 @@ import 'package:vibration/vibration.dart';
 import 'agora_warm.dart';
 import 'api.dart';
 import 'gift_sheet.dart';
+import 'reports.dart';
 import 'ringer.dart';
 import 'widgets.dart';
 
@@ -38,6 +39,8 @@ class _CallScreenState extends State<CallScreen> {
   bool _warned2 = false, _warned1 = false, _warnedFree = false; // vibration alerts already given (2 min, 1 min, free call 30s)
   bool _host = false; // host app: the caller's balance decides the end, there is nothing to top up here
   int _seconds = 0;
+  final DateTime _startedAt = DateTime.now(); // when this screen opened: connect time is measured from here
+  int? _connectMs; // milliseconds until the other side joined (sent in the call report)
   bool _connected = false, _muted = false, _leaving = false, _speaker = false, _free = false;
 
   @override
@@ -48,7 +51,7 @@ class _CallScreenState extends State<CallScreen> {
 
   Future<void> _start() async {
     final mic = await Permission.microphone.request();
-    if (!mic.isGranted) return _leave('Microphone permission is required for calls');
+    if (!mic.isGranted) return _leave('Microphone permission is required for calls', 'mic_denied');
 
     final engine = await AgoraWarm.take(widget.session.appId); // usually already started while the phone was ringing
     _engine = engine;
@@ -60,13 +63,14 @@ class _CallScreenState extends State<CallScreen> {
       onUserJoined: (conn, uid, elapsed) {
         if (!mounted) return;
         Ringer.instance.stopRing();
+        _connectMs ??= DateTime.now().difference(_startedAt).inMilliseconds;
         setState(() => _connected = true);
         _timer ??= Timer.periodic(const Duration(seconds: 1), (_) {
           if (mounted) setState(() => _seconds++);
         });
         _poll ??= Timer.periodic(const Duration(seconds: 5), (_) => _checkStatus());
       },
-      onUserOffline: (conn, uid, reason) => _leave(),
+      onUserOffline: (conn, uid, reason) => _leave(null, 'other_left'),
     ));
     await engine.joinChannel(
       token: widget.session.token,
@@ -92,7 +96,10 @@ class _CallScreenState extends State<CallScreen> {
       if (!mounted || _leaving) return;
       if (s['status'] == 'ringing') return; // still ringing on the other phone
       if (s['status'] != 'active') {
-        return _leave(s['status'] == 'rejected' ? 'Call declined' : !_connected ? 'No answer' : _free ? 'Free call ended' : (_secondsLeft ?? 999) <= 30 ? 'Call ended: balance used up' : 'Call ended');
+        return _leave(
+          s['status'] == 'rejected' ? 'Call declined' : !_connected ? 'No answer' : _free ? 'Free call ended' : (_secondsLeft ?? 999) <= 30 ? 'Call ended: balance used up' : 'Call ended',
+          s['status'] == 'rejected' ? 'declined' : !_connected ? 'no_answer' : _free ? 'free_ended' : (_secondsLeft ?? 999) <= 30 ? 'balance' : 'ended',
+        );
       }
       final left = s['secondsLeft'] as int?;
       final free = s['free'] == true;
@@ -136,7 +143,8 @@ class _CallScreenState extends State<CallScreen> {
     }
   }
 
-  Future<void> _leave([String? message]) async {
+  /// Ends the call. [reason] is what the call report says (must match REASONS in backend reports.js).
+  Future<void> _leave([String? message, String reason = 'hung_up']) async {
     if (_leaving) return;
     _leaving = true;
     Ringer.instance.stopRing();
@@ -146,6 +154,15 @@ class _CallScreenState extends State<CallScreen> {
       await _engine?.leaveChannel();
       await _engine?.release();
     } catch (_) {}
+    // Anonymous quality report for the admin panel: connect time, length, why it ended. Never blocks leaving.
+    AppReports.call(
+      api: widget.api,
+      callId: widget.session.callId,
+      connectMs: _connectMs,
+      durationS: _seconds,
+      endReason: reason,
+      netQuality: null,
+    );
     try {
       await widget.api.endCall(widget.session.callId);
     } catch (_) {} // already ended by the other side or the server

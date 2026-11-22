@@ -8,6 +8,7 @@ Future<void> main() async {
   await UserPush.instance.init();
   final api = Api();
   await api.load();
+  AppReports.init(api); // crash and call-quality reports (App health in the admin panel)
   runApp(TalkoryApp(api: api));
 }
 
