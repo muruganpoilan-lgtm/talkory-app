@@ -86,13 +86,19 @@ class _CallScreenState extends State<CallScreen> {
       },
       // They hung up: end now. They dropped off (no packets for 20s): wait, their network may come back.
       onUserOffline: (conn, uid, reason) {
-        if (reason == UserOfflineReasonType.userOfflineQuit || !_connected) return _leave(null, 'other_left');
+        if (reason == UserOfflineReasonType.userOfflineQuit || !_connected) {
+          _leave(null, 'other_left');
+          return;
+        }
         _peerLost();
       },
       // Our own connection. Agora rejoins the channel by itself; we just tell the user what is happening.
       onConnectionStateChanged: (conn, state, reason) {
         if (!mounted || _leaving) return;
-        if (state == ConnectionStateType.connectionStateFailed) return _leave('Call ended: connection lost', 'network');
+        if (state == ConnectionStateType.connectionStateFailed) {
+          _leave('Call ended: connection lost', 'network');
+          return;
+        }
         final down = state == ConnectionStateType.connectionStateReconnecting;
         if (down != _reconnecting) setState(() => _reconnecting = down);
       },
