@@ -2,7 +2,7 @@ const crypto = require('crypto');
 const router = require('express').Router();
 const { pool, redis, signToken } = require('./db');
 const sms = require('./sms');
-const { profanity } = require('./wordfilter');
+const { profanity, tooManyDigits, hasEmail } = require('./wordfilter');
 
 // Bump this (or set TERMS_VERSION) whenever the Terms/Privacy text changes: everyone must accept again at next login
 const TERMS_VERSION = process.env.TERMS_VERSION || '2026-10-03';
@@ -46,6 +46,7 @@ router.post('/verify-otp', async (req, res) => {
     if (!isAdult) return res.status(400).json({ error: 'must confirm 18+' });
     if (!acceptedTerms) return res.status(400).json({ error: 'Please accept the Terms and Privacy Policy' });
     if (!displayName) return res.status(400).json({ error: 'displayName required' });
+    if (tooManyDigits(displayName) || hasEmail(displayName)) return res.status(400).json({ error: 'Names cannot contain phone numbers or emails (up to 2 digits only).' });
     if (profanity(displayName)) return res.status(400).json({ error: 'Please choose a polite name. Abusive words are not allowed.' });
     if (role === 'partner') {
       const dup = await pool.query(`SELECT 1 FROM accounts WHERE role='partner' AND deleted_at IS NULL AND lower(display_name)=lower($1) LIMIT 1`, [displayName]);

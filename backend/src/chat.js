@@ -81,6 +81,7 @@ router.post('/:otherId', requireAuth(['user', 'partner']), sendLimit, async (req
   if (!body) return res.status(400).json({ error: 'Type a message' });
   if (body.length > MAX_LEN) return res.status(400).json({ error: `Messages can be up to ${MAX_LEN} characters` });
   if (LEAKS.test(body)) return res.status(400).json({ error: 'Phone numbers, links and handles are not allowed in chat' });
+  if (wordfilter.tooManyDigits(body)) return res.status(400).json({ error: 'Numbers are not allowed in chat. You can use up to 2 digits (like your age).' });
 
   const hit = wordfilter.check(body);
   if (hit && /^[0-9a-f-]{36}$/i.test(req.params.otherId)) {

@@ -39,7 +39,7 @@ const NUMBER_WORDS = {
   eight: 8, aath: 8, aat: 8, ettu: 8, ettu2: 8,
   nine: 9, nau: 9, nav: 9, onbadhu: 9, ombathu: 9,
 };
-const CONTACT_PHRASES = ['whatsapp', 'whats app', 'watsapp', 'telegram', 'snapchat', 'instagram', 'insta id', 'facebook id', 'phone number', 'mobile number',
+const CONTACT_PHRASES = ['gmail', 'yahoo', 'hotmail', 'outlook', 'rediffmail', 'protonmail', 'email id', 'mail id', 'e mail', 'my email', 'your email', 'at the rate', 'dot com', 'dot in', 'whatsapp', 'whats app', 'watsapp', 'telegram', 'snapchat', 'instagram', 'insta id', 'facebook id', 'phone number', 'mobile number',
   'contact number', 'my number', 'your number', 'call me on', 'dm me', 'signal app'];
 
 function toDigits(text) {
@@ -54,7 +54,36 @@ function toDigits(text) {
   return t.replace(/[a-z]+/g, (w) => (w in NUMBER_WORDS ? String(NUMBER_WORDS[w]) : w));
 }
 
+// Converts digits written in other scripts (Hindi, Tamil, Arabic, full-width ...) to 0-9, leaves words alone
+function scriptDigits(text) {
+  return Array.from(String(text || '')).map((ch) => {
+    const cp = ch.codePointAt(0);
+    for (const b of DIGIT_BASES) if (cp >= b && cp <= b + 9) return String(cp - b);
+    return ch;
+  }).join('');
+}
+// Number words that are safe to count (not normal English or Indian words like "do", "oh", "char")
+const SEQ_WORDS = new Set(Object.keys(NUMBER_WORDS).filter((w) => !['do', 'oh', 'che', 'char', 'nav', 'nau', 'aat', 'ek', 'aaru2', 'ettu2'].includes(w)));
+const MAX_DIGITS = Number(process.env.CHAT_MAX_DIGITS || 2);
+
+// True when the text holds more than 2 digits in total (any script), or 3+ number words in a row ("nine eight seven")
+function tooManyDigits(text, max = MAX_DIGITS) {
+  const t = scriptDigits(text).toLowerCase();
+  if ((t.match(/\d/g) || []).length > max) return true;
+  let run = 0;
+  for (const w of t.match(/[a-z]+/g) || []) {
+    run = SEQ_WORDS.has(w) ? run + 1 : 0;
+    if (run >= 3) return true;
+  }
+  return false;
+}
+
+// Email addresses, also written as "name at gmail dot com" or "name(at)mail(dot)in"
+const EMAIL_RE = /[a-z0-9._%+-]+\s*(?:@|\(at\)|\[at\]|\sat the rate\s|\sat\s)\s*[a-z0-9-]+\s*(?:\.|\(dot\)|\[dot\]|\sdot\s)\s*[a-z]{2,}/i;
+const hasEmail = (text) => /@/.test(String(text || '')) || EMAIL_RE.test(String(text || ''));
+
 function contactCheck(text) {
+  if (hasEmail(text)) return 'email address';
   const t = toDigits(text);
   // 8+ digits in a row, allowing spaces, dots, dashes, commas and similar between them
   const m = t.match(/(?:\d[^a-z0-9]{0,3}){8,}/);
@@ -141,4 +170,4 @@ function check(text) {
   return null;
 }
 
-module.exports = { check, normalise, contactCheck, profanity };
+module.exports = { check, normalise, contactCheck, profanity, tooManyDigits, hasEmail };
