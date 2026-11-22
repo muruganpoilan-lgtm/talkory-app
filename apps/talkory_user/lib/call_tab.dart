@@ -88,6 +88,7 @@ class _CallTabState extends State<CallTab> {
 
   Future<void> _call(Partner p) async {
     try {
+      AgoraWarm.warm(); // start the call engine while the call request is on its way
       final session = await widget.api.startCall(p.id);
       if (!mounted) return;
       final connected = await Navigator.of(context).push<bool>(

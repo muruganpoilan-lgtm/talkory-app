@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:vibration/vibration.dart';
+import 'agora_warm.dart';
 import 'api.dart';
 import 'gift_sheet.dart';
 import 'ringer.dart';
@@ -49,12 +50,12 @@ class _CallScreenState extends State<CallScreen> {
     final mic = await Permission.microphone.request();
     if (!mic.isGranted) return _leave('Microphone permission is required for calls');
 
-    final engine = createAgoraRtcEngine();
+    final engine = await AgoraWarm.take(widget.session.appId); // usually already started while the phone was ringing
     _engine = engine;
-    await engine.initialize(RtcEngineContext(
-      appId: widget.session.appId,
-      channelProfile: ChannelProfileType.channelProfileCommunication,
-    ));
+    if (_leaving) { // ended while the engine was starting
+      try { await engine.release(); } catch (_) {}
+      return;
+    }
     engine.registerEventHandler(RtcEngineEventHandler(
       onUserJoined: (conn, uid, elapsed) {
         if (!mounted) return;
@@ -67,7 +68,6 @@ class _CallScreenState extends State<CallScreen> {
       },
       onUserOffline: (conn, uid, reason) => _leave(),
     ));
-    await engine.enableAudio();
     await engine.joinChannel(
       token: widget.session.token,
       channelId: widget.session.channel,

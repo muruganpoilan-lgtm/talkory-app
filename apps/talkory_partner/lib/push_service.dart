@@ -67,7 +67,10 @@ class PushService {
 
     await _register(await fm.getToken());
     _refresh = fm.onTokenRefresh.listen(_register);
-    _fcm = FirebaseMessaging.onMessage.listen((m) => handlePushData(m.data));
+    _fcm = FirebaseMessaging.onMessage.listen((m) {
+      if (m.data['type'] == 'incoming_call') AgoraWarm.warm(); // phone is ringing: get the call engine ready
+      handlePushData(m.data);
+    });
     _callkit = FlutterCallkitIncoming.onEvent.listen(_onCallEvent);
 
     await _resumeAccepted();
@@ -197,6 +200,7 @@ class PushService {
   Future<void> _accept(String callId, String callerName) async {
     final api = _api;
     if (api == null || !_seen.add(callId)) return;
+    AgoraWarm.warm(); // start the call engine at the same time as accepting
     try {
       final session = await api.acceptCall(callId);
       await FlutterCallkitIncoming.endCall(callId); // our own call screen takes over

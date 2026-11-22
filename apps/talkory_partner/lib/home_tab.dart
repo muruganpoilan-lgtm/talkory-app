@@ -23,12 +23,15 @@ class _HomeTabState extends State<HomeTab> {
   Map<String, dynamic>? _ot; // today's online time vs the daily minimum
   Map<String, dynamic>? _wt; // this week's call hours and Paradise level
   Map<String, dynamic>? _lb; // weekly leaderboard
+  bool _needsBackground = false; // phone may delay incoming calls (battery saving)
   Timer? _otTimer;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _checkBackground();
+    BackgroundRun.askMicrophone(); // ask once now, so accepting a call never stops at a permission dialog
     _otTimer = Timer.periodic(const Duration(minutes: 1), (_) => _loadOnline());
   }
 
@@ -53,6 +56,44 @@ class _HomeTabState extends State<HomeTab> {
       if (mounted) setState(() { _earn = e; _lb = lb; });
     } catch (_) {}
   }
+
+  Future<void> _checkBackground() async {
+    final n = await BackgroundRun.needed();
+    if (mounted) setState(() => _needsBackground = n);
+  }
+
+  Future<void> _allowBackground() async {
+    final ok = await BackgroundRun.request();
+    if (!mounted) return;
+    setState(() => _needsBackground = !ok);
+    _snack(ok
+        ? 'Done. Calls will reach you even when the app is closed.'
+        : 'Not allowed yet. Calls may arrive late when the app is closed.');
+  }
+
+  /// Card asking the host to let the app run in the background, so incoming calls ring on time.
+  Widget _backgroundCard() => SoftCard(
+        color: const Color(0xFFFFF3CD),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Row(children: [
+              Icon(Icons.notifications_active_outlined, color: Colors.black87),
+              SizedBox(width: 8),
+              Expanded(child: Text('Get calls on time', style: TextStyle(fontWeight: FontWeight.w800, color: Colors.black87))),
+            ]),
+            const SizedBox(height: 6),
+            const Text(
+                'Your phone is saving battery on Talkory Partner, so calls can ring late or not at all when the app is closed. Allow it to run in the background.',
+                style: TextStyle(color: Colors.black87, fontSize: 13)),
+            const SizedBox(height: 4),
+            const Text('On Xiaomi, Vivo, Oppo and Realme phones, also turn on Autostart for Talkory Partner in Settings.',
+                style: TextStyle(color: Colors.black54, fontSize: 12)),
+            const SizedBox(height: 10),
+            FilledButton(onPressed: _allowBackground, child: const Text('Allow background')),
+          ]),
+        ),
+      );
 
   void _snack(String m) {
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
@@ -267,6 +308,7 @@ class _HomeTabState extends State<HomeTab> {
                   onTap: _openContract,
                 ),
               ),
+            if (_needsBackground && kyc == 'approved') _backgroundCard(),
             if (_ot != null && _ot!['enabled'] == true && kyc == 'approved') _onlineGoalCard(),
             if (_wt != null && kyc == 'approved') _tierCard(),
             if (_lb != null && kyc == 'approved') LeaderboardCard(api: widget.api, data: _lb!),
