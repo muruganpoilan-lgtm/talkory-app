@@ -23,6 +23,13 @@ async function isFirstRecharge(accountId) {
   return !rows[0];
 }
 
+// Call saver: a cheaper top-up offered only while the user is on a paid call (shown when the 2-minute alert fires).
+const SAVER = { id: 'saver', pay: 99, coins: 125, tag: '⚡ Call saver offer: keep talking', offer: true };
+async function inPaidCall(accountId) {
+  const { rows } = await pool.query(`SELECT 1 FROM calls WHERE user_id=$1 AND status='active' AND NOT COALESCE(is_free,false) LIMIT 1`, [accountId]);
+  return !!rows[0];
+}
+
 const hmac = (secret, data) => crypto.createHmac('sha256', secret).update(data).digest('hex');
 const safeEqual = (a, b) => {
   const x = Buffer.from(String(a)), y = Buffer.from(String(b));
@@ -123,16 +130,21 @@ router.get('/history', requireAuth(['user']), async (req, res) => {
 // Step 1: create a Razorpay order for the app to open checkout with
 // Coin packs. On a user's first recharge every pack shows its free bonus coins (coins already include them).
 router.get('/packs', requireAuth(['user']), async (req, res) => {
-  if (!(await isFirstRecharge(req.auth.id))) return res.json(PACKS);
-  res.json(PACKS.map((p) => {
+  const list = (await inPaidCall(req.auth.id)) ? [SAVER, ...PACKS] : PACKS; // on a call: the call saver comes first
+  if (!(await isFirstRecharge(req.auth.id))) return res.json(list);
+  res.json(list.map((p) => {
     const bonus = firstBonusFor(p.pay);
-    return { ...p, coins: p.coins + bonus, firstBonus: bonus, tag: `🎁 First recharge offer: +${bonus} free coins` };
+    return { ...p, coins: p.coins + bonus, firstBonus: bonus, tag: `${p.offer ? '⚡ Call saver' : '🎁 First recharge offer'}: +${bonus} free coins` };
   }));
 });
 
 router.post('/topup', requireAuth(['user']), async (req, res) => {
   let pay, coins, packId = null;
-  const pack = req.body.packId ? PACKS.find((p) => p.id === req.body.packId) : null;
+  let pack = req.body.packId ? PACKS.find((p) => p.id === req.body.packId) : null;
+  if (req.body.packId === SAVER.id) {
+    if (!(await inPaidCall(req.auth.id))) return res.status(400).json({ error: 'The call saver offer is only available during a call' });
+    pack = SAVER;
+  }
   if (req.body.packId && !pack) return res.status(400).json({ error: 'Choose a pack' });
   let firstBonus = 0;
   if (pack) {

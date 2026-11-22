@@ -57,6 +57,8 @@ class _WalletScreenState extends State<WalletScreen> {
           _packs = p;
           _packsFromServer = true;
           if (!p.any((x) => x['id'] == _packId)) _packId = p.first['id'] as String;
+          final offer = p.where((x) => x['offer'] == true); // opened during a call: pick the call saver for them
+          if (offer.isNotEmpty) _packId = offer.first['id'] as String;
         });
       }
     } catch (_) {}
