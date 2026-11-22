@@ -33,14 +33,23 @@ class _CallScreenState extends State<CallScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${g['emoji']} ${g['name']} sent to ${widget.peerName}')));
   }
 
+  // How long a call survives a network blip before it is given up.
+  static const _graceSeconds = 45; // waiting for the other side to come back
+  static const _peerDeadSeconds = 25; // other app has not reached the server for this long: it is really gone, stop waiting
+  static const _ownDeadPolls = 9; // our own failed status polls (5s apart) before we give up: 45s
+
   RtcEngine? _engine;
-  Timer? _timer, _poll;
+  Timer? _timer, _poll, _grace;
   int? _secondsLeft;
   bool _warned2 = false, _warned1 = false, _warnedFree = false; // vibration alerts already given (2 min, 1 min, free call 30s)
   bool _host = false; // host app: the caller's balance decides the end, there is nothing to top up here
   int _seconds = 0;
   final DateTime _startedAt = DateTime.now(); // when this screen opened: connect time is measured from here
   int? _connectMs; // milliseconds until the other side joined (sent in the call report)
+  bool _reconnecting = false; // our own connection is being re-established: Agora retries by itself
+  bool _peerGone = false; // other side fell off the audio channel, waiting for them to come back
+  int _pollFails = 0; // status polls failed in a row: how long we have been off the network
+  int? _peerSeen; // seconds since the other app last reached the server
   bool _connected = false, _muted = false, _leaving = false, _speaker = false, _free = false;
 
   @override
@@ -64,13 +73,29 @@ class _CallScreenState extends State<CallScreen> {
         if (!mounted) return;
         Ringer.instance.stopRing();
         _connectMs ??= DateTime.now().difference(_startedAt).inMilliseconds;
-        setState(() => _connected = true);
+        _grace?.cancel(); // they are back after a blip
+        _grace = null;
+        setState(() {
+          _connected = true;
+          _peerGone = false;
+        });
         _timer ??= Timer.periodic(const Duration(seconds: 1), (_) {
           if (mounted) setState(() => _seconds++);
         });
         _poll ??= Timer.periodic(const Duration(seconds: 5), (_) => _checkStatus());
       },
-      onUserOffline: (conn, uid, reason) => _leave(null, 'other_left'),
+      // They hung up: end now. They dropped off (no packets for 20s): wait, their network may come back.
+      onUserOffline: (conn, uid, reason) {
+        if (reason == UserOfflineReasonType.userOfflineQuit || !_connected) return _leave(null, 'other_left');
+        _peerLost();
+      },
+      // Our own connection. Agora rejoins the channel by itself; we just tell the user what is happening.
+      onConnectionStateChanged: (conn, state, reason) {
+        if (!mounted || _leaving) return;
+        if (state == ConnectionStateType.connectionStateFailed) return _leave('Call ended: connection lost', 'network');
+        final down = state == ConnectionStateType.connectionStateReconnecting;
+        if (down != _reconnecting) setState(() => _reconnecting = down);
+      },
     ));
     await engine.joinChannel(
       token: widget.session.token,
@@ -88,12 +113,29 @@ class _CallScreenState extends State<CallScreen> {
     if (!_connected && !_leaving) Ringer.instance.startRing(); // ringback tone for the caller
   }
 
+  /// The other side's audio went quiet. Hold the call open for a short while in case it is only a blip.
+  void _peerLost() {
+    if (_leaving || _peerGone || !mounted) return;
+    setState(() => _peerGone = true);
+    _grace?.cancel();
+    _grace = Timer(const Duration(seconds: _graceSeconds), () {
+      if (!_leaving) _leave('Call ended: connection lost', 'network');
+    });
+  }
+
   /// Warns the user when talk time is running low, and leaves if the server already ended the call.
   Future<void> _checkStatus() async {
     if (_leaving) return;
     try {
       final s = await widget.api.callStatus(widget.session.callId);
       if (!mounted || _leaving) return;
+      _pollFails = 0;
+      _peerSeen = s['peerSeen'] as int?;
+      // The other app has stopped reaching the server altogether: it is closed or its phone is off,
+      // so there is nothing to wait for.
+      if (_peerGone && _peerSeen != null && _peerSeen! > _peerDeadSeconds) {
+        return _leave('Call ended: connection lost', 'network');
+      }
       if (s['status'] == 'ringing') return; // still ringing on the other phone
       if (s['status'] != 'active') {
         return _leave(
@@ -122,7 +164,14 @@ class _CallScreenState extends State<CallScreen> {
         _free = free;
         _host = s['isHost'] == true;
       });
-    } catch (_) {} // transient network error: try again in 5s
+    } catch (_) {
+      // Could not reach the server. A blip is normal, so try again in 5s; give up once our own network
+      // has been down long enough that the call cannot be saved.
+      if (!mounted || _leaving) return;
+      _pollFails++;
+      if (_pollFails >= _ownDeadPolls) return _leave('Call ended: no network', 'network');
+      if (_pollFails == 2 && !_reconnecting) setState(() => _reconnecting = true); // 10s with no server: say so
+    }
   }
 
   /// Vibrates the phone: real long pulses where the phone allows it, touch feedback otherwise.
@@ -150,6 +199,7 @@ class _CallScreenState extends State<CallScreen> {
     Ringer.instance.stopRing();
     _timer?.cancel();
     _poll?.cancel();
+    _grace?.cancel();
     try {
       await _engine?.leaveChannel();
       await _engine?.release();
@@ -176,6 +226,7 @@ class _CallScreenState extends State<CallScreen> {
     Ringer.instance.stopRing();
     _timer?.cancel();
     _poll?.cancel();
+    _grace?.cancel();
     super.dispose();
   }
 
@@ -213,6 +264,21 @@ class _CallScreenState extends State<CallScreen> {
               Text(widget.peerName, style: Theme.of(context).textTheme.headlineSmall),
               const SizedBox(height: 8),
               Text(_connected ? _clock : 'Ringing…', style: Theme.of(context).textTheme.titleMedium),
+              // Network trouble: say so, so nobody hangs up thinking the app broke. The call keeps itself alive.
+              if (_connected && (_reconnecting || _peerGone)) ...[
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+                    const SizedBox(width: 10),
+                    Text(
+                      _peerGone ? 'Reconnecting ${widget.peerName}…' : 'Reconnecting…',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ],
               if (_secondsLeft != null && _secondsLeft! <= (_free ? 30 : 120)) ...[
                 const SizedBox(height: 24),
                 Container(

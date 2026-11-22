@@ -103,14 +103,24 @@ router.post('/:id/end', requireAuth(['user', 'partner']), async (req, res) => {
 router.get('/:id/status', requireAuth(['user', 'partner']), async (req, res) => {
   const c = await callFor(req, res); if (!c) return;
   let secondsLeft = null;
-  if (c.status === 'active') await redis.set(`call:hb:${c.id}`, 1, 'EX', 40);
+  if (c.status === 'active') {
+    await redis.set(`call:hb:${c.id}`, 1, 'EX', 40);
+    await redis.set(`call:hb:${c.id}:${req.auth.id}`, Date.now(), 'EX', 300); // per side, so each phone can tell whether the other app is still alive
+  }
   if (c.status === 'active' && c.is_free) secondsLeft = Math.max(0, FREE_SECONDS - c.billed_seconds); // both sides see the free time left
   else if (c.status === 'active') { // the user's balance decides when the call ends: the host sees the same countdown
     const w = await pool.query('SELECT balance FROM wallets WHERE account_id=$1', [c.user_id]);
     const tickCost = Math.ceil((rateFor(c) * TICK_SECONDS) / 60);
     secondsLeft = Math.floor(Number(w.rows[0].balance) / tickCost) * TICK_SECONDS;
   }
-  res.json({ status: c.status, secondsLeft, free: !!c.is_free, isHost: req.auth.id !== c.user_id });
+  // Seconds since the other phone last checked in. The app waits through a short network blip,
+  // but stops waiting once this shows the other app is really gone. null = not seen yet.
+  let peerSeen = null;
+  if (c.status === 'active') {
+    const at = await redis.get(`call:hb:${c.id}:${req.auth.id === c.user_id ? c.partner_id : c.user_id}`);
+    if (at) peerSeen = Math.max(0, Math.round((Date.now() - Number(at)) / 1000));
+  }
+  res.json({ status: c.status, secondsLeft, free: !!c.is_free, isHost: req.auth.id !== c.user_id, peerSeen });
 });
 
 // ---- post-call: rating, report, block (either side may report/block; only the user rates)
