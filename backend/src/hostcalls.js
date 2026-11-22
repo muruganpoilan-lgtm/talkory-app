@@ -2,7 +2,7 @@ const crypto = require('crypto');
 const router = require('express').Router();
 const { RtcTokenBuilder, RtcRole } = require('agora-token');
 const { pool, redis, requireAuth } = require('./db');
-const { billTick } = require('./billing');
+const { billTick, rateFor, isVip } = require('./billing');
 const { finishCall } = require('./callctl');
 const { ringTimeout, scheduleTick } = require('./queue');
 const { freeStatus } = require('./freecall');
@@ -50,7 +50,8 @@ router.post('/', requireAuth(['partner']), async (req, res) => {
   const inCall = await pool.query(`SELECT 1 FROM calls WHERE user_id=$1 AND status IN ('ringing','active') LIMIT 1`, [userId]);
   if (inCall.rowCount) return res.status(409).json({ error: 'user is busy right now' });
 
-  const minCost = Math.ceil((me.rate_per_min * Number(process.env.MIN_CALL_SECONDS || 60)) / 60);
+  const vip = await isVip(userId);
+  const minCost = Math.ceil((rateFor({ is_vip: vip }) * Number(process.env.MIN_CALL_SECONDS || 60)) / 60);
   const free = (await freeStatus(userId)).available; // free 2-minute call, once per user every 3 hours; the platform pays the host
   const w = await pool.query('SELECT balance FROM wallets WHERE account_id=$1', [userId]);
   if (!free && (!w.rows[0] || Number(w.rows[0].balance) < minCost)) return res.status(402).json({ error: 'user does not have enough coins for a call' });
@@ -64,8 +65,8 @@ router.post('/', requireAuth(['partner']), async (req, res) => {
 
   const channel = `call_${crypto.randomBytes(8).toString('hex')}`;
   const call = (await pool.query(
-    `INSERT INTO calls (user_id, partner_id, channel_name, rate_per_min, initiated_by, is_free) VALUES ($1,$2,$3,$4,'partner',$5) RETURNING *`,
-    [userId, req.auth.id, channel, me.rate_per_min, free])).rows[0];
+    `INSERT INTO calls (user_id, partner_id, channel_name, rate_per_min, initiated_by, is_free, is_vip) VALUES ($1,$2,$3,$4,'partner',$5,$6) RETURNING *`,
+    [userId, req.auth.id, channel, rateFor({ is_vip: vip }), free, vip])).rows[0];
   await ringTimeout(call.id);
 
   res.json({ callId: call.id, appId: process.env.AGORA_APP_ID, channel, token: agoraToken(channel, 2), uid: 2 });

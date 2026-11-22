@@ -7,6 +7,13 @@ const FREE_SECONDS = 120; // keep equal to freecall.js
 // Talkory keeps the difference (1000 / 600 / 400 paise = Rs 10 / Rs 6 / Rs 4, so 10 minutes = 100 coins). Charged exactly per minute, even though billing runs every 15 seconds.
 const CALL_RATE = Number(process.env.CALL_RATE_PAISE || 1000);
 const CALL_HOST = Number(process.env.CALL_HOST_PAISE || 600);
+// VIP callers pay less per minute (the host still earns CALL_HOST, Talkory takes the smaller cut)
+const VIP_RATE = Number(process.env.VIP_RATE_PAISE || 800);
+const rateFor = (call) => (call.is_vip ? VIP_RATE : CALL_RATE); // what this call costs the caller per minute, in paise
+async function isVip(accountId) {
+  const { rows } = await pool.query('SELECT vip_until > now() AS vip FROM accounts WHERE id=$1', [accountId]);
+  return !!rows[0]?.vip;
+}
 const upTo = (perMin, tickNo) => Math.ceil((perMin * TICK_SECONDS * tickNo) / 60); // total owed after this many ticks
 
 // A busy host: from their 4th answered call of the day (India time, calls from anyone), the host earns a flat Rs 3 per minute
@@ -30,7 +37,8 @@ async function isRepeatCall(call) {
 
 // Bills one tick. Returns false if the user can't pay (call must end).
 async function billTick(call, tickNo) {
-  const amount = upTo(CALL_RATE, tickNo) - upTo(CALL_RATE, tickNo - 1);
+  const rate = rateFor(call);
+  const amount = upTo(rate, tickNo) - upTo(rate, tickNo - 1);
   const share = Math.min(amount, upTo(CALL_HOST, tickNo) - upTo(CALL_HOST, tickNo - 1));
 
   if (call.is_free && tickNo * TICK_SECONDS > FREE_SECONDS) return false; // free minutes are used up: end the call
@@ -78,4 +86,4 @@ async function billTick(call, tickNo) {
   }
 }
 
-module.exports = { billTick, TICK_SECONDS };
+module.exports = { billTick, TICK_SECONDS, rateFor, isVip, VIP_RATE, CALL_RATE };

@@ -25,6 +25,15 @@ async function isFirstRecharge(accountId) {
 
 // Call saver: a cheaper top-up offered only while the user is on a paid call (shown when the 2-minute alert fires).
 const SAVER = { id: 'saver', pay: 99, coins: 125, tag: '⚡ Call saver offer: keep talking', offer: true };
+// VIP plan: one payment = coins + 30 days of cheaper calls (₹8 a minute instead of ₹10) + a VIP badge hosts can see
+const VIP = { id: 'vip30', pay: 199, coins: 200, vip: true, days: 30 };
+async function vipUntil(accountId) {
+  const { rows } = await pool.query('SELECT vip_until FROM accounts WHERE id=$1 AND vip_until > now()', [accountId]);
+  return rows[0]?.vip_until || null;
+}
+const vipPack = (until) => ({ ...VIP, tag: until
+  ? `👑 VIP till ${new Date(until).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' })} · renew: +30 days`
+  : '👑 VIP 30 days: calls ₹8/min + VIP badge' });
 async function inPaidCall(accountId) {
   const { rows } = await pool.query(`SELECT 1 FROM calls WHERE user_id=$1 AND status='active' AND NOT COALESCE(is_free,false) LIMIT 1`, [accountId]);
   return !!rows[0];
@@ -80,6 +89,8 @@ async function creditTopup(orderId, paymentId) {
     await client.query(
       `UPDATE topup_orders SET status='paid', razorpay_payment_id=$1, paid_at=now() WHERE id=$2`,
       [paymentId, order.id]);
+    if (order.pack_id === VIP.id) // VIP pass: 30 more days, counted from today or from the end of the current pass
+      await client.query(`UPDATE accounts SET vip_until = GREATEST(COALESCE(vip_until, now()), now()) + make_interval(days => $1) WHERE id=$2`, [VIP.days, order.account_id]);
     await client.query('COMMIT');
     require('./invoice').createReceipt(order.id).catch((e) => console.error('[invoice] receipt failed:', e.message)); // invoice for the user
     return order;
@@ -130,9 +141,11 @@ router.get('/history', requireAuth(['user']), async (req, res) => {
 // Step 1: create a Razorpay order for the app to open checkout with
 // Coin packs. On a user's first recharge every pack shows its free bonus coins (coins already include them).
 router.get('/packs', requireAuth(['user']), async (req, res) => {
-  const list = (await inPaidCall(req.auth.id)) ? [SAVER, ...PACKS] : PACKS; // on a call: the call saver comes first
+  const vp = vipPack(await vipUntil(req.auth.id));
+  const list = (await inPaidCall(req.auth.id)) ? [SAVER, ...PACKS, vp] : [...PACKS, vp]; // on a call: the call saver comes first
   if (!(await isFirstRecharge(req.auth.id))) return res.json(list);
   res.json(list.map((p) => {
+    if (p.vip) return p; // the VIP pass gets no first-recharge bonus
     const bonus = firstBonusFor(p.pay);
     return { ...p, coins: p.coins + bonus, firstBonus: bonus, tag: `${p.offer ? '⚡ Call saver' : '🎁 First recharge offer'}: +${bonus} free coins` };
   }));
@@ -145,11 +158,13 @@ router.post('/topup', requireAuth(['user']), async (req, res) => {
     if (!(await inPaidCall(req.auth.id))) return res.status(400).json({ error: 'The call saver offer is only available during a call' });
     pack = SAVER;
   }
+  const isVipPack = req.body.packId === VIP.id;
+  if (isVipPack) pack = VIP;
   if (req.body.packId && !pack) return res.status(400).json({ error: 'Choose a pack' });
   let firstBonus = 0;
   if (pack) {
     pay = pack.pay; coins = pack.coins; packId = pack.id;
-    if (await isFirstRecharge(req.auth.id)) { firstBonus = firstBonusFor(pay); coins += firstBonus; }
+    if (!isVipPack && await isFirstRecharge(req.auth.id)) { firstBonus = firstBonusFor(pay); coins += firstBonus; }
   }
   else { // older app versions send a plain amount: 1 coin per rupee
     const rupees = Number(req.body.amountRupees);

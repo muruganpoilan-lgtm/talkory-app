@@ -2,7 +2,7 @@ const crypto = require('crypto');
 const router = require('express').Router();
 const { RtcTokenBuilder, RtcRole } = require('agora-token');
 const { pool, redis, requireAuth } = require('./db');
-const { billTick, TICK_SECONDS } = require('./billing');
+const { billTick, TICK_SECONDS, rateFor, isVip } = require('./billing');
 const push = require('./push');
 const { finishCall } = require('./callctl');
 const { ringTimeout, scheduleTick } = require('./queue');
@@ -30,7 +30,8 @@ router.post('/', requireAuth(['user']), async (req, res) => {
     [req.auth.id, partnerId]);
   if (blocked.rowCount) return res.status(403).json({ error: 'this host is unavailable' });
 
-  const callRate = Number(process.env.CALL_RATE_PAISE || 1000); // fixed price per minute, see billing.js
+  const vip = await isVip(req.auth.id);
+  const callRate = rateFor({ is_vip: vip }); // fixed price per minute (cheaper for VIP), see billing.js
   const minCost = Math.ceil((callRate * Number(process.env.MIN_CALL_SECONDS || 60)) / 60);
   const free = false; // the free 2-minute call is offered by hosts (see hostcalls.js), not on calls a user starts
   const w = await pool.query('SELECT balance FROM wallets WHERE account_id=$1', [req.auth.id]);
@@ -42,11 +43,11 @@ router.post('/', requireAuth(['user']), async (req, res) => {
 
   const channel = `call_${crypto.randomBytes(8).toString('hex')}`;
   const call = (await pool.query(
-    `INSERT INTO calls (user_id, partner_id, channel_name, rate_per_min, is_free) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
-    [req.auth.id, partnerId, channel, callRate, free])).rows[0];
+    `INSERT INTO calls (user_id, partner_id, channel_name, rate_per_min, is_free, is_vip) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+    [req.auth.id, partnerId, channel, callRate, free, vip])).rows[0];
 
   const caller = await pool.query('SELECT display_name FROM accounts WHERE id=$1', [req.auth.id]);
-  push.notifyIncomingCall(partnerId, call.id, caller.rows[0].display_name).catch(() => {});
+  push.notifyIncomingCall(partnerId, call.id, (vip ? '👑 VIP · ' : '') + caller.rows[0].display_name).catch(() => {});
   await ringTimeout(call.id);
 
   res.json({ callId: call.id, appId: process.env.AGORA_APP_ID, channel, token: agoraToken(channel, 1), uid: 1 });
@@ -103,7 +104,7 @@ router.get('/:id/status', requireAuth(['user', 'partner']), async (req, res) => 
   if (c.status === 'active' && c.is_free) secondsLeft = Math.max(0, FREE_SECONDS - c.billed_seconds); // both sides see the free time left
   else if (c.status === 'active') { // the user's balance decides when the call ends: the host sees the same countdown
     const w = await pool.query('SELECT balance FROM wallets WHERE account_id=$1', [c.user_id]);
-    const tickCost = Math.ceil((c.rate_per_min * TICK_SECONDS) / 60);
+    const tickCost = Math.ceil((rateFor(c) * TICK_SECONDS) / 60);
     secondsLeft = Math.floor(Number(w.rows[0].balance) / tickCost) * TICK_SECONDS;
   }
   res.json({ status: c.status, secondsLeft, free: !!c.is_free, isHost: req.auth.id !== c.user_id });
