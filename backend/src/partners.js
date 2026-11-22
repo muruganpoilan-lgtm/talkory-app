@@ -3,6 +3,7 @@ const { pool, redis, requireAuth } = require('./db');
 const push = require('./push');
 const contract = require('./contract');
 const tier = require('./tier');
+const { profanity } = require('./wordfilter');
 
 const LANGUAGES = ['Hindi', 'English', 'Tamil', 'Telugu', 'Bengali', 'Marathi', 'Odia', 'Bhojpuri', 'Malayalam', 'Kannada', 'Gujarati', 'Punjabi', 'Urdu', 'Assamese']; // keep in sync with kLanguages in talkory_core/api.dart
 const MIN_RATE = 5, MAX_RATE = 200; // rupees per minute
@@ -133,6 +134,7 @@ router.put('/me', requireAuth(['partner']), async (req, res) => {
   if (bio.length > 300) return bad('Bio can be up to 300 characters');
   if (tagline.length > 40) return bad('Tagline can be up to 40 characters');
   if (LEAKS.test(name) || LEAKS.test(bio) || LEAKS.test(tagline)) return bad('Please remove phone numbers, links and social handles');
+  if (profanity(name) || profanity(bio) || profanity(tagline)) return bad('Please remove abusive words from your name, bio or tagline');
   if (await nameTaken(name, req.auth.id)) return bad('That name is already taken. Please pick another one.');
   if (!langs.length || langs.length > 5 || langs.some((l) => !LANGUAGES.includes(l))) return bad('Choose 1 to 5 languages');
   // the call price is fixed for everyone (see billing.js), so the rate sent by the app is ignored

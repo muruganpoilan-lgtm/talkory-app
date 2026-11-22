@@ -64,10 +64,73 @@ function contactCheck(text) {
   return null;
 }
 
+// ---- abusive / filthy words. Latin spellings (English and Indian languages typed in English letters) and native scripts.
+// Short or common-looking words only match as a whole word, so normal words that contain them are not blocked.
+const PROFANITY_LATIN = [
+  // English
+  'fuck', 'fucker', 'fucking', 'fucked', 'fuk', 'fck', 'fcuk', 'motherfucker', 'mf', 'wtf', 'shit', 'bullshit', 'bitch', 'bitches', 'bastard',
+  'asshole', 'arsehole', 'dick', 'dickhead', 'cock', 'cunt', 'pussy', 'whore', 'slut', 'prick', 'wanker', 'twat', 'son of a bitch',
+  'blowjob', 'handjob', 'dildo', 'cum', 'jerk off', 'boobs', 'tits', 'horny', 'porn', 'nigger', 'nigga', 'faggot', 'fag', 'retard',
+  // Hindi / Urdu
+  'madarchod', 'maderchod', 'madarchood', 'behenchod', 'bhenchod', 'benchod', 'bhenchodd', 'mc', 'bc', 'bsdk', 'chutiya', 'chutiye', 'chutia',
+  'chut', 'choot', 'lund', 'lauda', 'lawda', 'lavda', 'loda', 'gandu', 'gaandu', 'gaand', 'gand', 'randi', 'raand', 'harami', 'haramkhor',
+  'bhosdike', 'bhosadike', 'bhosdi', 'bhosda', 'bhosdiwale', 'jhaat', 'jhatu', 'chodu', 'chod', 'kutiya', 'kamina', 'kamine', 'tatti', 'suar ki aulad',
+  // Tamil
+  'thevidiya', 'thevdiya', 'thevidiyal', 'thevidiya paiya', 'thevdiya paiya', 'thayoli', 'thaayoli', 'otha', 'ottha', 'ommala', 'oombu', 'oombhu',
+  'umbu', 'punda', 'pundai', 'koothi', 'kudhi', 'sootha', 'soothu', 'mayiru', 'mairu', 'okkala', 'pottai', 'kena koothi', 'loosu punda',
+  // Malayalam
+  'myre', 'myru', 'myran', 'mairan', 'poorimon', 'poori mone', 'pooru', 'kunna', 'kunne', 'thendi', 'pulayadi', 'pulayadi mone',
+  'naayinte mone', 'kandaroli', 'umbi',
+  // Kannada
+  'soole', 'sulemaga', 'soolemaga', 'sule maga', 'bolimaga', 'boli maga', 'bolimagne', 'tunne', 'tullu', 'ninamman', 'ninn amman',
+  // Telugu
+  'dengu', 'dengey', 'dengutha', 'lanja', 'lanjakoduku', 'lanja koduku', 'lanjakodaka', 'lanja kodaka', 'modda', 'puku', 'pooku', 'kojja',
+  // Bengali / Marathi
+  'khanki', 'khankir chele', 'bokachoda', 'chudir bhai', 'zavadya', 'aai zavadya', 'bhadkhau', 'lavdya', 'randichya',
+];
+const PROFANITY_NATIVE = [
+  // Hindi
+  'मादरचोद', 'मादरचोड', 'बहनचोद', 'भेनचोद', 'बहनचोद', 'चूतिया', 'चुतिया', 'चूत', 'लंड', 'लौड़ा', 'लौडा', 'लोड़ा', 'गांडू', 'गांड', 'गाँड', 'रंडी', 'हरामी',
+  'हरामखोर', 'भोसड़ी', 'भोसडी', 'भोसड़ीके', 'भोसडीके', 'कुतिया', 'झाट', 'चोद', 'कमीना',
+  // Tamil
+  'தேவடியா', 'தேவிடியா', 'தேவுடியா', 'தாயோளி', 'ஓத்தா', 'ஓம்மால', 'ஊம்பு', 'புண்டை', 'புண்ட', 'சுன்னி', 'கூதி', 'மயிரு', 'சூத்து', 'பூல்', 'ஒக்கால',
+  // Malayalam
+  'മൈര്', 'മൈരേ', 'മൈരൻ', 'പൂറി', 'പൂറിമോൻ', 'പൂറ്', 'കുണ്ണ', 'തായോളി', 'തെണ്ടി', 'പുലയാടി', 'നായിന്റെ മോൻ', 'കണ്ടാരോളി',
+  // Kannada
+  'ಸೂಳೆ', 'ಸೂಳೆಮಗ', 'ಬೋಳಿಮಗ', 'ಬೋಳಿಮಗನೆ', 'ತುಣ್ಣೆ', 'ತುಲ್ಲು', 'ಸೂಳೆಮಗನೆ',
+  // Telugu
+  'దెంగు', 'దెంగెయ్', 'లంజ', 'లంజకొడుకు', 'మొడ్డ', 'పూకు', 'కొజ్జా',
+  // Bengali / Marathi
+  'খানকি', 'চোদ', 'মাগী', 'বোকাচোদা', 'झवाड्या', 'भडखाऊ',
+];
+const extraProfanity = String(process.env.BANNED_ABUSE || '').split(',').map((s) => s.trim()).filter(Boolean);
+const isLatin = (w) => /^[\x00-\x7f]+$/.test(w);
+const profLatin = [...new Set([...PROFANITY_LATIN, ...extraProfanity.filter(isLatin)])].map((w) => normalise(w)).filter(Boolean);
+const profNative = [...new Set([...PROFANITY_NATIVE, ...extraProfanity.filter((w) => !isLatin(w))])].map((w) => w.normalize('NFC').toLowerCase());
+const INVISIBLE = /[­​-‏⁠﻿]/g; // zero-width characters people insert to slip past filters
+const shorten = (t) => t.replace(/([a-z])\1{2,}/g, '$1'); // "fuuuuck" -> "fuck"
+
+// Returns the abusive word found, or null.
+function profanity(text) {
+  const raw = String(text || '').normalize('NFC').toLowerCase().replace(INVISIBLE, '');
+  const tokens = raw.split(/[\s.,!?;:'"()\[\]{}<>\/\\|*_~`+=\-]+/).filter(Boolean);
+  for (const w of profNative) {
+    if (w.includes(' ') ? raw.includes(w) : tokens.some((tk) => tk === w || (w.length >= 5 && tk.startsWith(w)))) return w;
+  }
+  const t = ` ${normalise(raw)} `, ts = ` ${shorten(t.trim())} `, sq = squash(t);
+  for (const w of profLatin) {
+    if (t.includes(` ${w} `) || ts.includes(` ${w} `)) return w;
+    if (w.length >= 5 && !w.includes(' ') && sq.includes(w) && !t.includes(w)) return w; // spaced out: "f u c k e r"
+  }
+  return null;
+}
+
 // Returns the matched word, or null when the message is fine.
 function check(text) {
   const c = contactCheck(text);
   if (c) return c;
+  const p = profanity(text);
+  if (p) return p;
   const t = ` ${normalise(text)} `;
   const sq = squash(t);
   for (const w of words) {
@@ -78,4 +141,4 @@ function check(text) {
   return null;
 }
 
-module.exports = { check, normalise, contactCheck };
+module.exports = { check, normalise, contactCheck, profanity };

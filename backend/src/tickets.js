@@ -1,5 +1,7 @@
 const express = require('express');
 const { pool, requireAuth } = require('./db');
+const { profanity } = require('./wordfilter');
+const RUDE = 'Please write your message without abusive words. Our team is here to help.';
 
 const MAX_SUBJECT = 80;
 const MAX_BODY = 2000;
@@ -30,6 +32,7 @@ router.post('/', async (req, res) => {
   const body = clean(req.body.body, MAX_BODY);
   if (!subject) return res.status(400).json({ error: 'Please add a short subject' });
   if (!body) return res.status(400).json({ error: 'Please describe the problem' });
+  if (profanity(subject) || profanity(body)) return res.status(400).json({ error: RUDE });
 
   const open = await pool.query(`SELECT COUNT(*)::int AS n FROM support_tickets WHERE account_id=$1 AND status='open'`, [req.auth.id]);
   if (open.rows[0].n >= MAX_OPEN) return res.status(429).json({ error: 'You already have several open requests. Please wait for a reply.' });
@@ -75,6 +78,7 @@ router.post('/:id/reply', async (req, res) => {
   if (!isUuid(req.params.id)) return res.status(404).json({ error: 'not found' });
   const body = clean(req.body.body, MAX_BODY);
   if (!body) return res.status(400).json({ error: 'Message is empty' });
+  if (profanity(body)) return res.status(400).json({ error: RUDE });
   if (await tooFast(req.auth.id)) return res.status(429).json({ error: 'You are sending too fast. Please try again later.' });
   const t = (await pool.query(
     `UPDATE support_tickets SET needs_reply=true, updated_at=now()
