@@ -1,25 +1,84 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Talkory Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#f6f7f9;--card:#fff;--ink:#1c1e21;--mut:#6b7280;--line:#e5e7eb;--pri:#6c4dff;--bad:#d93025;--ok:#188038}
-@media(prefers-color-scheme:dark){:root{--bg:#14151a;--card:#1e2028;--ink:#eceef2;--mut:#9aa0ac;--line:#2e313b}}
-*{box-sizing:border-box}body{margin:0;font:15px system-ui,sans-serif;background:var(--bg);color:var(--ink)}
-header{display:flex;align-items:center;gap:16px;padding:12px 20px;background:var(--card);border-bottom:1px solid var(--line)}
-header b{font-size:18px}nav{display:flex;gap:4px;flex:1}
-button{font:inherit;padding:6px 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);cursor:pointer}
-button.on,button.pri{background:var(--pri);border-color:var(--pri);color:#fff}button.bad{color:var(--bad)}button.ok{color:var(--ok)}
-main{max-width:1000px;margin:20px auto;padding:0 16px}.box{max-width:340px;margin:12vh auto;display:grid;gap:12px}
-input{font:inherit;padding:9px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink)}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow-x:auto}
-table{width:100%;border-collapse:collapse}th,td{padding:10px 14px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
-th{color:var(--mut);font-weight:500;font-size:13px}tr:last-child td{border:0}td.act{white-space:nowrap;display:flex;gap:6px}
-dialog{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:12px}
-.mut{color:var(--mut);font-size:13px}.err{color:var(--bad)}.empty{padding:28px;text-align:center;color:var(--mut)}
+:root{--bg:#f4f3f8;--card:#fff;--ink:#191523;--mut:#6e6a7c;--line:#e7e5ee;--soft:#f8f7fb;
+--pri:#6c4dff;--pri2:#5636f0;--pris:#efebff;--ok:#12804a;--oks:#e5f4ec;--bad:#cf3626;--bads:#fdecea;--warn:#a86400;--warns:#fff3e0;
+--side:#1b1331;--side2:#251a42;--sidet:#bdb5d6;--r:14px}
+@media(prefers-color-scheme:dark){:root{--bg:#121019;--card:#1b1825;--ink:#ece9f4;--mut:#9a95ab;--line:#2c2839;--soft:#211d2d;
+--pris:#2b2350;--oks:#16301f;--bads:#3a1c19;--warns:#36290f;--side:#0d0b14;--side2:#1a1528}}
+*{box-sizing:border-box}html,body{height:100%}
+body{margin:0;font:14.5px/1.5 Manrope,system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
+button{font:inherit;font-weight:600;font-size:13px;padding:7px 13px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:background .15s,border-color .15s}
+button:hover{border-color:#cfcbe0;background:var(--soft)}button:disabled{opacity:.5;cursor:wait}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--pri);outline-offset:2px}
+button.pri,button.on{background:var(--pri);border-color:var(--pri);color:#fff}button.pri:hover{background:var(--pri2)}
+button.ok{background:var(--oks);border-color:transparent;color:var(--ok)}button.ok:hover{border-color:var(--ok)}
+button.bad{background:var(--bads);border-color:transparent;color:var(--bad)}button.bad:hover{border-color:var(--bad)}
+input,select,textarea{font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink)}
+a{color:var(--pri)}svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.mut{color:var(--mut);font-size:13px}.err{color:var(--bad)}.ok{color:var(--ok)}
+/* layout */
+.shell{display:grid;grid-template-columns:236px 1fr;min-height:100vh}
+aside{background:var(--side);color:var(--sidet);display:flex;flex-direction:column;padding:18px 12px;position:sticky;top:0;height:100vh;overflow-y:auto}
+.brand{display:flex;align-items:center;gap:10px;padding:2px 8px 18px}.brand img{width:38px;height:38px;border-radius:10px;background:#fff}
+.brand b{display:block;color:#fff;font-size:16px;letter-spacing:-.01em}.brand small{color:#8f86ad;font-size:12px}
+aside nav{flex:1}.grp{margin-bottom:14px}.gl{font-size:11.5px;color:#7d749c;padding:0 10px 4px;font-weight:600}
+.ni{width:100%;justify-content:flex-start;gap:10px;background:none;border:0;border-radius:9px;color:var(--sidet);padding:8px 10px;font-weight:500;font-size:13.5px;position:relative}
+.ni:hover{background:var(--side2);color:#fff}.ni.on{background:var(--side2);color:#fff}
+.ni.on::before{content:"";position:absolute;left:-12px;top:7px;bottom:7px;width:3px;border-radius:0 3px 3px 0;background:#9b80ff}
+.ni span{flex:1;text-align:left}.bd{font-style:normal;font-size:11px;font-weight:700;min-width:20px;padding:1px 6px;border-radius:99px;background:#ff5d8f;color:#fff;text-align:center;display:none}
+.bd.show{display:inline-block}.lo{margin-top:8px;border-top:1px solid var(--side2);border-radius:0;padding-top:14px}
+main{padding:28px 32px 48px;min-width:0;max-width:1180px}
+.top{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:20px;flex-wrap:wrap}
+.top h1{margin:0;font-size:24px;letter-spacing:-.02em;font-weight:800}.top p{margin:2px 0 0}.tact{display:flex;gap:8px}
+/* table card */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.cnt{padding:12px 18px;border-bottom:1px solid var(--line);font-size:13px;color:var(--mut);font-weight:600}
+.tw{overflow-x:auto}table{width:100%;border-collapse:collapse}
+th,td{padding:13px 18px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--mut);font-weight:600;font-size:12.5px;background:var(--soft);white-space:nowrap}
+tr:last-child td{border:0}tbody tr:hover td{background:var(--soft)}td:first-child{font-weight:600}
+td.act{white-space:nowrap}td.act>div{display:flex;gap:6px;justify-content:flex-end}
+.empty{padding:56px 24px;text-align:center;color:var(--mut);display:grid;justify-items:center;gap:6px}
+.empty svg.i{width:40px;height:40px;stroke-width:1.4;color:var(--pri);background:var(--pris);padding:9px;border-radius:14px;box-sizing:content-box;margin-bottom:6px}
+.empty b{color:var(--ink);font-size:16px}.empty.err b{color:var(--bad)}
+/* overview */
+.money{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:12px;margin-bottom:22px}
+.mb{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px 20px}
+.mb.hero{background:linear-gradient(135deg,#6c4dff,#9a5cff 60%,#ff6fa5);color:#fff;border:0}
+.mb .v{font-size:28px;font-weight:800;letter-spacing:-.02em;margin-top:2px}.mb .l{font-size:13px;opacity:.8;font-weight:600}
+.sec{font-size:15px;font-weight:700;margin:0 0 10px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
+.tile{all:unset;box-sizing:border-box;cursor:pointer;background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;display:grid;gap:8px;transition:border-color .15s,transform .15s}
+.tile:hover{border-color:var(--pri);transform:translateY(-1px)}.tile:focus-visible{outline:2px solid var(--pri);outline-offset:2px}
+.tile .h{display:flex;align-items:center;gap:8px;font-weight:600;font-size:13.5px;color:var(--mut)}
+.tile .h svg.i{color:var(--pri);background:var(--pris);padding:6px;border-radius:9px;box-sizing:content-box}
+.tile .n{font-size:30px;font-weight:800;letter-spacing:-.02em;line-height:1}.tile .s{font-size:12.5px;color:var(--mut)}
+.tile.hot{border-color:#d9cfff;background:linear-gradient(180deg,var(--pris),var(--card) 70%)}.tile.hot .s{color:var(--pri);font-weight:600}
+.sk{height:104px;border-radius:var(--r);background:linear-gradient(90deg,var(--card),var(--soft),var(--card));background-size:200% 100%;animation:sk 1.2s infinite}
+@keyframes sk{to{background-position:-200% 0}}
+/* login */
+.login{min-height:100vh;display:grid;place-items:center;padding:20px;background:radial-gradient(1200px 600px at 10% -10%,#3a2477 0,transparent 60%),radial-gradient(900px 500px at 110% 110%,#5a1f55 0,transparent 55%),var(--side)}
+.lcard{width:min(380px,100%);background:var(--card);border-radius:20px;padding:30px 28px;display:grid;gap:14px;box-shadow:0 30px 80px -30px rgba(0,0,0,.6)}
+.lcard img{width:72px;height:72px;border-radius:18px;justify-self:center}.lcard h1{margin:0;text-align:center;font-size:22px;letter-spacing:-.02em}
+.lcard p{margin:-8px 0 4px;text-align:center}.lcard label{display:grid;gap:5px;font-size:13px;font-weight:600}
+.lcard button.pri{justify-content:center;padding:12px;font-size:14px}.link{background:none;border:0;color:var(--pri);justify-content:center}
+/* dialogs */
+dialog{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:18px;padding:22px;box-shadow:0 30px 80px -20px rgba(20,10,50,.45)}
+dialog::backdrop{background:rgba(18,12,35,.45);backdrop-filter:blur(3px)}dialog h3{font-size:18px;letter-spacing:-.01em}
+@media(max-width:860px){.shell{grid-template-columns:1fr}
+ aside{position:sticky;top:0;z-index:5;height:auto;flex-direction:row;align-items:center;padding:10px;gap:8px;overflow-x:auto}
+ .brand{padding:0 6px 0 2px}.brand div{display:none}aside nav{display:flex;gap:4px}.grp{display:flex;gap:4px;margin:0}.gl{display:none}
+ .ni{width:auto;white-space:nowrap}.ni.on::before{display:none}.lo{margin:0;border:0;padding:8px 10px}.lo span{display:none}
+ main{padding:20px 14px 40px}.money{grid-template-columns:1fr 1fr}.mb.hero{grid-column:1/-1}td.act>div{justify-content:flex-start}.tiles{grid-template-columns:1fr 1fr}.tile .n{font-size:26px}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style></head><body>
 <div id="app"></div>
 <script>
-const $=s=>document.querySelector(s);let token=sessionStorage.t||'',tab='payouts',phone='';
+const $=s=>document.querySelector(s);let token=sessionStorage.t||'',tab='overview',phone='';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 // Opens GPay / PhonePe (works when this panel is open in the browser on a phone) with the UPI ID and amount filled in
 function payInApp(app,r){const q='pa='+encodeURIComponent(r.upi_id)+'&pn='+encodeURIComponent(r.display_name)+'&am='+(r.amount/100).toFixed(2)+'&cu=INR&tn='+encodeURIComponent('Talkory payout');
@@ -33,14 +92,19 @@ async function api(path,body){
   const d=await r.json().catch(()=>({}));
   if(r.status===401&&token){logout();throw Error('Session expired')}
   if(!r.ok)throw Error(d.error||'Request failed');return d}
-function logout(){token='';isOwner=null;sessionStorage.removeItem('t');render()}
-function login(){$('#app').innerHTML=`<div class="box"><img src="/panel/logo.png" alt="Talkory Tech" style="width:130px;height:130px;justify-self:center"><h2 style="text-align:center">Talkory Admin</h2>
-<input id="ph" placeholder="+91XXXXXXXXXX" value="${esc(phone)}"><input id="cd" placeholder="OTP" style="display:${phone?'':'none'}">
-<button class="pri" id="go">${phone?'Verify':'Send OTP'}</button><div class="err" id="e"></div></div>`;
-  $('#go').onclick=async()=>{try{const p=$('#ph').value.trim();
-    if(!phone){await api('/auth/request-otp',{phone:p});phone=p;login()}
+function logout(){token='';isOwner=null;counts={};sessionStorage.removeItem('t');render()}
+function login(){$('#app').innerHTML=`<div class="login"><div class="lcard"><img src="/panel/logo.png" alt="Talkory Tech"><h1>Talkory Admin</h1>
+<p class="mut">${phone?'Enter the OTP sent to '+esc(phone):'Sign in with your admin phone number'}</p>
+<label>Phone number<input id="ph" placeholder="+91XXXXXXXXXX" inputmode="tel" value="${esc(phone)}" ${phone?'disabled':''}></label>
+<label style="display:${phone?'':'none'}">OTP<input id="cd" placeholder="6-digit code" inputmode="numeric" autocomplete="one-time-code"></label>
+<button class="pri" id="go">${phone?'Verify and sign in':'Send OTP'}</button><div class="err" id="e"></div>
+${phone?'<button class="link" id="chg">Use another number</button>':''}</div></div>`;
+  const go=async()=>{try{$('#go').disabled=true;const p=$('#ph').value.trim();
+    if(!phone){await api('/auth/request-otp',{phone:p});phone=p;login();$('#cd').focus()}
     else{const d=await api('/auth/verify-otp',{phone,code:$('#cd').value.trim(),role:'admin'});token=d.token;sessionStorage.t=token;render()}
-  }catch(e){$('#e').textContent=e.message}}}
+  }catch(e){$('#e').textContent=e.message;$('#go').disabled=false}};
+  $('#go').onclick=go;$('#app').querySelectorAll('input').forEach(i=>i.onkeydown=e=>{if(e.key==='Enter')go()});
+  if($('#chg'))$('#chg').onclick=()=>{phone='';login()}}
 const TABS={
  earnings:{url:'/admin/earnings',cols:['','Details','When'],
   row:r=>r.kind==='summary'?['<b>Available '+rs(r.available)+'</b>','Paid calls '+rs(r.calls)+' · Chats '+rs(r.chats)+' · Free calls (cost) '+rs(r.free)+' · Withdrawn '+rs(r.withdrawn)+' · Today '+rs(r.today)+' · This month '+rs(r.month),'']:['Withdrawn '+rs(r.amount),'to '+esc(r.upi_id),when(r.created_at)],
@@ -239,18 +303,90 @@ async function addAdmin(){
   const phone=prompt('Phone number of the new admin, with country code (example +919876543210):','+91');if(!phone)return;
   const name=prompt('Name of the new admin:','Admin');if(name===null)return;
   try{const r=await api('/admin/admins',{phone:phone.trim(),name:name.trim()});alert(r.restored?'Access given back.':'Admin added. They can log in with that number.');render()}catch(e){alert(e.message)}}
+const ICONS={home:'<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+id:'<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="12" r="2.5"/><path d="M14 10h4M14 14h3"/>',
+photo:'<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/>',
+mic:'<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
+folder:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+pen:'<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+moon:'<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
+flag:'<path d="M4 22V4M4 4h13l-2 4 2 4H4"/>',
+doc:'<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/>',
+pin:'<path d="M12 21s-7-6.2-7-12a7 7 0 0 1 14 0c0 5.8-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/>',
+chat:'<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>',
+video:'<rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3"/>',
+users:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/>',
+wallet:'<path d="M3 7a2 2 0 0 1 2-2h13v4"/><path d="M3 7v11a2 2 0 0 0 2 2h15V9H5a2 2 0 0 1-2-2z"/><circle cx="16" cy="14.5" r="1.2"/>',
+send:'<path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/>',
+receipt:'<path d="M5 3h14v18l-3-2-2 2-2-2-2 2-2-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
+shield:'<path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/>',
+out:'<path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 17l5-5-5-5M15 12H4"/>',
+refresh:'<path d="M20 11a8 8 0 0 0-14.6-4.5L4 8M4 4v4h4M4 13a8 8 0 0 0 14.6 4.5L20 16M20 20v-4h-4"/>',
+plus:'<path d="M12 5v14M5 12h14"/>'};
+const ic=n=>'<svg class="i" viewBox="0 0 24 24" aria-hidden="true">'+(ICONS[n]||'')+'</svg>';
+// [title, subtitle, icon, empty text]
+const META={overview:['Overview','What needs your attention right now','home'],
+ kyc:['KYC approvals','New hosts waiting for an ID check','id','No hosts waiting for KYC. New sign-ups show up here.'],
+ photos:['Profile photos','Host photos waiting for review','photo','No photos to review.'],
+ intros:['Voice intros','Host voice intros waiting for review','mic','No voice intros to review.'],
+ records:['Host records','KYC photos, profile photos and agreements saved for each host','folder','No host records saved yet.'],
+ contracts:['Host agreements','Hosts who have signed the host agreement','pen','No host has signed yet.'],
+ inactive:['Inactive hosts','Hosts away for a long time and when their records are deleted','moon','No inactive hosts.'],
+ reports:['Reports','Users and hosts reported by others','flag','No open reports.'],
+ agreements:['User agreements','Users who have signed the user agreement','doc','No user has signed yet.'],
+ locations:['Locations','Approximate location of users and hosts','pin','No locations shared yet.'],
+ support:['Support','Help requests from users and hosts','chat','No support tickets. Replies you send show up in the app.'],
+ video:['Video calls','Start a free video call with any user or host','video','No accounts to call yet.'],
+ meetings:['Meetings','Group video meetings with users and hosts','users','No meetings yet. Start one with New meeting.'],
+ earnings:['Earnings','Talkory income and your withdrawals','wallet','No earnings yet.'],
+ payouts:['Payouts','Host withdrawal requests to pay','send','No payouts to send.'],
+ invoices:['Host invoices','Invoices for every host payout','receipt','No host invoices yet.'],
+ receipts:['User receipts','Receipts for coins users bought','receipt','No receipts yet.'],
+ admins:['Team','People who can sign in to this panel','shield','Only you so far. Add an admin to share the work.']};
+const GROUPS=[['',['overview']],['Hosts',['kyc','photos','intros','records','contracts','inactive']],['Users and safety',['reports','agreements','locations']],
+ ['Talk',['support','video','meetings']],['Money',['earnings','payouts','invoices','receipts']],['Team',['admins']]];
+// what counts as "waiting" for the badges and the overview
+const COUNT_SRC={kyc:['/admin/kyc'],photos:['/admin/avatars'],intros:['/admin/intros'],support:['/admin/tickets',r=>r.needs_reply],
+ reports:['/admin/reports'],payouts:['/partner/admin/payouts',r=>r.status==='requested'||r.status==='processing']};
+let counts={};
+const canSee=k=>isOwner||!OWNER_TABS.includes(k);
+function paintBadges(){document.querySelectorAll('[data-b]').forEach(b=>{const n=counts[b.dataset.b];b.textContent=n>99?'99+':n||'';b.classList.toggle('show',n>0)})}
+async function loadCounts(){await Promise.all(Object.entries(COUNT_SRC).filter(([k])=>canSee(k)).map(async([k,[u,f]])=>{
+  try{const rows=await api(u);counts[k]=f?rows.filter(f).length:rows.length}catch(_){counts[k]=null}}));paintBadges()}
+function go(t){tab=t;render();window.scrollTo(0,0)}
+async function overview(){
+  const B=$('#body');B.innerHTML='<div class="tiles">'+'<div class="sk"></div>'.repeat(6)+'</div>';
+  await loadCounts();let money='';
+  if(isOwner){try{const e=(await api('/admin/earnings')).find(r=>r.kind==='summary');
+    if(e)money=`<div class="money"><div class="mb hero"><div class="l">Available to withdraw</div><div class="v">${rs(e.available)}</div></div>
+<div class="mb"><div class="l mut">Today</div><div class="v">${rs(e.today)}</div></div><div class="mb"><div class="l mut">This month</div><div class="v">${rs(e.month)}</div></div></div>`}catch(_){}}
+  const ks=['kyc','photos','intros','support','reports','payouts'].filter(canSee);
+  const waiting=ks.reduce((a,k)=>a+(counts[k]||0),0);
+  B.innerHTML=money+`<p class="sec">${waiting?waiting+' waiting for you':'All caught up'}</p><div class="tiles">${ks.map(k=>{const n=counts[k];
+    return `<button class="tile${n>0?' hot':''}" data-t="${k}"><span class="h">${ic(META[k][2])}${META[k][0]}</span><span class="n">${n==null?'–':n}</span><span class="s">${n==null?'Could not load':n>0?'Review now':'All clear'}</span></button>`}).join('')}</div>`;
+  B.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>go(b.dataset.t))}
 async function render(){
   if(!token)return login();
   if(isOwner===null){try{isOwner=!!(await api('/admin/me')).isOwner}catch(e){isOwner=false}}
-  if(!isOwner&&OWNER_TABS.includes(tab))tab='kyc';
-  $('#app').innerHTML=`<header><b>Talkory Admin</b><nav>${Object.keys(TABS).filter(k=>isOwner||!OWNER_TABS.includes(k)).map(k=>`<button class="${k===tab?'on':''}" data-t="${k}">${k[0].toUpperCase()+k.slice(1)}</button>`).join('')}</nav><button id="lo">Log out</button></header><main><div class="card" id="list"><div class="empty">Loading…</div></div></main>`;
-  $('#lo').onclick=logout;document.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{tab=b.dataset.t;render()});
-  if(tab==='admins')$('#list').insertAdjacentHTML('beforebegin','<p><button class="pri" id="na2">+ Add admin</button></p>'),$('#na2').onclick=addAdmin;
-  if(tab==='meetings')$('#list').insertAdjacentHTML('beforebegin','<p><button class="pri" id="nm">+ New meeting</button></p>'),$('#nm').onclick=newMeeting;
+  if(!META[tab]||!canSee(tab))tab='overview';
+  const m=META[tab];
+  const nav=GROUPS.map(([g,ks])=>{ks=ks.filter(canSee);if(!ks.length)return'';
+    return `<div class="grp">${g?'<div class="gl">'+g+'</div>':''}${ks.map(k=>`<button class="ni${k===tab?' on':''}" data-t="${k}" ${k===tab?'aria-current="page"':''}>${ic(META[k][2])}<span>${META[k][0]}</span><i class="bd" data-b="${k}"></i></button>`).join('')}</div>`}).join('');
+  $('#app').innerHTML=`<div class="shell"><aside><div class="brand"><img src="/panel/logo.png" alt=""><div><b>Talkory</b><small>${isOwner?'Owner':'Admin'} panel</small></div></div>
+<nav>${nav}</nav><button class="ni lo" id="lo">${ic('out')}<span>Log out</span></button></aside>
+<main><div class="top"><div><h1>${m[0]}</h1><p class="mut">${m[1]}</p></div><div class="tact" id="tact"><button id="rf">${ic('refresh')}Refresh</button></div></div><div id="body"></div></main></div>`;
+  $('#lo').onclick=logout;$('#rf').onclick=render;
+  document.querySelectorAll('aside [data-t]').forEach(b=>b.onclick=()=>go(b.dataset.t));
+  paintBadges();
+  if(tab==='overview')return overview();
+  loadCounts();
+  if(tab==='admins'){$('#tact').insertAdjacentHTML('beforeend','<button class="pri" id="na2">'+ic('plus')+'Add admin</button>');$('#na2').onclick=addAdmin}
+  if(tab==='meetings'){$('#tact').insertAdjacentHTML('beforeend','<button class="pri" id="nm">'+ic('plus')+'New meeting</button>');$('#nm').onclick=newMeeting}
+  $('#body').innerHTML='<div class="card" id="list"><div class="empty"><span class="mut">Loading…</span></div></div>';
   const T=TABS[tab];let rows=[];
-  try{rows=await api(T.url)}catch(e){return $('#list').innerHTML='<div class="empty err">'+esc(e.message)+'</div>'}
-  if(!rows.length)return $('#list').innerHTML='<div class="empty">Nothing pending 🎉</div>';
-  $('#list').innerHTML=`<table><tr>${T.cols.map(c=>'<th>'+c+'</th>').join('')}<th></th></tr>${rows.map((r,i)=>`<tr>${T.row(r).map(c=>'<td>'+c+'</td>').join('')}<td class="act">${T.acts(r).map((a,j)=>`<button class="${a[1]}" data-i="${i}" data-j="${j}">${a[0]}</button>`).join('')}</td></tr>`).join('')}</table>`;
+  try{rows=await api(T.url)}catch(e){return $('#list').innerHTML='<div class="empty err">'+ic('flag')+'<b>Could not load</b><span>'+esc(e.message)+'</span></div>'}
+  if(!rows.length)return $('#list').innerHTML='<div class="empty">'+ic(m[2])+'<b>All clear</b><span>'+m[3]+'</span></div>';
+  $('#list').innerHTML=`<div class="cnt">${rows.length} ${rows.length===1?'item':'items'}</div><div class="tw"><table><thead><tr>${T.cols.map(c=>'<th>'+c+'</th>').join('')}<th></th></tr></thead><tbody>${rows.map((r,i)=>`<tr>${T.row(r).map(c=>'<td>'+c+'</td>').join('')}<td class="act"><div>${T.acts(r).map((a,j)=>`<button class="${a[1]}" data-i="${i}" data-j="${j}">${a[0]}</button>`).join('')}</div></td></tr>`).join('')}</tbody></table></div>`;
   $('#list').onclick=async e=>{const b=e.target.closest('button[data-i]');if(!b)return;
     const r=rows[b.dataset.i],a=T.acts(r)[b.dataset.j];if(!a[2])return a[3]();if(a[4]&&!confirm(a[4]))return;
     try{b.disabled=true;await api(a[2],a[3]());render()}catch(x){alert(x.message);b.disabled=false}}}
