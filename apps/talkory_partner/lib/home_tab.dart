@@ -5,6 +5,7 @@ import 'package:talkory_core/talkory_core.dart';
 import 'earnings_screen.dart';
 import 'contract_screen.dart';
 import 'kyc_screen.dart';
+import 'leaderboard.dart';
 
 String _rs(num paise) => '₹${(paise / 100).toStringAsFixed(2)}';
 
@@ -21,6 +22,7 @@ class _HomeTabState extends State<HomeTab> {
   String _status = 'offline'; // 'online' | 'busy' | 'offline'
   Map<String, dynamic>? _ot; // today's online time vs the daily minimum
   Map<String, dynamic>? _wt; // this week's call hours and Paradise level
+  Map<String, dynamic>? _lb; // weekly leaderboard
   Timer? _otTimer;
 
   @override
@@ -44,6 +46,11 @@ class _HomeTabState extends State<HomeTab> {
     try {
       final w = await widget.api.weeklyTier();
       if (mounted) setState(() => _wt = w);
+    } catch (_) {}
+    try { // live: "Earned today" and the leaderboard refresh every minute
+      final e = await widget.api.partnerEarnings();
+      final lb = await widget.api.leaderboard();
+      if (mounted) setState(() { _earn = e; _lb = lb; });
     } catch (_) {}
   }
 
@@ -262,6 +269,7 @@ class _HomeTabState extends State<HomeTab> {
               ),
             if (_ot != null && _ot!['enabled'] == true && kyc == 'approved') _onlineGoalCard(),
             if (_wt != null && kyc == 'approved') _tierCard(),
+            if (_lb != null && kyc == 'approved') LeaderboardCard(api: widget.api, data: _lb!),
             if (kyc != null && kyc != 'approved')
               SoftCard(
                 color: const Color(0xFFFFF3CD),

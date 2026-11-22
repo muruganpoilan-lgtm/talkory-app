@@ -122,6 +122,11 @@ router.get('/online-today', requireAuth(['partner']), async (req, res) => {
 });
 
 // This week's hours on calls and the host's Paradise level (shown in the partner app)
+// Weekly leaderboard: top hosts by talk time this week, plus this host's own place
+router.get('/leaderboard', requireAuth(['partner']), async (req, res) => {
+  res.json(await require('./hostgrowth').leaderboard(req.auth.id));
+});
+
 router.get('/weekly-tier', requireAuth(['partner']), async (req, res) => {
   res.json(await tier.weekly(req.auth.id));
 });

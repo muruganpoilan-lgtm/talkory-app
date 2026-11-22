@@ -306,19 +306,39 @@ class HostCard extends StatelessWidget {
     const tints = [Color(0xFFF0C4E0), Color(0xFFC4D6F2), Color(0xFFDCEBC0), Color(0xFFF0DCC0), Color(0xFFD8CCF2), Color(0xFFC0EBE3)];
     final tint = tints[p.name.codeUnits.fold<int>(0, (a, c) => a + c) % tints.length];
     final ring = p.status == 'busy' ? Colors.orange : p.status == 'offline' ? Colors.grey.shade400 : Colors.green;
+    // Star rating out of 5 on a green tag over the bottom of the photo ring (like a badge). New hosts show "New".
+    final rated = p.ratingCount > 0;
+    final ratingTag = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: rated ? const Color(0xFF3BA55C) : kRoyal,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.white, width: 2),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        if (rated) const Icon(Icons.star_rounded, size: 14, color: Colors.white),
+        if (rated) const SizedBox(width: 2),
+        Text(rated ? p.rating.toStringAsFixed(1) : 'New',
+            semanticsLabel: rated ? 'Rated ${p.rating.toStringAsFixed(1)} out of 5 by ${p.ratingCount} people' : 'New host',
+            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800)),
+      ]),
+    );
     final photo = Container(
       color: tint,
       alignment: Alignment.center,
-      child: Container(
-        padding: const EdgeInsets.all(3),
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: Colors.white,
-          border: Border.all(color: ring, width: 3),
-          boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 10, offset: Offset(0, 4))],
+      child: Stack(clipBehavior: Clip.none, alignment: Alignment.bottomCenter, children: [
+        Container(
+          padding: const EdgeInsets.all(3),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.white,
+            border: Border.all(color: ring, width: 3),
+            boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 10, offset: Offset(0, 4))],
+          ),
+          child: ProfileAvatar(baseUrl: baseUrl, name: p.name, url: p.avatarUrl, radius: 42),
         ),
-        child: ProfileAvatar(baseUrl: baseUrl, name: p.name, url: p.avatarUrl, radius: 42),
-      ),
+        Positioned(bottom: -10, child: ratingTag),
+      ]),
     );
     Widget chip(Widget child, Color bg) => Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -349,18 +369,6 @@ class HostCard extends StatelessWidget {
                       Container(width: 8, height: 8, decoration: BoxDecoration(color: stColor, shape: BoxShape.circle)),
                       const SizedBox(width: 5),
                       Text(stLabel, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
-                    ]),
-                    const Color(0x99000000),
-                  ),
-                ),
-                Positioned(
-                  right: 8,
-                  top: 8,
-                  child: chip(
-                    Row(mainAxisSize: MainAxisSize.min, children: [
-                      const Icon(Icons.star_rounded, size: 13, color: kGold),
-                      const SizedBox(width: 2),
-                      Text(p.rating.toStringAsFixed(1), style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
                     ]),
                     const Color(0x99000000),
                   ),

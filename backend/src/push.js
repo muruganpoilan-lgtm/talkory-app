@@ -209,4 +209,22 @@ async function notifySlotReady(userId, hostId, hostName, holdSeconds) {
   }, 'slot-ready');
 }
 
-module.exports = { notifySlotReady, notifyIncomingCall, notifyCallCancelled, notifyMessage, notifyGift, notifyHostOnline, notifyBestFriendsOnline, notifyAdminVideoCall, notifyMeeting };
+// A short note to one host (weekly bonus and similar)
+async function notifyHostNote(hostId, title, body) {
+  if (!enabled) return;
+  const { rows } = await pool.query('SELECT DISTINCT push_token FROM devices WHERE account_id=$1', [hostId]);
+  await sendToTokens(rows.map((r) => r.push_token), { notification: { title, body }, data: { type: 'host_note' }, android: { priority: 'normal' } }, 'host-note');
+}
+
+// Peak hours: many users are online, few hosts. Sent to offline hosts.
+async function notifyHostsPeak(hostIds, usersOnline) {
+  if (!enabled || !hostIds.length) return;
+  const { rows } = await pool.query('SELECT DISTINCT push_token FROM devices WHERE account_id = ANY($1)', [hostIds]);
+  await sendToTokens(rows.map((r) => r.push_token), {
+    notification: { title: '📞 Lots of users online now!', body: `${usersOnline} people are looking for someone to talk to. Go online to get calls.` },
+    data: { type: 'peak_hours' },
+    android: { priority: 'high', ttl: 30 * 60 * 1000 },
+  }, 'peak-hours');
+}
+
+module.exports = { notifyHostNote, notifyHostsPeak, notifySlotReady, notifyIncomingCall, notifyCallCancelled, notifyMessage, notifyGift, notifyHostOnline, notifyBestFriendsOnline, notifyAdminVideoCall, notifyMeeting };

@@ -44,6 +44,7 @@ async function handle(job) {
 
   if (job.name === 'inactive-cleanup') return void (await cleanup.run()); // hosts away for 30 days
   if (job.name === 'online-settle') return void (await onlinetime.settleRecent()); // just after midnight India time
+  if (job.name === 'weekly-bonus') return void (await require('./hostgrowth').payWeeklyBonus()); // Monday just after midnight
 
   if (job.name === 'sweep') { // safety net, once a minute: heal anything a lost job could leave behind
     await hostfiles.sync().catch((e) => console.error('[hostfiles] sync failed:', e.message)); // copy host photos and KYC files into the database
@@ -52,6 +53,7 @@ async function handle(job) {
     await autopayout.retryPending().catch((e) => console.error('[payout] retry failed:', e.message)); // automatic UPI payouts still waiting
     await onlinetime.track().catch((e) => console.error('[online] track failed:', e.message)); // host online-time counter
     await require('./slots').sweep().catch((e) => console.error('[slots] sweep failed:', e.message)); // booked slots whose turn expired
+    await require('./hostgrowth').peakReminder().catch((e) => console.error('[peak] failed:', e.message)); // remind offline hosts at busy times (hourly)
     const stuck = await pool.query(`SELECT id FROM calls WHERE status='ringing' AND created_at < now() - interval '60 seconds'`);
     for (const r of stuck.rows) await finishCall(r.id, 'missed', ['ringing']);
     const active = await pool.query(
@@ -75,6 +77,7 @@ function startWorker() {
   queue.add('sweep', {}, { repeat: { every: 60000 } }).catch((e) => console.error('[queue] sweep schedule failed', e));
   queue.add('inactive-cleanup', {}, { repeat: { pattern: '30 3 * * *', tz: 'Asia/Kolkata' } }).catch((e) => console.error('[queue] inactive-cleanup schedule failed', e));
   queue.add('online-settle', {}, { repeat: { pattern: '10 0 * * *', tz: 'Asia/Kolkata' } }).catch((e) => console.error('[queue] online-settle schedule failed', e));
+  queue.add('weekly-bonus', {}, { repeat: { pattern: '20 0 * * 1', tz: 'Asia/Kolkata' } }).catch((e) => console.error('[queue] weekly-bonus schedule failed', e));
   return worker;
 }
 

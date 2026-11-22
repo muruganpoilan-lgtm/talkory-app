@@ -295,6 +295,8 @@ class Api {
   Future<void> removeAvatar() => _send('POST', '/partner/avatar/remove');
 
   /// Hosts: this week's call hours and Paradise level {seconds, tier{key,name}, next{name,secondsToGo}, lastWeek{seconds,tier}}.
+  /// Host app: weekly leaderboard { top: [...], me: {...}, bonuses: [rupees] }
+  Future<Map<String, dynamic>> leaderboard() async => Map<String, dynamic>.from(await _send('GET', '/partners/leaderboard') as Map);
   Future<Map<String, dynamic>> weeklyTier() async => Map<String, dynamic>.from(await _send('GET', '/partners/weekly-tier'));
   /// Hosts: today's online time against the daily minimum {enabled, seconds, requiredSeconds, penaltyPaise, blockMinutes}.
   /// Host app: "my screen is on" signal, sent every 20 s while the app is in front. Online time only counts while it arrives.
