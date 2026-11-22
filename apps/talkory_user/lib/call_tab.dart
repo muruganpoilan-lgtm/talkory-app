@@ -211,9 +211,7 @@ class _CallTabState extends State<CallTab> {
                   final group = list.where((p) => p.status == st).toList();
                   if (group.isEmpty) continue;
                   items.add(st);
-                  for (var k = 0; k < group.length; k += 2) {
-                    items.add(group.sublist(k, k + 2 > group.length ? group.length : k + 2));
-                  }
+                  items.addAll(group); // one host per row
                 }
                 return ListView.builder(
                   padding: const EdgeInsets.only(bottom: 16),
@@ -232,17 +230,8 @@ class _CallTabState extends State<CallTab> {
                         ]),
                       );
                     }
-                    final pair = it as List<Partner>;
-                    Widget cell(Partner h) => Expanded(child: HostCard(p: h, baseUrl: widget.api.baseUrl, api: widget.api, onCall: () => _call(h), onChat: () => _chat(h)));
-                    return Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
-                      child: IntrinsicHeight(
-                        child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                          cell(pair[0]),
-                          if (pair.length > 1) cell(pair[1]) else const Expanded(child: SizedBox()),
-                        ]),
-                      ),
-                    );
+                    final h = it as Partner;
+                    return HostCard(p: h, baseUrl: widget.api.baseUrl, api: widget.api, onCall: () => _call(h), onChat: () => _chat(h));
                   },
                 );
               },
@@ -294,25 +283,22 @@ class _CallTabState extends State<CallTab> {
 class HostCard extends StatelessWidget {
   const HostCard({super.key, required this.p, required this.baseUrl, required this.onCall, required this.onChat, this.api});
   final Partner p;
-  final Api? api; // for the heart (favourite) button
   final String baseUrl;
+  final Api? api; // for the heart (favourite) and Book next buttons
   final VoidCallback onCall, onChat;
 
   @override
   Widget build(BuildContext context) {
     final canCall = p.status == 'online';
-    final stColor = p.status == 'busy' ? Colors.orange : p.status == 'offline' ? Colors.grey : Colors.greenAccent.shade400;
-    final stLabel = p.status == 'busy' ? 'Busy' : p.status == 'offline' ? 'Offline' : 'Online';
-    const tints = [Color(0xFFF0C4E0), Color(0xFFC4D6F2), Color(0xFFDCEBC0), Color(0xFFF0DCC0), Color(0xFFD8CCF2), Color(0xFFC0EBE3)];
-    final tint = tints[p.name.codeUnits.fold<int>(0, (a, c) => a + c) % tints.length];
-    final ring = p.status == 'busy' ? Colors.orange : p.status == 'offline' ? Colors.grey.shade400 : Colors.green;
-    // Star rating out of 5 on a green tag over the bottom of the photo ring (like a badge). New hosts show "New".
+    final stColor = p.status == 'busy' ? Colors.orange.shade700 : p.status == 'offline' ? Colors.grey.shade500 : const Color(0xFF3BA55C);
+    final stLabel = p.status == 'busy' ? 'BUSY' : p.status == 'offline' ? 'OFFLINE' : 'ONLINE';
+    // Star rating out of 5 on a green tag over the bottom of the photo ring. New hosts show "New".
     final rated = p.ratingCount > 0;
     final ratingTag = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
       decoration: BoxDecoration(
         color: rated ? const Color(0xFF3BA55C) : kRoyal,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(5),
         border: Border.all(color: Colors.white, width: 2),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -323,116 +309,79 @@ class HostCard extends StatelessWidget {
             style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800)),
       ]),
     );
-    final photo = Container(
-      color: tint,
-      alignment: Alignment.center,
-      child: Stack(clipBehavior: Clip.none, alignment: Alignment.bottomCenter, children: [
+    final photo = Column(mainAxisSize: MainAxisSize.min, children: [
+      Stack(clipBehavior: Clip.none, alignment: Alignment.bottomCenter, children: [
         Container(
           padding: const EdgeInsets.all(3),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: Colors.white,
-            border: Border.all(color: ring, width: 3),
-            boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 10, offset: Offset(0, 4))],
-          ),
-          child: ProfileAvatar(baseUrl: baseUrl, name: p.name, url: p.avatarUrl, radius: 42),
+          decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white, border: Border.all(color: stColor, width: 3.5)),
+          child: ProfileAvatar(baseUrl: baseUrl, name: p.name, url: p.avatarUrl, radius: 38),
         ),
         Positioned(bottom: -10, child: ratingTag),
       ]),
-    );
-    Widget chip(Widget child, Color bg) => Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(12)),
-          child: child,
-        );
+      const SizedBox(height: 18),
+      Text(stLabel, style: TextStyle(color: stColor, fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
+    ]);
+    final callButton = p.status == 'busy' && api != null
+        ? BookSlotButton(api: api!, p: p)
+        : FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: kGold,
+              foregroundColor: kInk,
+              disabledBackgroundColor: const Color(0xFFE6E2EE),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              minimumSize: const Size(0, 36),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.compact,
+            ),
+            onPressed: canCall ? onCall : null,
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.call, size: 15),
+              const SizedBox(width: 4),
+              Text('${formatCoins(p.ratePerMin)}/min', maxLines: 1, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+            ]),
+          );
     return Container(
-      margin: const EdgeInsets.all(6),
+      margin: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+      padding: const EdgeInsets.fromLTRB(12, 14, 12, 14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: const [BoxShadow(color: Color(0x141B1740), blurRadius: 16, offset: Offset(0, 6))],
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0x0F1B1740)),
+        boxShadow: const [BoxShadow(color: Color(0x0F1B1740), blurRadius: 12, offset: Offset(0, 4))],
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Padding(
-          padding: const EdgeInsets.all(8),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(18),
-            child: AspectRatio(
-              aspectRatio: 1,
-              child: Stack(fit: StackFit.expand, children: [
-                photo,
-                Positioned(
-                  left: 8,
-                  top: 8,
-                  child: chip(
-                    Row(mainAxisSize: MainAxisSize.min, children: [
-                      Container(width: 8, height: 8, decoration: BoxDecoration(color: stColor, shape: BoxShape.circle)),
-                      const SizedBox(width: 5),
-                      Text(stLabel, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
-                    ]),
-                    const Color(0x99000000),
-                  ),
-                ),
-              ]),
-            ),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
-          child: Row(children: [
-            Expanded(
-              child: Row(children: [
-                Flexible(child: Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: kInk))),
-                if (p.verified) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.verified, size: 16, color: Colors.blue)),
-              ]),
-            ),
-            if (api != null) FavouriteHeart(api: api!, p: p),
-          ]),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 2, 12, 0),
-          child: Text(p.languages.join(' · '), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
-        ),
-        if (p.tagline.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 2, 12, 0),
-            child: Text(p.tagline, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: kInk, fontSize: 12)),
-          ),
-        if (p.introUrl != null) Padding(padding: const EdgeInsets.fromLTRB(8, 4, 8, 0), child: IntroButton(baseUrl: baseUrl, url: p.introUrl!)),
-        const Spacer(),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
-          child: Row(children: [
-            InkWell(
-              onTap: onChat,
-              customBorder: const CircleBorder(),
-              child: Container(
-                width: 40,
-                height: 40,
-                decoration: const BoxDecoration(color: Color(0xFFEDE7FA), shape: BoxShape.circle),
-                child: const Icon(Icons.chat_bubble_outline, size: 19, color: kRoyal),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        SizedBox(width: 96, child: photo),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Flexible(child: Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: kInk))),
+              if (p.verified) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.verified, size: 18, color: Colors.blue)),
+              const Spacer(),
+              InkWell(
+                onTap: onChat,
+                customBorder: const CircleBorder(),
+                child: const Padding(padding: EdgeInsets.all(4), child: Icon(Icons.chat_bubble_outline, size: 21, color: kRoyal, semanticLabel: 'Chat')),
               ),
-            ),
-            const SizedBox(width: 8),
-            if (p.status == 'busy' && api != null) Expanded(child: BookSlotButton(api: api!, p: p)) else
-            Expanded(
-              child: FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: kGold,
-                  foregroundColor: kInk,
-                  disabledBackgroundColor: const Color(0xFFE6E2EE),
-                  shape: const StadiumBorder(),
-                  minimumSize: const Size(0, 40),
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
-                ),
-                onPressed: canCall ? onCall : null,
-                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  const Icon(Icons.call, size: 16),
-                  const SizedBox(width: 4),
-                  Flexible(child: Text('${formatCoins(p.ratePerMin)}/min', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800))),
-                ]),
-              ),
-            ),
+              if (api != null) FavouriteHeart(api: api!, p: p),
+            ]),
+            if (p.tagline.isNotEmpty)
+              Text(p.tagline, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: kInk)),
+            const SizedBox(height: 4),
+            Row(children: [
+              Icon(Icons.translate, size: 15, color: Colors.grey.shade500),
+              const SizedBox(width: 5),
+              Expanded(child: Text(p.languages.join(', '), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.grey.shade600, fontSize: 13))),
+            ]),
+            const SizedBox(height: 12),
+            Row(children: [
+              if (p.introUrl != null) ...[
+                IntroButton(baseUrl: baseUrl, url: p.introUrl!),
+                const SizedBox(width: 8),
+              ],
+              callButton,
+            ]),
           ]),
         ),
       ]),
@@ -527,17 +476,17 @@ class _BookSlotButtonState extends State<BookSlotButton> {
       style: FilledButton.styleFrom(
         backgroundColor: pos == null ? Colors.orange.shade300 : const Color(0xFFEDE7FA),
         foregroundColor: pos == null ? kInk : kRoyal,
-        shape: const StadiumBorder(),
-        minimumSize: const Size(0, 40),
-        padding: const EdgeInsets.symmetric(horizontal: 6),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        minimumSize: const Size(0, 36),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.compact,
       ),
       onPressed: _busy ? null : _tap,
-      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Icon(pos == null ? Icons.event_available : Icons.hourglass_top, size: 16),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(pos == null ? Icons.event_available : Icons.hourglass_top, size: 15),
         const SizedBox(width: 4),
-        Flexible(
-            child: Text(pos == null ? 'Book next' : 'In line #$pos',
-                maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800))),
+        Text(pos == null ? 'Book next' : 'In line #$pos', maxLines: 1, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
       ]),
     );
   }
