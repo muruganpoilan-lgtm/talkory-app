@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:talkory_core/talkory_core.dart';
+import 'daily_reward.dart';
 
 class CallTab extends StatefulWidget {
   const CallTab({
@@ -183,6 +184,7 @@ class _CallTabState extends State<CallTab> {
             ],
           ),
         ),
+        DailyRewardCard(api: widget.api, onCollected: widget.onBalanceChanged),
         Expanded(
           child: RefreshIndicator(
             onRefresh: () async {

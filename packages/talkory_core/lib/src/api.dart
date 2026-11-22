@@ -164,6 +164,10 @@ class Api {
   Future<int?> bookSlot(String partnerId, bool on) async =>
       (await _send('POST', '/partners/$partnerId/book', {'on': on}) as Map)['position'] as int?;
 
+  /// Daily check-in: { claimedToday, streak, day (1-7), coins, rewards }
+  Future<Map<String, dynamic>> dailyReward() async => Map<String, dynamic>.from(await _send('GET', '/checkin') as Map);
+  Future<Map<String, dynamic>> collectDailyReward() async => Map<String, dynamic>.from(await _send('POST', '/checkin') as Map);
+
   /// Heart button on a host card.
   Future<void> setFavourite(String partnerId, bool on) => _send('POST', '/partners/$partnerId/favourite', {'on': on});
 

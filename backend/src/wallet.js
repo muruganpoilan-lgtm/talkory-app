@@ -131,7 +131,7 @@ router.get('/history', requireAuth(['user']), async (req, res) => {
        FROM ledger l JOIN gifts_sent g ON l.ref = 'gift:' || g.id::text JOIN accounts a ON a.id = g.host_id
       WHERE l.account_id = $1 AND l.type = 'gift_debit'
      UNION ALL
-     SELECT l.type::text, l.id::text, l.amount, l.created_at, NULL::text, NULL::int,
+     SELECT CASE WHEN l.ref = 'checkin' THEN 'checkin' ELSE l.type::text END, l.id::text, l.amount, l.created_at, NULL::text, NULL::int,
             (SELECT o.id::text FROM topup_orders o JOIN topup_invoices i ON i.order_id=o.id WHERE l.type='topup' AND o.razorpay_payment_id = l.ref)
        FROM ledger l WHERE l.account_id = $1 AND l.type IN ('topup', 'refund', 'adjustment')
      ORDER BY at DESC LIMIT ${PAGE} OFFSET $2`, [req.auth.id, page * PAGE]);
