@@ -101,12 +101,12 @@ router.get('/:id/status', requireAuth(['user', 'partner']), async (req, res) => 
   let secondsLeft = null;
   if (c.status === 'active') await redis.set(`call:hb:${c.id}`, 1, 'EX', 40);
   if (c.status === 'active' && c.is_free) secondsLeft = Math.max(0, FREE_SECONDS - c.billed_seconds); // both sides see the free time left
-  else if (c.status === 'active' && req.auth.id === c.user_id) {
+  else if (c.status === 'active') { // the user's balance decides when the call ends: the host sees the same countdown
     const w = await pool.query('SELECT balance FROM wallets WHERE account_id=$1', [c.user_id]);
     const tickCost = Math.ceil((c.rate_per_min * TICK_SECONDS) / 60);
     secondsLeft = Math.floor(Number(w.rows[0].balance) / tickCost) * TICK_SECONDS;
   }
-  res.json({ status: c.status, secondsLeft, free: !!c.is_free });
+  res.json({ status: c.status, secondsLeft, free: !!c.is_free, isHost: req.auth.id !== c.user_id });
 });
 
 // ---- post-call: rating, report, block (either side may report/block; only the user rates)

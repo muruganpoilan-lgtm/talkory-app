@@ -3,6 +3,7 @@ import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:vibration/vibration.dart';
 import 'api.dart';
 import 'gift_sheet.dart';
 import 'ringer.dart';
@@ -33,7 +34,8 @@ class _CallScreenState extends State<CallScreen> {
   RtcEngine? _engine;
   Timer? _timer, _poll;
   int? _secondsLeft;
-  bool _warned2 = false, _warned1 = false; // vibration alerts already given at 2 minutes and at 1 minute left
+  bool _warned2 = false, _warned1 = false, _warnedFree = false; // vibration alerts already given (2 min, 1 min, free call 30s)
+  bool _host = false; // host app: the caller's balance decides the end, there is nothing to top up here
   int _seconds = 0;
   bool _connected = false, _muted = false, _leaving = false, _speaker = false, _free = false;
 
@@ -93,7 +95,12 @@ class _CallScreenState extends State<CallScreen> {
         return _leave(s['status'] == 'rejected' ? 'Call declined' : !_connected ? 'No answer' : _free ? 'Free call ended' : (_secondsLeft ?? 999) <= 30 ? 'Call ended: balance used up' : 'Call ended');
       }
       final left = s['secondsLeft'] as int?;
-      if (!_free && left != null) {
+      final free = s['free'] == true;
+      if (free && left != null && left <= 30 && !_warnedFree) {
+        _warnedFree = true;
+        _buzz(2); // free call: 30 seconds left
+      }
+      if (!free && left != null) {
         if (left <= 120 && !_warned2) {
           _warned2 = true;
           _buzz(4); // 2 minutes left: strong vibration
@@ -105,13 +112,24 @@ class _CallScreenState extends State<CallScreen> {
       }
       setState(() {
         _secondsLeft = left;
-        _free = s['free'] == true;
+        _free = free;
+        _host = s['isHost'] == true;
       });
     } catch (_) {} // transient network error: try again in 5s
   }
 
-  /// A row of vibration pulses (the phone's touch-feedback setting must be on for them to be felt).
+  /// Vibrates the phone: real long pulses where the phone allows it, touch feedback otherwise.
   Future<void> _buzz(int pulses) async {
+    try {
+      if (await Vibration.hasVibrator() == true) {
+        final pattern = <int>[0];
+        for (var i = 0; i < pulses; i++) {
+          pattern.addAll([600, 300]);
+        }
+        await Vibration.vibrate(pattern: pattern);
+        return;
+      }
+    } catch (_) {} // no vibrator or not allowed: fall back below
     for (var i = 0; i < pulses && mounted && !_leaving; i++) {
       HapticFeedback.heavyImpact();
       await Future<void>.delayed(const Duration(milliseconds: 350));
@@ -144,6 +162,15 @@ class _CallScreenState extends State<CallScreen> {
     super.dispose();
   }
 
+  /// What the banner says: the user is asked to add coins, the host is told the caller's time is running out.
+  String get _warningText {
+    final left = _secondsLeft ?? 0;
+    final when = left > 60 ? 'about ${(left / 60).ceil()} minutes' : 'about ${left}s';
+    if (_free) return 'Free call ends in $when.';
+    if (_host) return "Caller's balance is low: this call will end in $when.";
+    return left > 60 ? 'Low balance: your call will end in $when. Add coins to keep talking.' : 'Low balance: $when of talk time left. Add coins now!';
+  }
+
   String get _clock {
     final m = (_seconds ~/ 60).toString().padLeft(2, '0');
     final s = (_seconds % 60).toString().padLeft(2, '0');
@@ -169,7 +196,7 @@ class _CallScreenState extends State<CallScreen> {
               Text(widget.peerName, style: Theme.of(context).textTheme.headlineSmall),
               const SizedBox(height: 8),
               Text(_connected ? _clock : 'Ringing…', style: Theme.of(context).textTheme.titleMedium),
-              if (_secondsLeft != null && !_free && _secondsLeft! <= 120) ...[
+              if (_secondsLeft != null && _secondsLeft! <= (_free ? 30 : 120)) ...[
                 const SizedBox(height: 24),
                 Container(
                   margin: const EdgeInsets.symmetric(horizontal: 24),
@@ -179,13 +206,10 @@ class _CallScreenState extends State<CallScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(children: [
-                    const Icon(Icons.warning_amber_rounded, color: Colors.black87),
+                    const Icon(Icons.timer_outlined, color: Colors.black87),
                     const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(_secondsLeft! > 60 ? 'Low balance: your call will end in about 2 minutes. Add coins to keep talking.' : 'Low balance: about ${_secondsLeft}s of talk time left. Add coins now!',
-                          style: const TextStyle(color: Colors.black87)),
-                    ),
-                    if (widget.onAddCredits != null && !_free)
+                    Expanded(child: Text(_warningText, style: const TextStyle(color: Colors.black87))),
+                    if (widget.onAddCredits != null && !_free && !_host)
                       FilledButton(onPressed: widget.onAddCredits, child: const Text('Add coins')),
                   ]),
                 ),
