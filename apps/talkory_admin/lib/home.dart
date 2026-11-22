@@ -503,8 +503,85 @@ List<_Spec> _specs() {
           }, color: Colors.red),
         ]),
     _Spec('Locations', '/admin/locations', (r) => '${r['display_name']} (${r['role']})', (r) => '${r['lat']}, ${r['lng']} · ${_when(r['location_at'])}', (r) => []),
+    _Spec('Blocked accounts', '/admin/blocked', (r) => '${r['display_name']} (${_who(r['role'])})',
+        (r) => '${r['blocked_reason'] ?? r['blocked_note'] ?? 'No reason recorded'}\n'
+            'by ${r['by_admin'] ?? 'Chat auto-filter'} · ${r['total_reports']} reports · ${_when(r['blocked_at'])}', (r) => [
+          _Act('Unblock', (c, api, r) async {
+            if (!await _confirm(c, 'Unblock ${r['display_name']}? They can log in and use Talkory again, and their warnings are cleared.')) return false;
+            if (!c.mounted) return false;
+            return _do(c, () => api.adminPost('/admin/accounts/${r['id']}/unblock', {}));
+          }),
+        ]),
+    _Spec('Blocks between people', '/admin/people-blocks', (r) => '${r['blocker']} blocked ${r['blocked']}',
+        (r) => '${r['reason'] ?? 'No reason given'}\n${_who(r['blocker_role'])} → ${_who(r['blocked_role'])} · ${_when(r['created_at'])}', (r) => [
+          _Act('Remove block', (c, api, r) async {
+            if (!await _confirm(c, 'Remove this block? ${r['blocker']} and ${r['blocked']} will be connected again.')) return false;
+            if (!c.mounted) return false;
+            return _do(c, () => api.adminPost('/admin/people-blocks/remove', {'blockerId': r['blocker_id'], 'blockedId': r['blocked_id']}));
+          }, color: Colors.red),
+        ]),
+    _Spec('Block history', '/admin/block-history',
+        (r) => '${r['display_name']} · ${r['action'] == 'block' ? 'Blocked' : 'Unblocked'}',
+        (r) => '${r['reason'] ?? ''}\nby ${r['by_admin'] ?? 'Chat auto-filter'} · ${_when(r['created_at'])}', (r) => []),
+    _Spec('Call quality', '/admin/health/quality',
+        (r) => r['kind'] == 'summary' ? 'Last 7 days: ${r['calls']} calls' : '${r['device']}',
+        (r) => r['kind'] == 'summary'
+            ? 'Connect ${r['user_connect_s'] ?? '–'}s user, ${r['host_connect_s'] ?? '–'}s host · dropped ${r['drop_pct'] ?? 0}%'
+            : '${r['calls']} calls · connect ${r['connect_s'] ?? '–'}s · dropped ${r['drop_pct'] ?? 0}%', (r) => []),
+    _Spec('App crashes', '/admin/health/crashes', (r) => '${r['error']}',
+        (r) => '${r['display_name'] ?? 'Unknown'} (${r['role']}) · ${r['device']} · ${r['os']}\n${_when(r['created_at'])}', (r) => [
+          _Act('Details', (c, api, r) async {
+            await showDialog<void>(context: c, builder: (d) => AlertDialog(
+              title: Text('${r['error']}'),
+              content: SingleChildScrollView(child: Text('${r['stack'] ?? 'No details'}', style: const TextStyle(fontSize: 12))),
+              actions: [TextButton(onPressed: () => Navigator.pop(d), child: const Text('Close'))],
+            ));
+            return false;
+          }),
+        ]),
+    _Spec('Refer and earn', '/admin/referrals', (r) => '${r['referrer']} → ${r['friend']}',
+        (r) => 'Code ${r['code']} · friend got ${r['friend_coins']} coins\n'
+            '${r['paid_at'] != null ? 'Paid ${r['reward_coins']} coins' : 'Waiting for their first recharge'} · ${_when(r['created_at'])}', (r) => []),
+    _Spec('Missed charges', '/admin/missed-fines', (r) => '${r['display_name']}  ${_rs(-(r['amount'] as num))}',
+        (r) => '${r['missed']} calls missed that day · ${r['phone'] ?? ''} · ${_when(r['created_at'])}', (r) => []),
   ];
 }
+
+String _who(dynamic role) => role == 'partner' ? 'host' : 'user';
+
+/// The sidebar groups, in the same order and wording as the web panel at /panel.
+const _groups = <String, List<String>>{
+  'Hosts': ['KYC', 'Photos', 'Intros', 'Records', 'Contracts', 'Inactive'],
+  'Users and safety': ['Reports', 'Blocked accounts', 'Blocks between people', 'Block history', 'Agreements', 'Locations'],
+  'Talk': ['Support', 'Video', 'Meetings'],
+  'App health': ['Call quality', 'App crashes'],
+  'Money': ['Earnings', 'Payouts', 'Invoices', 'Receipts', 'Refer and earn', 'Missed charges'],
+  'Team': ['Admins'],
+};
+
+/// Which sections show a number on the Overview, and what counts as still waiting.
+const _tiles = ['KYC', 'Photos', 'Intros', 'Support', 'Reports', 'Payouts'];
+final _countUrl = <String, String>{
+  'KYC': '/admin/kyc', 'Photos': '/admin/avatars', 'Intros': '/admin/intros',
+  'Support': '/admin/tickets', 'Reports': '/admin/reports', 'Payouts': '/partner/admin/payouts',
+};
+bool _stillWaiting(String tab, Map r) => switch (tab) {
+      'Support' => r['needs_reply'] == true,
+      'Payouts' => r['status'] == 'requested' || r['status'] == 'processing',
+      _ => true,
+    };
+
+const _icons = <String, IconData>{
+  'KYC': Icons.badge_outlined, 'Photos': Icons.image_outlined, 'Intros': Icons.mic_none,
+  'Records': Icons.folder_outlined, 'Contracts': Icons.description_outlined, 'Inactive': Icons.bedtime_outlined,
+  'Reports': Icons.flag_outlined, 'Blocked accounts': Icons.shield_outlined, 'Blocks between people': Icons.block,
+  'Block history': Icons.history, 'Agreements': Icons.assignment_outlined, 'Locations': Icons.place_outlined,
+  'Support': Icons.chat_bubble_outline, 'Video': Icons.videocam_outlined, 'Meetings': Icons.groups_outlined,
+  'Call quality': Icons.network_check, 'App crashes': Icons.bug_report_outlined,
+  'Earnings': Icons.payments_outlined, 'Payouts': Icons.send_outlined, 'Invoices': Icons.receipt_long_outlined,
+  'Receipts': Icons.receipt_outlined, 'Refer and earn': Icons.people_outline, 'Missed charges': Icons.phone_missed_outlined,
+  'Admins': Icons.admin_panel_settings_outlined,
+};
 
 class AdminHome extends StatefulWidget {
   const AdminHome({super.key, required this.api, required this.onLogout});
@@ -528,39 +605,68 @@ Future<bool> _addAdmin(BuildContext c, Api api) async {
 }
 
 class _AdminHomeState extends State<AdminHome> {
-  List<_Spec> _tabs = _specs().where((s) => !_ownerTabs.contains(s.title)).toList(); // until we know this admin is the owner
-  int _i = 0;
+  bool _isOwner = false;
+  String? _tab; // null = the Overview screen
   int _reload = 0;
+  Map<String, int?> _counts = {};
+  Map? _money;
+  bool _loading = true;
+
+  bool _canSee(String title) => _isOwner || !_ownerTabs.contains(title);
+  _Spec _specFor(String title) => _specs().firstWhere((s) => s.title == title);
 
   @override
   void initState() {
     super.initState();
-    widget.api.adminGet('/admin/me').then((m) {
-      if (m is Map && m['isOwner'] == true && mounted) setState(() => _tabs = _specs());
-    }).catchError((_) {});
+    _load();
+  }
+
+  /// Reads who is logged in, the numbers for the tiles, and (for the owner) the money cards.
+  Future<void> _load() async {
+    if (mounted) setState(() => _loading = true);
+    try {
+      final m = await widget.api.adminGet('/admin/me');
+      if (m is Map && m['isOwner'] == true) _isOwner = true;
+    } catch (_) {}
+
+    final counts = <String, int?>{};
+    await Future.wait(_tiles.where(_canSee).map((t) async {
+      try {
+        final rows = await widget.api.adminGet(_countUrl[t]!) as List;
+        counts[t] = rows.where((r) => _stillWaiting(t, r as Map)).length;
+      } catch (_) {
+        counts[t] = null; // could not load: shown as a dash, never as zero
+      }
+    }));
+
+    Map? money;
+    if (_isOwner) {
+      try {
+        final rows = await widget.api.adminGet('/admin/earnings') as List;
+        money = rows.cast<Map>().firstWhere((r) => r['kind'] == 'summary', orElse: () => {});
+        if (money.isEmpty) money = null;
+      } catch (_) {}
+    }
+    if (mounted) setState(() { _counts = counts; _money = money; _loading = false; });
   }
 
   @override
   Widget build(BuildContext context) {
+    final onOverview = _tab == null;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Talkory Admin'),
-        actions: [IconButton(onPressed: widget.onLogout, icon: const Icon(Icons.logout), tooltip: 'Log out')],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(52),
-          child: SizedBox(
-            height: 52,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              itemCount: _tabs.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
-              itemBuilder: (_, i) => ChoiceChip(label: Text(_tabs[i].title), selected: i == _i, onSelected: (_) => setState(() => _i = i)),
-            ),
+        title: Text(onOverview ? 'Overview' : _tab!),
+        actions: [
+          IconButton(
+            onPressed: onOverview ? _load : () => setState(() => _reload++),
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh',
           ),
-        ),
+          IconButton(onPressed: widget.onLogout, icon: const Icon(Icons.logout), tooltip: 'Log out'),
+        ],
       ),
-      floatingActionButton: _tabs[_i].title == 'Admins'
+      drawer: _drawer(context),
+      floatingActionButton: _tab == 'Admins'
           ? FloatingActionButton.extended(
               onPressed: () async {
                 if (await _addAdmin(context, widget.api)) setState(() => _reload++);
@@ -568,7 +674,7 @@ class _AdminHomeState extends State<AdminHome> {
               icon: const Icon(Icons.person_add),
               label: const Text('Add admin'),
             )
-          : _tabs[_i].title == 'Meetings'
+          : _tab == 'Meetings'
           ? FloatingActionButton.extended(
               onPressed: () async {
                 if (await _newMeeting(context, widget.api)) setState(() => _reload++);
@@ -577,7 +683,167 @@ class _AdminHomeState extends State<AdminHome> {
               label: const Text('New meeting'),
             )
           : null,
-      body: _TabList(key: ValueKey('$_i-$_reload'), api: widget.api, spec: _tabs[_i], onChanged: () => setState(() => _reload++)),
+      body: onOverview
+          ? _overview(context)
+          : _TabList(key: ValueKey('$_tab-$_reload'), api: widget.api, spec: _specFor(_tab!), onChanged: () => setState(() => _reload++)),
+    );
+  }
+
+  /// The sidebar, same groups and order as the web panel.
+  Widget _drawer(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Drawer(
+      child: SafeArea(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 16, 12),
+              child: Row(children: [
+                CircleAvatar(backgroundColor: scheme.primaryContainer, child: Icon(Icons.graphic_eq, color: scheme.onPrimaryContainer)),
+                const SizedBox(width: 12),
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Text('Talkory', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text(_isOwner ? 'Owner panel' : 'Admin panel',
+                      style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+                ]),
+              ]),
+            ),
+            ListTile(
+              leading: const Icon(Icons.home_outlined),
+              title: const Text('Overview'),
+              selected: _tab == null,
+              onTap: () { Navigator.pop(context); setState(() => _tab = null); },
+            ),
+            for (final g in _groups.entries)
+              if (g.value.any(_canSee)) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 16, 4),
+                  child: Text(g.key.toUpperCase(),
+                      style: TextStyle(fontSize: 11, letterSpacing: 0.8, fontWeight: FontWeight.w700, color: scheme.onSurfaceVariant)),
+                ),
+                for (final t in g.value)
+                  if (_canSee(t))
+                    ListTile(
+                      dense: true,
+                      leading: Icon(_icons[t] ?? Icons.circle_outlined, size: 20),
+                      title: Text(t),
+                      trailing: (_counts[t] ?? 0) > 0
+                          ? Badge(label: Text('${_counts[t]}'), backgroundColor: scheme.error)
+                          : null,
+                      selected: _tab == t,
+                      onTap: () { Navigator.pop(context); setState(() => _tab = t); },
+                    ),
+              ],
+            const SizedBox(height: 24),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _overview(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    final shown = _tiles.where(_canSee).toList();
+    final waiting = shown.fold<int>(0, (a, t) => a + (_counts[t] ?? 0));
+
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Text('What needs your attention right now', style: TextStyle(color: scheme.onSurfaceVariant)),
+          const SizedBox(height: 16),
+
+          if (_money != null) ...[
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF7C4DFF), Color(0xFFE91E8C)],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                ),
+              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('Available to withdraw', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                const SizedBox(height: 6),
+                Text(_rs(_money!['available'] as num),
+                    style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold)),
+              ]),
+            ),
+            const SizedBox(height: 12),
+            Row(children: [
+              Expanded(child: _moneyCard(context, 'Today', _money!['today'] as num)),
+              const SizedBox(width: 12),
+              Expanded(child: _moneyCard(context, 'This month', _money!['month'] as num)),
+            ]),
+            const SizedBox(height: 24),
+          ],
+
+          Text(_loading ? 'Checking…' : waiting > 0 ? '$waiting waiting for you' : 'All caught up',
+              style: text.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12),
+
+          GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            childAspectRatio: 1.35,
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            children: [for (final t in shown) _tile(context, t)],
+          ),
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  Widget _moneyCard(BuildContext context, String label, num paise) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+        const SizedBox(height: 4),
+        Text(_rs(paise), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+      ]),
+    );
+  }
+
+  Widget _tile(BuildContext context, String title) {
+    final scheme = Theme.of(context).colorScheme;
+    final n = _counts[title];
+    final hot = (n ?? 0) > 0;
+    return InkWell(
+      onTap: () => setState(() => _tab = title),
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: scheme.surface,
+          border: Border.all(color: hot ? scheme.error : scheme.outlineVariant, width: hot ? 1.5 : 1),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          Row(children: [
+            Icon(_icons[title], size: 18, color: scheme.onSurfaceVariant),
+            const SizedBox(width: 8),
+            Expanded(child: Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
+          ]),
+          Text(_loading ? '…' : n == null ? '–' : '$n',
+              style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: hot ? scheme.error : null)),
+          Text(n == null && !_loading ? 'Could not load' : hot ? 'Review now' : 'All clear',
+              style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
+        ]),
+      ),
     );
   }
 }
