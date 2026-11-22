@@ -93,8 +93,10 @@ router.post('/:otherId', requireAuth(['user', 'partner']), sendLimit, async (req
       // the person who would have received it is the reporter, so it shows up in the admin Reports list
       await pool.query('INSERT INTO reports (reporter_id, reported_id, reason) VALUES ($1,$2,$3)', [req.params.otherId, req.auth.id, reason]).catch(() => {});
       if (req.auth.role === 'user') {
-        await pool.query('UPDATE accounts SET is_blocked=true WHERE id=$1', [req.auth.id]);
-        await redis.sadd('blocked', req.auth.id);
+        await require('./moderation').blockAccount(req.auth.id, {
+          reason,
+          note: `${STRIKES_TO_BLOCK} warnings for abusive words or sharing contact details in chat.`,
+        });
         await redis.del(key);
         return res.status(403).json({ error: 'Your account has been blocked for breaking the chat rules.' });
       }
@@ -160,7 +162,12 @@ router.post('/:otherId/report', requireAuth(['user', 'partner']), async (req, re
 
 router.post('/:otherId/block', requireAuth(['user', 'partner']), async (req, res) => {
   if (req.params.otherId === req.auth.id) return res.status(400).json({ error: 'invalid' });
-  await pool.query('INSERT INTO blocks (blocker_id, blocked_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [req.auth.id, req.params.otherId]);
+  // The reason is kept on the block itself, so the admin panel always has it even if the report above failed.
+  const reason = String(req.body.reason || '').trim().slice(0, 300) || null;
+  await pool.query(
+    `INSERT INTO blocks (blocker_id, blocked_id, reason) VALUES ($1,$2,$3)
+     ON CONFLICT (blocker_id, blocked_id) DO UPDATE SET reason = COALESCE(EXCLUDED.reason, blocks.reason)`,
+    [req.auth.id, req.params.otherId, reason]);
   res.json({ ok: true });
 });
 

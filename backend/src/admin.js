@@ -4,6 +4,7 @@ const { pool, redis, requireAuth } = require('./db');
 const { KYC_DIR } = require('./kyc');
 const { requireOwner } = require('./owner'); // earnings and withdrawals: owner only
 const { deleteAccount } = require('./account');
+const { blockAccount, unblockAccount } = require('./moderation');
 router.use(requireAuth(['admin']));
 
 router.get('/kyc', async (req, res) => {
@@ -82,16 +83,74 @@ router.get('/reports', async (req, res) => {
 // Resolve a report; optionally block the reported account (also takes a partner offline)
 router.post('/reports/:id/resolve', async (req, res) => {
   const r = await pool.query(
-    `UPDATE reports SET status='resolved', resolved_at=now() WHERE id=$1 AND status='open' RETURNING reported_id`,
+    `UPDATE reports SET status='resolved', resolved_at=now() WHERE id=$1 AND status='open' RETURNING reported_id, reason`,
     [req.params.id]);
   if (!r.rowCount) return res.status(409).json({ error: 'already resolved' });
   if (req.body.block) {
-    const id = r.rows[0].reported_id;
-    await pool.query('UPDATE accounts SET is_blocked=true WHERE id=$1', [id]);
-    await redis.sadd('blocked', id);
-    await pool.query('UPDATE partner_profiles SET is_online=false WHERE account_id=$1', [id]);
-    await redis.srem('partners:online', id);
+    const note = String(req.body.reason || '').trim().slice(0, 300);
+    await blockAccount(r.rows[0].reported_id, {
+      reason: `Report: ${r.rows[0].reason}${note ? ` | admin: ${note}` : ''}`,
+      note: note || 'Breaking the Talkory rules, after a report from another member.',
+      byAdmin: req.auth.id,
+    });
   }
+  res.json({ ok: true });
+});
+
+// ---- Blocked accounts: why each one was blocked, and putting them back
+router.get('/blocked', async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT a.id, a.display_name, a.phone, a.role, a.blocked_reason, a.blocked_note, a.blocked_at,
+            b.display_name AS by_admin,
+            (SELECT COUNT(*) FROM reports x WHERE x.reported_id=a.id) AS total_reports
+       FROM accounts a LEFT JOIN accounts b ON b.id=a.blocked_by
+      WHERE a.is_blocked AND a.deleted_at IS NULL AND a.role IN ('user','partner')
+      ORDER BY a.blocked_at DESC NULLS LAST LIMIT 200`);
+  res.json(rows.map((r) => ({ ...r, total_reports: Number(r.total_reports) })));
+});
+
+// Block by hand, with a reason. The reason is also what the person is told, so it is written for them to read.
+router.post('/accounts/:id/block', async (req, res) => {
+  const reason = String(req.body.reason || '').trim().slice(0, 300);
+  if (reason.length < 3) return res.status(400).json({ error: 'Type why this account is being blocked' });
+  const a = await blockAccount(req.params.id, { reason, note: reason, byAdmin: req.auth.id });
+  if (!a) return res.status(404).json({ error: 'No such user or host' });
+  res.json({ ok: true });
+});
+
+router.post('/accounts/:id/unblock', async (req, res) => {
+  const a = await unblockAccount(req.params.id, req.auth.id);
+  if (!a) return res.status(404).json({ error: 'This account is not blocked, or it was deleted' });
+  res.json({ ok: true });
+});
+
+// Every block and unblock, newest first
+router.get('/block-history', async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT e.id, e.action, e.reason, e.created_at, a.display_name, a.role, b.display_name AS by_admin
+       FROM block_events e JOIN accounts a ON a.id=e.account_id LEFT JOIN accounts b ON b.id=e.by_admin
+      ORDER BY e.id DESC LIMIT 200`);
+  res.json(rows);
+});
+
+// Users and hosts who have blocked each other, with the reason the blocker picked
+router.get('/people-blocks', async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT br.display_name AS blocker, br.role AS blocker_role, br.id AS blocker_id,
+            bd.display_name AS blocked, bd.role AS blocked_role, bd.id AS blocked_id,
+            b.reason, b.created_at
+       FROM blocks b JOIN accounts br ON br.id=b.blocker_id JOIN accounts bd ON bd.id=b.blocked_id
+      ORDER BY b.created_at DESC LIMIT 200`);
+  res.json(rows);
+});
+
+// Undo one person-to-person block, so the two can reach each other again
+router.post('/people-blocks/remove', async (req, res) => {
+  const { blockerId, blockedId } = req.body || {};
+  const uuid = (v) => /^[0-9a-f-]{36}$/i.test(String(v || ''));
+  if (!uuid(blockerId) || !uuid(blockedId)) return res.status(400).json({ error: 'invalid' });
+  const r = await pool.query('DELETE FROM blocks WHERE blocker_id=$1 AND blocked_id=$2', [blockerId, blockedId]);
+  if (!r.rowCount) return res.status(404).json({ error: 'That block is already gone' });
   res.json({ ok: true });
 });
 

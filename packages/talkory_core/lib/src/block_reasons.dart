@@ -7,24 +7,41 @@ const hostBlockReasons = [
   'Using vulgar words',
 ];
 
+/// The reasons a user can pick when blocking a host.
+const userBlockReasons = [
+  'Asked for personal details',
+  'Rude or harassing talk',
+  'Using vulgar words',
+  'Not the person in the photo',
+];
+
 const _hints = {
   'Asking personal details': 'Phone number, address, social media, money or other private questions',
   'Harassment talks': 'Pressure, threats, insults or repeated unwanted messages',
   'Using vulgar words': 'Dirty, abusive or sexual language',
+  'Asked for personal details': 'Wanted your number, address, social media or money',
+  'Rude or harassing talk': 'Pressure, threats, insults or repeated unwanted messages',
+  'Not the person in the photo': 'The voice did not match the profile',
 };
 
-/// Asks the host why they are blocking. Returns the chosen reason, or null if they cancelled.
-Future<String?> askBlockReason(BuildContext context, String name) {
+/// Asks why they are blocking. Returns the chosen reason, or null if they cancelled.
+/// [isUser] picks the wording and the reasons a user sees for blocking a host.
+Future<String?> askBlockReason(BuildContext context, String name, {bool isUser = false}) {
   String? chosen;
+  final reasons = isUser ? userBlockReasons : hostBlockReasons;
   return showDialog<String>(
     context: context,
     builder: (ctx) => StatefulBuilder(
       builder: (ctx, setS) => AlertDialog(
         title: Text('Block $name?'),
-        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Choose why. Our team will review it and this person will not reach you again.'),
+        // Scrollable: four reasons plus their hints do not fit a small screen in landscape.
+        content: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(isUser
+              ? 'Choose why. Our team will review it and you will not be connected again.'
+              : 'Choose why. Our team will review it and this person will not reach you again.'),
           const SizedBox(height: 8),
-          for (final r in hostBlockReasons)
+          for (final r in reasons)
             RadioListTile<String>(
               contentPadding: EdgeInsets.zero,
               dense: true,
@@ -35,6 +52,7 @@ Future<String?> askBlockReason(BuildContext context, String name) {
               onChanged: (v) => setS(() => chosen = v),
             ),
         ]),
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           FilledButton(

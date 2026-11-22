@@ -287,7 +287,7 @@ class Api {
   Future<void> rateCall(String callId, int stars, String comment) =>
       _send('POST', '/calls/$callId/rate', {'stars': stars, 'comment': comment});
   Future<void> reportCall(String callId, String reason) => _send('POST', '/calls/$callId/report', {'reason': reason});
-  Future<void> blockCall(String callId) => _send('POST', '/calls/$callId/block');
+  Future<void> blockCall(String callId, {String? reason}) => _send('POST', '/calls/$callId/block', {'reason': reason});
 
   /// {status, secondsLeft}: secondsLeft is null for the partner side.
   Future<Map<String, dynamic>> callStatus(String callId) async =>
@@ -370,7 +370,7 @@ class Api {
       Map<String, dynamic>.from(await _send('POST', '/chat/$otherId', {'body': body}));
 
   Future<void> reportChat(String otherId, String reason) => _send('POST', '/chat/$otherId/report', {'reason': reason});
-  Future<void> blockChat(String otherId) => _send('POST', '/chat/$otherId/block');
+  Future<void> blockChat(String otherId, {String? reason}) => _send('POST', '/chat/$otherId/block', {'reason': reason});
 
   // ---- customer support tickets (both apps)
   /// [{id, subject, status, customer_unread, updated_at, last_body}]

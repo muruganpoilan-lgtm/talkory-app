@@ -57,30 +57,14 @@ class _PostCallScreenState extends State<PostCallScreen> {
   }
 
   Future<void> _block() async {
-    if (!widget.canRate) {
-      // Host: pick one of three reasons; it is sent to the admin team as a report, then the user is blocked.
-      final reason = await askBlockReason(context, widget.peerName);
-      if (reason == null) return;
-      await _run(() async {
-        if (!_reported) { try { await widget.api.reportCall(widget.callId, reason); } catch (_) {} }
-        await widget.api.blockCall(widget.callId);
-      }, onOk: () => setState(() { _blocked = true; _reported = true; }), ok: '${widget.peerName} is blocked');
-      return;
-    }
-    final yes = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Block ${widget.peerName}?'),
-        content: const Text('You will not be connected with each other again.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Block')),
-        ],
-      ),
-    );
-    if (yes != true) return;
-    await _run(() => widget.api.blockCall(widget.callId),
-        onOk: () => setState(() => _blocked = true), ok: '${widget.peerName} is blocked');
+    // Both sides pick a reason: it is sent to the admin team as a report and kept on the block itself,
+    // so the admin panel always shows why this person was blocked. canRate is true only for the user.
+    final reason = await askBlockReason(context, widget.peerName, isUser: widget.canRate);
+    if (reason == null) return;
+    await _run(() async {
+      if (!_reported) { try { await widget.api.reportCall(widget.callId, reason); } catch (_) {} }
+      await widget.api.blockCall(widget.callId, reason: reason);
+    }, onOk: () => setState(() { _blocked = true; _reported = true; }), ok: '${widget.peerName} is blocked');
   }
 
   @override

@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const router = require('express').Router();
+const { blockedMessage } = require('./moderation');
 const { pool, redis, signToken } = require('./db');
 const sms = require('./sms');
 const { profanity, tooManyDigits, hasEmail } = require('./wordfilter');
@@ -71,7 +72,7 @@ router.post('/verify-otp', async (req, res) => {
   } else if (acc.role !== role) {
     return res.status(403).json({ error: `this number is registered as ${acc.role}` });
   }
-  if (acc.is_blocked) return res.status(403).json({ error: 'account blocked' });
+  if (acc.is_blocked) return res.status(403).json({ error: blockedMessage(acc) });
   if (acc.role !== 'admin' && acc.terms_version !== TERMS_VERSION) { // returning user, text changed (or pre-dates this feature)
     if (!acceptedTerms) return res.status(400).json({ error: 'Please accept the updated Terms and Privacy Policy' });
     await pool.query('UPDATE accounts SET terms_version=$1, terms_accepted_at=now() WHERE id=$2', [TERMS_VERSION, acc.id]);
@@ -102,7 +103,7 @@ router.post('/device-login', async (req, res) => {
     `SELECT a.* FROM accounts a JOIN trusted_devices d ON d.account_id=a.id
       WHERE a.phone=$1 AND d.token_hash=$2 AND a.deleted_at IS NULL`, [phone, hashToken(deviceToken)])).rows[0];
   if (!acc || acc.role !== role) return needOtp();
-  if (acc.is_blocked) return res.status(403).json({ error: 'account blocked' });
+  if (acc.is_blocked) return res.status(403).json({ error: blockedMessage(acc) });
   if (acc.terms_version !== TERMS_VERSION) return needOtp(); // terms changed: they must accept again, which happens with the OTP
   await pool.query('UPDATE trusted_devices SET last_used_at=now() WHERE token_hash=$1', [hashToken(deviceToken)]);
   res.json({ token: signToken(acc), account: { id: acc.id, role: acc.role, displayName: acc.display_name } });

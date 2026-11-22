@@ -320,33 +320,13 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _block() async {
-    if (!widget.isUser) {
-      // Host: pick one of three reasons; it is sent to the admin team as a report, then the user is blocked.
-      final reason = await askBlockReason(context, widget.otherName);
-      if (reason == null) return;
-      try {
-        try { await widget.api.reportChat(widget.otherId, reason); } catch (_) {} // the block still goes ahead if the report fails
-        await widget.api.blockChat(widget.otherId);
-        if (mounted) Navigator.of(context).pop();
-      } on ApiException catch (e) {
-        _toast(e.message);
-      }
-      return;
-    }
-    final yes = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Block ${widget.otherName}?'),
-        content: const Text('You will not see each other in chats or calls.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Block')),
-        ],
-      ),
-    );
-    if (yes != true) return;
+    // Both sides pick a reason: it is sent to the admin team as a report and kept on the block itself,
+    // so the admin panel always shows why this person was blocked.
+    final reason = await askBlockReason(context, widget.otherName, isUser: widget.isUser);
+    if (reason == null) return;
     try {
-      await widget.api.blockChat(widget.otherId);
+      try { await widget.api.reportChat(widget.otherId, reason); } catch (_) {} // the block still goes ahead if the report fails
+      await widget.api.blockChat(widget.otherId, reason: reason);
       if (mounted) Navigator.of(context).pop();
     } on ApiException catch (e) {
       _toast(e.message);

@@ -161,8 +161,12 @@ router.post('/:id/report', requireAuth(['user', 'partner']), async (req, res) =>
 
 router.post('/:id/block', requireAuth(['user', 'partner']), async (req, res) => {
   const c = await callFor(req, res); if (!c) return;
-  await pool.query('INSERT INTO blocks (blocker_id, blocked_id) VALUES ($1,$2) ON CONFLICT DO NOTHING',
-    [req.auth.id, otherParty(c, req.auth.id)]);
+  // The reason is kept on the block itself, so the admin panel always has it even if the report above failed.
+  const reason = String(req.body.reason || '').trim().slice(0, 300) || null;
+  await pool.query(
+    `INSERT INTO blocks (blocker_id, blocked_id, reason) VALUES ($1,$2,$3)
+     ON CONFLICT (blocker_id, blocked_id) DO UPDATE SET reason = COALESCE(EXCLUDED.reason, blocks.reason)`,
+    [req.auth.id, otherParty(c, req.auth.id), reason]);
   res.json({ ok: true });
 });
 
