@@ -27,9 +27,9 @@ async function leaderboard(partnerId, top = 10) {
 }
 
 // ---------- Weekly bonus for the top hosts, paid into their wallet every Monday just after midnight.
-// Rupees for 1st, 2nd, 3rd ... place. Empty list = no bonus. A host needs at least MIN_BONUS_HOURS of talk time to win.
-const WEEKLY_BONUS_RUPEES = [];
-const MIN_BONUS_HOURS = 5;
+// Rupees for 1st, 2nd, 3rd ... place. Empty list = no bonus. A host needs at least MIN_BONUS_HOURS of talk time that week to win.
+const WEEKLY_BONUS_RUPEES = [300, 200, 100];
+const MIN_BONUS_HOURS = 10;
 
 async function payWeeklyBonus() {
   if (!WEEKLY_BONUS_RUPEES.length) return;
