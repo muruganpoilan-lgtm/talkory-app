@@ -67,6 +67,7 @@ app.use('/admin/admins', require('./owner').router); // owner only: who is an ad
 app.use('/admin', require('./admin'));
 app.use('/panel', express.static(path.join(__dirname, '../admin'))); // admin web panel
 app.use('/chat', require('./chat').router);
+app.use('/gifts', require('./gifts').router);
 app.use('/support-tickets', tickets.router);
 app.use('/devices', require('./devices'));
 app.use('/partner/kyc', require('./kyc').router);

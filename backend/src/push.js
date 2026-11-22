@@ -82,6 +82,16 @@ async function notifyMessage(accountId, fromName) {
   })));
 }
 
+// A user sent a gift: a plain notification
+async function notifyGift(accountId, fromName, giftLabel) {
+  if (!enabled) return;
+  await Promise.all((await devicesOf(accountId)).map((d) => sendFcm(d, {
+    notification: { title: 'You got a gift 🎁', body: `${fromName} sent you ${giftLabel}` },
+    data: { type: 'chat_message' },
+    android: { priority: 'high' },
+  })));
+}
+
 // The Talkory team is video calling this person from the admin panel. A plain notification; tapping it opens the app, which then rings.
 async function notifyAdminVideoCall(accountId) {
   if (!enabled) return;
@@ -179,4 +189,4 @@ async function notifyMeeting(accountIds, { title, body }) {
   }
 }
 
-module.exports = { notifyIncomingCall, notifyCallCancelled, notifyMessage, notifyHostOnline, notifyBestFriendsOnline, notifyAdminVideoCall, notifyMeeting };
+module.exports = { notifyIncomingCall, notifyCallCancelled, notifyMessage, notifyGift, notifyHostOnline, notifyBestFriendsOnline, notifyAdminVideoCall, notifyMeeting };

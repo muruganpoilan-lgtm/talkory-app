@@ -29,7 +29,7 @@ router.get('/earnings', requireAuth(['partner']), async (req, res) => {
     pool.query(
       `SELECT COALESCE(SUM(amount),0) AS total,
               COALESCE(SUM(amount) FILTER (WHERE ${IST_DAY}),0) AS today
-         FROM ledger WHERE account_id=$1 AND type='call_earning'`, [id]),
+         FROM ledger WHERE account_id=$1 AND type IN ('call_earning','gift_earning')`, [id]),
     pool.query(
       `SELECT COALESCE(SUM(amount) FILTER (WHERE status='paid'),0) AS withdrawn,
               COALESCE(SUM(amount) FILTER (WHERE status IN ('requested','processing')),0) AS pending

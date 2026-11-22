@@ -107,6 +107,7 @@ class _WalletScreenState extends State<WalletScreen> {
     final (icon, title) = switch (kind) {
       'topup' => (Icons.add_circle_outline, 'Added coins'),
       'chat' => (Icons.chat_bubble_outline, 'Chat with ${it['counterpart']}'),
+      'gift' => (Icons.card_giftcard, 'Gift to ${it['counterpart']}'),
       'call' => (Icons.call_made, 'Call with ${it['counterpart']}'),
       'refund' => (Icons.undo, 'Refund'),
       _ => (Icons.tune, 'Adjustment'),

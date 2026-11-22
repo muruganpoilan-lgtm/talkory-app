@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'api.dart';
+import 'gift_sheet.dart';
 import 'ringer.dart';
 import 'widgets.dart';
 
@@ -21,6 +22,14 @@ class CallScreen extends StatefulWidget {
 }
 
 class _CallScreenState extends State<CallScreen> {
+  /// User app: open the gift shop over the call. The gift goes to the host on this call.
+  Future<void> _gift() async {
+    final r = await showGiftSheet(context, widget.api, callId: widget.session.callId, hostName: widget.peerName, onAddCoins: widget.onAddCredits);
+    if (r == null || !mounted) return;
+    final g = r['gift'] as Map;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${g['emoji']} ${g['name']} sent to ${widget.peerName}')));
+  }
+
   RtcEngine? _engine;
   Timer? _timer, _poll;
   int? _secondsLeft;
@@ -204,6 +213,15 @@ class _CallScreenState extends State<CallScreen> {
                       },
                       icon: Icon(_speaker ? Icons.volume_up : Icons.volume_down),
                     ),
+                    if (widget.onAddCredits != null) ...[
+                      const SizedBox(width: 32),
+                      IconButton.filledTonal(
+                        iconSize: 32,
+                        tooltip: 'Send a gift',
+                        onPressed: _gift,
+                        icon: Icon(Icons.card_giftcard, color: Colors.pink.shade400),
+                      ),
+                    ],
                     const SizedBox(width: 32),
                     IconButton.filled(
                       iconSize: 32,

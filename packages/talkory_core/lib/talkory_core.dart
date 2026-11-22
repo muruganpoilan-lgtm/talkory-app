@@ -18,3 +18,4 @@ export 'src/tier.dart';
 export 'src/splash.dart';
 export 'src/block_reasons.dart';
 export 'src/nickname_chips.dart';
+export 'src/gift_sheet.dart';

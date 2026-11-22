@@ -287,6 +287,11 @@ class Api {
   /// User app: "my screen is on" signal, every 20 s while open. This is what makes a user show as online to hosts.
   Future<void> userHeartbeat() async { await _send('POST', '/account/heartbeat'); }
   Future<List<String>> nicknameSuggestions() async => (((await _send('GET', '/partners/nickname-suggestions')) as List?) ?? []).map((e) => '$e').toList();
+  /// The gift shop: [{key, emoji, name, coins, hostCoins}]
+  Future<List<Map<String, dynamic>>> gifts() async => ((await _send('GET', '/gifts')) as List).map((e) => Map<String, dynamic>.from(e)).toList();
+  /// Sends a gift from a chat ([hostId]) or during a call ([callId]). Throws ApiException(402) when out of coins.
+  Future<Map<String, dynamic>> sendGift(String giftKey, {String? hostId, String? callId}) async =>
+      Map<String, dynamic>.from(await _send('POST', '/gifts/send', {'giftKey': giftKey, if (hostId != null) 'hostId': hostId, if (callId != null) 'callId': callId}));
   Future<void> setShowOnline(bool on) async { await _send('PUT', '/account/show-online', {'showOnline': on}); }
   /// Host app: users who have the app open now. Each: {id, name, busy}.
   Future<List<Map<String, dynamic>>> onlineUsers() async => ((await _send('GET', '/partners/online-users')) as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();

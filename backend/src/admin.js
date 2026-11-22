@@ -103,11 +103,11 @@ async function earningsNumbers(q) {
   const r = (await q.query(
     `SELECT COALESCE(-SUM(l.amount) FILTER (WHERE l.type IN ('call_debit','call_earning') AND NOT COALESCE(c.is_free, false)), 0)::bigint AS calls,
             COALESCE(-SUM(l.amount) FILTER (WHERE l.type = 'call_earning' AND COALESCE(c.is_free, false)), 0)::bigint AS free,
-            COALESCE(-SUM(l.amount) FILTER (WHERE l.type IN ('chat_debit','chat_earning')), 0)::bigint AS chats,
+            COALESCE(-SUM(l.amount) FILTER (WHERE l.type IN ('chat_debit','chat_earning','gift_debit','gift_earning')), 0)::bigint AS chats,
             COALESCE(-SUM(l.amount) FILTER (WHERE l.created_at >= date_trunc('day', now() AT TIME ZONE 'Asia/Kolkata') AT TIME ZONE 'Asia/Kolkata'), 0)::bigint AS today,
             COALESCE(-SUM(l.amount) FILTER (WHERE l.created_at >= date_trunc('month', now() AT TIME ZONE 'Asia/Kolkata') AT TIME ZONE 'Asia/Kolkata'), 0)::bigint AS month
        FROM ledger l LEFT JOIN calls c ON c.id = l.call_id
-      WHERE l.type IN ('call_debit','call_earning','chat_debit','chat_earning')`)).rows[0];
+      WHERE l.type IN ('call_debit','call_earning','chat_debit','chat_earning','gift_debit','gift_earning')`)).rows[0];
   const w = (await q.query('SELECT COALESCE(SUM(amount),0)::bigint AS n FROM admin_withdrawals')).rows[0].n;
   return { calls: Number(r.calls), free: Number(r.free), chats: Number(r.chats), today: Number(r.today), month: Number(r.month), withdrawn: Number(w) };
 }

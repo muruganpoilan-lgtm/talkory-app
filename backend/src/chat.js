@@ -71,7 +71,7 @@ router.get('/:otherId/messages', requireAuth(['user', 'partner']), async (req, r
   await pool.query(
     'UPDATE messages SET read_at=now() WHERE user_id=$1 AND partner_id=$2 AND sender_id<>$3 AND read_at IS NULL', [userId, partnerId, req.auth.id]);
   const { rows } = await pool.query(
-    `SELECT id, body, created_at, (sender_id = $3) AS mine FROM messages
+    `SELECT id, body, created_at, gift_key, (sender_id = $3) AS mine FROM messages
       WHERE user_id=$1 AND partner_id=$2 AND id > $4 ORDER BY id DESC LIMIT 100`, [userId, partnerId, req.auth.id, after]);
   res.json(rows.reverse());
 });

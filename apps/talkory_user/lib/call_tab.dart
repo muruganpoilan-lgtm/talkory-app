@@ -61,7 +61,7 @@ class _CallTabState extends State<CallTab> {
   }
 
   void _chat(Partner p) => Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => ChatScreen(api: widget.api, otherId: p.id, otherName: p.name, isUser: true),
+        builder: (_) => ChatScreen(api: widget.api, otherId: p.id, otherName: p.name, isUser: true, onAddCoins: widget.onWallet),
       )).then((_) => widget.onBalanceChanged());
 
   Future<List<Partner>> _load() => widget.api.listPartners(language: _language, query: _search.text.trim());

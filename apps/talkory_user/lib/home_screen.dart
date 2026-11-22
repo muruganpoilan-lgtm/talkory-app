@@ -184,7 +184,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           CallTab(api: widget.api, balance: _balance, onWallet: openWallet, onBalanceChanged: loadBalance, onLogout: widget.onLogout, preferredLanguage: _language),
           // Only build the chat inbox while it is selected so it reloads each time it is opened
           _tab == 1
-              ? ChatTab(api: widget.api, isUser: true, onBalanceChanged: () async { await loadBalance(); await _loadUnread(); }, onLogout: widget.onLogout)
+              ? ChatTab(api: widget.api, isUser: true, onAddCoins: openWallet, onBalanceChanged: () async { await loadBalance(); await _loadUnread(); }, onLogout: widget.onLogout)
               : const SizedBox.shrink(),
           ProfileTab(
             api: widget.api,

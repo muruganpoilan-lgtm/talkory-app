@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'api.dart';
 import 'block_reasons.dart';
 import 'call_screen.dart';
+import 'gift_sheet.dart';
 import 'post_call_screen.dart';
 import 'ringer.dart';
 import 'theme.dart';
@@ -38,7 +39,8 @@ Future<void> startHostCall(BuildContext context, Api api, String userId, String 
 
 /// Chat inbox, shared by both apps. [isUser] controls the hint text (users pay per message, hosts reply free).
 class ChatTab extends StatefulWidget {
-  const ChatTab({super.key, required this.api, required this.isUser, this.onBalanceChanged, this.onLogout});
+  const ChatTab({super.key, required this.api, required this.isUser, this.onBalanceChanged, this.onLogout, this.onAddCoins});
+  final VoidCallback? onAddCoins; // user app: opens the wallet (used by the gift shop)
   final Api api;
   final bool isUser;
   final Future<void> Function()? onBalanceChanged;
@@ -164,7 +166,7 @@ class _ChatTabState extends State<ChatTab> {
                             ]),
                             onTap: () async {
                               await Navigator.of(context).push(MaterialPageRoute(
-                                builder: (_) => ChatScreen(api: widget.api, otherId: t['id'] as String, otherName: t['name'] as String, isUser: widget.isUser),
+                                builder: (_) => ChatScreen(api: widget.api, otherId: t['id'] as String, otherName: t['name'] as String, isUser: widget.isUser, onAddCoins: widget.onAddCoins),
                               ));
                               widget.onBalanceChanged?.call();
                               _load();
@@ -181,7 +183,8 @@ class _ChatTabState extends State<ChatTab> {
 
 /// One conversation. Polls every 4 seconds while open.
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key, required this.api, required this.otherId, required this.otherName, required this.isUser});
+  const ChatScreen({super.key, required this.api, required this.otherId, required this.otherName, required this.isUser, this.onAddCoins});
+  final VoidCallback? onAddCoins;
   final Api api;
   final String otherId, otherName;
   final bool isUser;
@@ -258,6 +261,18 @@ class _ChatScreenState extends State<ChatScreen> {
         if (wasLoaded && add.any((m) => m['mine'] != true)) Ringer.instance.message();
       }
     } catch (_) {}
+  }
+
+  Future<void> _gift() async {
+    final r = await showGiftSheet(context, widget.api, hostId: widget.otherId, hostName: widget.otherName, onAddCoins: widget.onAddCoins);
+    if (r == null || !mounted) return;
+    final m = Map<String, dynamic>.from(r['message'] as Map);
+    setState(() {
+      if (!_msgs.any((x) => x['id'] == m['id'])) _msgs.add(m);
+      if (r['balance'] is int) _balance = r['balance'] as int;
+    });
+    _toBottom();
+    _toast('${(r['gift'] as Map)['emoji']} Gift sent to ${widget.otherName}');
   }
 
   Future<void> _send() async {
@@ -412,6 +427,13 @@ class _ChatScreenState extends State<ChatScreen> {
                       itemBuilder: (_, i) {
                         final m = _msgs[i];
                         final mine = m['mine'] == true;
+                        if (m['gift_key'] != null) {
+                          final body = (m['body'] as String).split(' ');
+                          return Align(
+                            alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+                            child: GiftBubble(emoji: body.first, name: body.skip(1).join(' '), mine: mine),
+                          );
+                        }
                         return Align(
                           alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
                           child: Container(
@@ -443,6 +465,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   decoration: InputDecoration(
                     hintText: 'Message',
                     counterText: '',
+                    suffixIcon: widget.isUser ? IconButton(onPressed: _gift, tooltip: 'Send a gift', icon: const Icon(Icons.card_giftcard, color: kRoyal)) : null,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(24)),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   ),
