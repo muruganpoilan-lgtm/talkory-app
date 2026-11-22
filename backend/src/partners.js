@@ -4,6 +4,9 @@ const push = require('./push');
 const contract = require('./contract');
 const tier = require('./tier');
 const { profanity, tooManyDigits, hasEmail } = require('./wordfilter');
+const billing = require('./billing');
+// the per-minute price this user pays (VIP users see their cheaper price on every host card)
+const priceFor = async (userId) => billing.rateFor({ is_vip: await billing.isVip(userId) });
 
 const LANGUAGES = ['Hindi', 'English', 'Tamil', 'Telugu', 'Bengali', 'Marathi', 'Odia', 'Bhojpuri', 'Malayalam', 'Kannada', 'Gujarati', 'Punjabi', 'Urdu', 'Assamese']; // keep in sync with kLanguages in talkory_core/api.dart
 const MIN_RATE = 5, MAX_RATE = 200; // rupees per minute
@@ -189,7 +192,8 @@ router.get('/best-friends', requireAuth(['user']), async (req, res) => {
         AND NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id=a.id AND b.blocked_id=$1) OR (b.blocker_id=$1 AND b.blocked_id=a.id))
       ORDER BY f.last_called DESC LIMIT 5`, [req.auth.id]);
   const busy = await Promise.all(rows.map((r) => redis.exists(`partner:busy:${r.id}`)));
-  res.json(rows.map((r, i) => ({ ...r, busy: !!busy[i] || r.manual_busy, verified: true })));
+  const price = await priceFor(req.auth.id);
+  res.json(rows.map((r, i) => ({ ...r, rate_per_min: price, busy: !!busy[i] || r.manual_busy, verified: true })));
 });
 
 // Browse partners (user app). Never returns phone numbers. By default only online hosts; ?all=1 also lists busy and offline hosts
@@ -199,7 +203,8 @@ router.get('/', requireAuth(['user']), async (req, res) => {
   const all = req.query.all === '1';
   const q = String(req.query.q || '').trim().slice(0, 40).replace(/[%_\\]/g, '\\$&'); // search by name; escape LIKE wildcards
   const { rows } = await pool.query(
-    `SELECT a.id, a.display_name, a.avatar_url, p.tagline, p.intro_url, p.bio, p.languages, p.rate_per_min, p.rating_avg, p.rating_count, p.is_online, p.manual_busy
+    `SELECT a.id, a.display_name, a.avatar_url, p.tagline, p.intro_url, p.bio, p.languages, p.rate_per_min, p.rating_avg, p.rating_count, p.is_online, p.manual_busy,
+            EXISTS (SELECT 1 FROM favourite_hosts f WHERE f.user_id=$2 AND f.host_id=a.id) AS favourite
        FROM partner_profiles p JOIN accounts a ON a.id = p.account_id
       WHERE ($4::boolean OR p.is_online) AND p.kyc='approved' AND NOT a.is_blocked AND a.deleted_at IS NULL
         AND ($1::text IS NULL OR $1 = ANY(p.languages))
@@ -210,13 +215,30 @@ router.get('/', requireAuth(['user']), async (req, res) => {
 
   const inCall = await Promise.all(rows.map((r) => redis.exists(`partner:busy:${r.id}`)));
   const rank = { online: 0, busy: 1, offline: 2 };
+  const price = await priceFor(req.auth.id);
   const out = rows.map((r, i) => {
     const status = !r.is_online ? 'offline' : (inCall[i] || r.manual_busy) ? 'busy' : 'online';
     const { is_online, manual_busy, ...rest } = r;
-    return { ...rest, status, busy: status === 'busy', verified: true }; // only KYC-approved hosts are listed
+    return { ...rest, rate_per_min: price, status, busy: status === 'busy', verified: true }; // only KYC-approved hosts are listed
   });
-  out.sort((x, y) => rank[x.status] - rank[y.status]); // stable: rating order kept inside each group
+  // online first, then busy, then offline; favourites first inside each group; rating order kept otherwise (stable sort)
+  out.sort((x, y) => rank[x.status] - rank[y.status] || (y.favourite === true) - (x.favourite === true));
   res.json(out);
+});
+
+// Heart button: mark or unmark a host as a favourite. { on: true | false }
+router.post('/:id/favourite', requireAuth(['user']), async (req, res) => {
+  if (!/^[0-9a-f-]{36}$/i.test(req.params.id)) return res.status(404).json({ error: 'not found' });
+  if (req.body.on === false) {
+    await pool.query('DELETE FROM favourite_hosts WHERE user_id=$1 AND host_id=$2', [req.auth.id, req.params.id]);
+    return res.json({ favourite: false });
+  }
+  const host = await pool.query(`SELECT 1 FROM accounts WHERE id=$1 AND role='partner' AND deleted_at IS NULL`, [req.params.id]);
+  if (!host.rowCount) return res.status(404).json({ error: 'not found' });
+  const n = (await pool.query('SELECT COUNT(*)::int AS n FROM favourite_hosts WHERE user_id=$1', [req.auth.id])).rows[0].n;
+  if (n >= 50) return res.status(400).json({ error: 'You can have up to 50 favourites' });
+  await pool.query('INSERT INTO favourite_hosts (user_id, host_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [req.auth.id, req.params.id]);
+  res.json({ favourite: true });
 });
 
 module.exports = router;

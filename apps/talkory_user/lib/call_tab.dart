@@ -231,7 +231,7 @@ class _CallTabState extends State<CallTab> {
                       );
                     }
                     final pair = it as List<Partner>;
-                    Widget cell(Partner h) => Expanded(child: HostCard(p: h, baseUrl: widget.api.baseUrl, onCall: () => _call(h), onChat: () => _chat(h)));
+                    Widget cell(Partner h) => Expanded(child: HostCard(p: h, baseUrl: widget.api.baseUrl, api: widget.api, onCall: () => _call(h), onChat: () => _chat(h)));
                     return Padding(
                       padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
                       child: IntrinsicHeight(
@@ -290,8 +290,9 @@ class _CallTabState extends State<CallTab> {
 }
 
 class HostCard extends StatelessWidget {
-  const HostCard({super.key, required this.p, required this.baseUrl, required this.onCall, required this.onChat});
+  const HostCard({super.key, required this.p, required this.baseUrl, required this.onCall, required this.onChat, this.api});
   final Partner p;
+  final Api? api; // for the heart (favourite) button
   final String baseUrl;
   final VoidCallback onCall, onChat;
 
@@ -369,8 +370,13 @@ class HostCard extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
           child: Row(children: [
-            Flexible(child: Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: kInk))),
-            if (p.verified) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.verified, size: 16, color: Colors.blue)),
+            Expanded(
+              child: Row(children: [
+                Flexible(child: Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: kInk))),
+                if (p.verified) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.verified, size: 16, color: Colors.blue)),
+              ]),
+            ),
+            if (api != null) FavouriteHeart(api: api!, p: p),
           ]),
         ),
         Padding(
@@ -419,6 +425,52 @@ class HostCard extends StatelessWidget {
           ]),
         ),
       ]),
+    );
+  }
+}
+
+/// Heart on a host card: tap to get an alert when this host comes online.
+class FavouriteHeart extends StatefulWidget {
+  const FavouriteHeart({super.key, required this.api, required this.p});
+  final Api api;
+  final Partner p;
+
+  @override
+  State<FavouriteHeart> createState() => _FavouriteHeartState();
+}
+
+class _FavouriteHeartState extends State<FavouriteHeart> {
+  bool _busy = false;
+
+  Future<void> _toggle() async {
+    if (_busy) return;
+    final on = !widget.p.favourite;
+    setState(() { _busy = true; widget.p.favourite = on; });
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await widget.api.setFavourite(widget.p.id, on);
+      messenger.showSnackBar(SnackBar(
+          duration: const Duration(seconds: 2),
+          content: Text(on ? "Added to favourites. We'll tell you when ${widget.p.name} is online." : 'Removed from favourites')));
+    } catch (e) {
+      if (mounted) setState(() => widget.p.favourite = !on);
+      messenger.showSnackBar(SnackBar(content: Text(e is ApiException ? e.message : 'Network error. Try again.')));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final on = widget.p.favourite;
+    return InkWell(
+      onTap: _toggle,
+      customBorder: const CircleBorder(),
+      child: Padding(
+        padding: const EdgeInsets.all(4),
+        child: Icon(on ? Icons.favorite : Icons.favorite_border, size: 22, color: on ? const Color(0xFFE53970) : Colors.grey.shade500,
+            semanticLabel: on ? 'Remove from favourites' : 'Add to favourites'),
+      ),
     );
   }
 }

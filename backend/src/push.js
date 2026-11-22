@@ -122,25 +122,33 @@ async function sendToTokens(tokens, message, label) {
   }
 }
 
-// A host just went online: tell the users who are their best friends: "Your best friend <name> is online!!"
+// Users who tapped the heart on this host
+const favouriteIds = async (hostId) => (await pool.query('SELECT user_id FROM favourite_hosts WHERE host_id=$1', [hostId])).rows.map((r) => r.user_id);
+
+// A host just went online: tell their best friends ("Your best friend <name> is online!!") and the users who made them a favourite
 async function notifyBestFriendsOnline(hostId, hostName) {
   if (!enabled) return;
-  const ids = await bestFriendIds(hostId);
-  if (!ids.length) return;
+  const friends = await bestFriendIds(hostId);
+  const favs = (await favouriteIds(hostId)).filter((id) => !friends.includes(id)); // best friends get only their own alert
   const first = String(hostName || 'Your friend').split(/\s+/)[0].slice(0, 30);
-  const { rows } = await pool.query('SELECT DISTINCT push_token FROM devices WHERE account_id = ANY($1)', [ids]);
-  await sendToTokens(rows.map((r) => r.push_token), {
-    notification: { title: `Your best friend ${first} is online!!` }, // one line only: no body text
-    data: { type: 'best_friend_online', hostId: String(hostId) },
-    android: { priority: 'high', ttl: 60 * 60 * 1000 },
-  }, 'best-friend-online');
+  const send = async (ids, title, label) => {
+    if (!ids.length) return;
+    const { rows } = await pool.query('SELECT DISTINCT push_token FROM devices WHERE account_id = ANY($1)', [ids]);
+    await sendToTokens(rows.map((r) => r.push_token), {
+      notification: { title }, // one line only: no body text
+      data: { type: 'best_friend_online', hostId: String(hostId) },
+      android: { priority: 'high', ttl: 60 * 60 * 1000 },
+    }, label);
+  };
+  await send(friends, `Your best friend ${first} is online!!`, 'best-friend-online');
+  await send(favs, `❤️ Your favourite ${first} is online now!`, 'favourite-online');
 }
 
 // A host just went online: tell every user's phone. Plain notification, no call data. (Best friends get their own, nicer alert instead.)
 async function notifyHostOnline(hostId, hostName) {
   if (!enabled) return;
   const first = String(hostName || 'A host').split(/\s+/)[0].slice(0, 30);
-  const friends = await bestFriendIds(hostId);
+  const friends = [...await bestFriendIds(hostId), ...await favouriteIds(hostId)]; // they already got the personal alert
   const { rows } = await pool.query(
     `SELECT DISTINCT d.push_token FROM devices d JOIN accounts a ON a.id=d.account_id
       WHERE a.role='user' AND a.id<>$1 AND NOT (a.id = ANY($2::uuid[])) LIMIT 20000`, [hostId, friends]);

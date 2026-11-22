@@ -55,8 +55,10 @@ class Partner {
         status = (j['status'] as String?) ?? (j['busy'] == true ? 'busy' : 'online'),
         avatarUrl = j['avatar_url'],
         introUrl = j['intro_url'],
-        verified = j['verified'] == true;
+        verified = j['verified'] == true,
+        favourite = j['favourite'] == true;
   final String id, name, bio, tagline;
+  bool favourite; // heart button: this user gets an alert when the host comes online
   final String? introUrl; // approved voice intro, path like /intros/abc.m4a
   final String? avatarUrl; // path like /avatars/abc.jpg, prefix with Api.baseUrl
   final List<String> languages;
@@ -155,6 +157,9 @@ class Api {
     final data = await _send('GET', '/partners/best-friends') as List;
     return data.map((e) => Partner.fromJson(e)).toList();
   }
+
+  /// Heart button on a host card.
+  Future<void> setFavourite(String partnerId, bool on) => _send('POST', '/partners/$partnerId/favourite', {'on': on});
 
   Future<CallSession> startCall(String partnerId) async =>
       CallSession.fromJson(await _send('POST', '/calls', {'partnerId': partnerId}));
