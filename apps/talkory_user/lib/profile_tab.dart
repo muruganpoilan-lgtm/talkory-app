@@ -212,7 +212,7 @@ class _ProfileTabState extends State<ProfileTab> {
           child: ListTile(
             leading: Icon(Icons.card_giftcard, color: Colors.pink.shade400),
             title: const Text('Refer and earn'),
-            subtitle: const Text('Share your code: 50 coins for every friend'),
+            subtitle: const Text('Share your code: 25 coins for every friend'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => ReferScreen(api: widget.api)),

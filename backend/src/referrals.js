@@ -6,7 +6,7 @@ const push = require('./push');
 // The friend gets FRIEND_COINS the moment they use a code. The person who shared it gets
 // REFERRER_COINS only when that friend first puts money in, so fake sign-ups earn nothing.
 // Change these two numbers to adjust the offer.
-const REFERRER_COINS = 50;
+const REFERRER_COINS = 25;
 const FRIEND_COINS = 25;
 const MAX_REFERRALS = 100; // how many friends one person can be paid for
 const JOIN_WINDOW_DAYS = 7; // a code can only be used in the first week after signing up

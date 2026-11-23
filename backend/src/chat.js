@@ -9,7 +9,7 @@ const wordfilter = require('./wordfilter');
 const STRIKES_TO_BLOCK = Number(process.env.CHAT_STRIKES_TO_BLOCK || 3);
 
 
-const MESSAGE_COST = Number(process.env.CHAT_COST_PAISE || 60); // paise = 0.6 coins, charged to the user for each message they send. Hosts reply free.
+const MESSAGE_COST = Number(process.env.CHAT_COST_PAISE || 30); // paise = 0.3 coins, charged to the user for each message they send. Hosts reply free.
 const HOST_EARN = Number(process.env.CHAT_HOST_EARN_PAISE || 50); // paise the host receives for each message; the rest (10 paise) stays with Talkory
 const MAX_LEN = 500;
 // "Best Friend" badge: shown once a user and a host have had more than this many answered calls together

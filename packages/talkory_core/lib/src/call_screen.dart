@@ -41,7 +41,7 @@ class _CallScreenState extends State<CallScreen> {
   RtcEngine? _engine;
   Timer? _timer, _poll, _grace;
   int? _secondsLeft;
-  bool _warned2 = false, _warned1 = false, _warnedFree = false; // vibration alerts already given (2 min, 1 min, free call 30s)
+  bool _warned2 = false, _warned1 = false, _warnedFree = false; // vibration alerts already given (2 min, 1 min, free call 10s)
   bool _host = false; // host app: the caller's balance decides the end, there is nothing to top up here
   int _seconds = 0;
   final DateTime _startedAt = DateTime.now(); // when this screen opened: connect time is measured from here
@@ -151,7 +151,7 @@ class _CallScreenState extends State<CallScreen> {
       }
       final left = s['secondsLeft'] as int?;
       final free = s['free'] == true;
-      if (free && left != null && left <= 30 && !_warnedFree) {
+      if (free && left != null && left <= 10 && !_warnedFree) {
         _warnedFree = true;
         _buzz(2); // free call: 30 seconds left
       }

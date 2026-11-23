@@ -12,7 +12,7 @@ import 'widgets.dart';
 
 final _hostCalling = <String>{};
 
-/// Host only: ring a user from anywhere (chat list or chat screen). The first call to a user in any 3 hours is free for 2 minutes,
+/// Host only: ring a user from anywhere (chat list or chat screen). A user's own free call is short and daily,
 /// then normal rates apply. Opens the call screen and, after a connected call, the post-call screen.
 Future<void> startHostCall(BuildContext context, Api api, String userId, String userName) async {
   if (!_hostCalling.add(userId)) return;
@@ -245,11 +245,18 @@ class _ChatScreenState extends State<ChatScreen> {
   String _freeText() {
     final f = _free;
     if (f == null) return '';
-    if (f['available'] == true) return 'Free call: your next call to this user is free for 2 minutes (you are still paid).';
+    final paid = 'Free call: your next call to this user is free for ${formatSeconds(f['seconds'])} (you are still paid).';
+    if (f['available'] == true) return paid;
+    final gift = f['gift'] as Map?;
     final next = DateTime.tryParse((f['nextAt'] as String?) ?? '')?.toLocal();
     if (next == null) return '';
     final left = next.difference(DateTime.now());
-    if (left.isNegative) return 'Free call: your next call to this user is free for 2 minutes (you are still paid).';
+    if (left.isNegative) return paid;
+    // Her own giveaway can still cover this call, and she earns nothing for it.
+    if (gift != null && gift['available'] == true) {
+      return 'This user has no free call left. You can give them ${formatSeconds(gift['seconds'])} free, '
+          'once every 3 hours. You are not paid for those minutes.';
+    }
     return 'This user already had a free call. Free again in ${left.inHours}h ${left.inMinutes % 60}m; normal rates until then.';
   }
 

@@ -16,8 +16,20 @@ String formatCoins(int paise) {
   return (paise / 100).toStringAsFixed(2);
 }
 
-/// What one chat message costs a user, in paise (0.6 coins). Keep in sync with MESSAGE_COST in backend/src/chat.js
-const kMessageCostPaise = 60;
+/// What one chat message costs a user, in paise (0.3 coins). Keep in sync with MESSAGE_COST in backend/src/chat.js
+const kMessageCostPaise = 30;
+
+/// How long each kind of free call runs. Keep in sync with backend/src/freecall.js.
+const kFreeSeconds = 30;      // the user's own free call
+const kHostFreeSeconds = 180; // what a host can give away
+
+/// Free-call lengths read well either way: 30 -> "30 seconds", 180 -> "3 minutes".
+String formatSeconds(dynamic seconds) {
+  final s = (seconds as num?)?.round() ?? 0;
+  if (s < 60) return '$s seconds';
+  final m = s / 60;
+  return '${m == m.roundToDouble() ? m.round() : m.toStringAsFixed(1)} minute${s == 60 ? '' : 's'}';
+}
 
 class ApiException implements Exception {
   ApiException(this.status, this.message);
@@ -352,7 +364,7 @@ class Api {
   Future<void> uploadIntro(String audioBase64) => _send('POST', '/partner/intro', {'audioBase64': audioBase64});
   Future<void> removeIntro() => _send('POST', '/partner/intro/remove');
 
-  // ---- chat. Users pay 0.6 coins per message they send; host replies are free.
+  // ---- chat. Users pay 0.3 coins per message they send; host replies are free.
   /// [{id (other person), name, avatar_url, last_body, last_at, unread}]
   Future<List<Map<String, dynamic>>> chatThreads() async =>
       (await _send('GET', '/chat/threads') as List).map((e) => Map<String, dynamic>.from(e)).toList();

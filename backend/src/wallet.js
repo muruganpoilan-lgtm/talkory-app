@@ -8,7 +8,7 @@ const MAX_RUPEES = 10000;
 // Coin packs: pay (rupees) -> coins credited. 1 coin = Rs 1; bigger packs give bonus coins.
 const PACKS = [
   { id: 'p100', pay: 100, coins: 100, tag: '' },
-  { id: 'p200', pay: 200, coins: 210, tag: '' },
+  { id: 'p200', pay: 200, coins: 220, tag: '' },
   { id: 'p500', pay: 500, coins: 560, tag: 'Popular' },
   { id: 'p1000', pay: 1000, coins: 1200, tag: 'Best value' },
 ];

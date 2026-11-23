@@ -4,7 +4,7 @@ const { pool, requireAuth } = require('./db');
 // Daily check-in: users collect free coins once a day (India time). Coming back on consecutive days builds a streak:
 // day 1..7 pay the amounts below, then the week starts again. Missing a day starts again from day 1.
 // Change the numbers here to adjust the reward (whole coins).
-const REWARDS = [1, 1, 2, 2, 3, 3, 8];
+const REWARDS = [1, 1, 2, 2, 3, 3, 7];
 
 const today = async (client) => (await client.query(`SELECT (now() AT TIME ZONE 'Asia/Kolkata')::date AS d`)).rows[0].d;
 

@@ -24,7 +24,7 @@ class _WalletScreenState extends State<WalletScreen> {
   // Coin packs come from the server (pay = rupees charged, coins = coins credited). These are used if the server cannot be reached.
   List<Map<String, dynamic>> _packs = [
     {'id': 'p100', 'pay': 100, 'coins': 100, 'tag': ''},
-    {'id': 'p200', 'pay': 200, 'coins': 210, 'tag': ''},
+    {'id': 'p200', 'pay': 200, 'coins': 220, 'tag': ''},
     {'id': 'p500', 'pay': 500, 'coins': 560, 'tag': 'Popular'},
     {'id': 'p1000', 'pay': 1000, 'coins': 1200, 'tag': 'Best value'},
   ];

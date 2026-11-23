@@ -1,8 +1,8 @@
 const { pool } = require('./db');
 
-const FREE_SECONDS = 120; // the user's own free call
+const FREE_SECONDS = Number(process.env.FREE_SECONDS || 30); // the user's own free call
 const HOST_FREE_SECONDS = Number(process.env.HOST_FREE_SECONDS || 180); // the minutes a host can give away
-const COOLDOWN_HOURS = Number(process.env.FREE_CALL_COOLDOWN_HOURS || 3); // one free call per user in this window
+const COOLDOWN_HOURS = Number(process.env.FREE_CALL_COOLDOWN_HOURS || 24); // one free call per user in this window
 const HOST_COOLDOWN_HOURS = Number(process.env.HOST_FREE_CALL_COOLDOWN_HOURS || 3); // one giveaway per host in this window
 
 /// How long this free call lasts. A host's giveaway is longer than the user's own free call.
