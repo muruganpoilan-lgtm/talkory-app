@@ -97,6 +97,15 @@ router.post('/reports/:id/resolve', async (req, res) => {
   res.json({ ok: true });
 });
 
+// A host's name is fixed at sign-up. This lets one host change hers once more, for a genuine mistake.
+router.post('/accounts/:id/unlock-name', async (req, res) => {
+  const r = await pool.query(
+    `UPDATE accounts SET name_locked=false WHERE id=$1 AND role='partner' AND deleted_at IS NULL RETURNING display_name`,
+    [req.params.id]);
+  if (!r.rowCount) return res.status(404).json({ error: 'No such host' });
+  res.json({ ok: true });
+});
+
 // ---- Blocked accounts: why each one was blocked, and putting them back
 router.get('/blocked', async (req, res) => {
   const { rows } = await pool.query(

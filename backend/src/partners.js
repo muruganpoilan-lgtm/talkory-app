@@ -83,11 +83,11 @@ router.get('/nickname-suggestions', async (req, res) => {
 
 router.get('/me', requireAuth(['partner']), async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT a.display_name, a.avatar_url, p.avatar_status, p.avatar_note, p.tagline, p.is_online, p.manual_busy, p.intro_url, p.intro_status, p.intro_note, p.bio, p.languages, p.rate_per_min, p.payout_share, p.kyc
+    `SELECT a.display_name, a.name_locked, a.avatar_url, p.avatar_status, p.avatar_note, p.tagline, p.is_online, p.manual_busy, p.intro_url, p.intro_status, p.intro_note, p.bio, p.languages, p.rate_per_min, p.payout_share, p.kyc
        FROM partner_profiles p JOIN accounts a ON a.id=p.account_id WHERE p.account_id=$1`, [req.auth.id]);
   const r = rows[0];
   res.json({
-    displayName: r.display_name, tagline: r.tagline || '', isOnline: r.is_online, status: !r.is_online ? 'offline' : r.manual_busy ? 'busy' : 'online', introUrl: r.intro_url, introStatus: r.intro_status, introNote: r.intro_note, bio: r.bio || '', languages: r.languages, rateRupees: r.rate_per_min / 100,
+    displayName: r.display_name, nameLocked: r.name_locked === true, tagline: r.tagline || '', isOnline: r.is_online, status: !r.is_online ? 'offline' : r.manual_busy ? 'busy' : 'online', introUrl: r.intro_url, introStatus: r.intro_status, introNote: r.intro_note, bio: r.bio || '', languages: r.languages, rateRupees: r.rate_per_min / 100,
     payoutShare: Number(r.payout_share), kyc: r.kyc, avatarUrl: r.avatar_url, avatarStatus: r.avatar_status, avatarNote: r.avatar_note, allLanguages: LANGUAGES, minRate: MIN_RATE, maxRate: MAX_RATE,
   });
 });
@@ -132,7 +132,10 @@ router.get('/weekly-tier', requireAuth(['partner']), async (req, res) => {
 });
 
 router.put('/me', requireAuth(['partner']), async (req, res) => {
-  const name = String(req.body.displayName || '').trim();
+  // A host picks her name at sign-up and keeps it. Older apps still send one: it is ignored, not refused,
+  // so the rest of her profile still saves.
+  const locked = (await pool.query('SELECT name_locked, display_name FROM accounts WHERE id=$1', [req.auth.id])).rows[0];
+  const name = locked.name_locked ? String(locked.display_name || '').trim() : String(req.body.displayName || '').trim();
   const bio = String(req.body.bio || '').trim();
   const tagline = String(req.body.tagline || '').trim();
   const langs = Array.isArray(req.body.languages) ? [...new Set(req.body.languages)] : [];
@@ -145,11 +148,11 @@ router.put('/me', requireAuth(['partner']), async (req, res) => {
   if (LEAKS.test(name) || LEAKS.test(bio) || LEAKS.test(tagline)) return bad('Please remove phone numbers, links and social handles');
   if (profanity(name) || profanity(bio) || profanity(tagline)) return bad('Please remove abusive words from your name, bio or tagline');
   if ([name, bio, tagline].some((x) => tooManyDigits(x) || hasEmail(x))) return bad('Phone numbers and emails are not allowed. Use up to 2 digits only.');
-  if (await nameTaken(name, req.auth.id)) return bad('That name is already taken. Please pick another one.');
+  if (!locked.name_locked && await nameTaken(name, req.auth.id)) return bad('That name is already taken. Please pick another one.');
   if (!langs.length || langs.length > 5 || langs.some((l) => !LANGUAGES.includes(l))) return bad('Choose 1 to 5 languages');
   // the call price is fixed for everyone (see billing.js), so the rate sent by the app is ignored
 
-  await pool.query('UPDATE accounts SET display_name=$1 WHERE id=$2', [name, req.auth.id]);
+  if (!locked.name_locked) await pool.query('UPDATE accounts SET display_name=$1, name_locked=true WHERE id=$2', [name, req.auth.id]);
   await pool.query('UPDATE partner_profiles SET bio=$1, languages=$2, tagline=$3 WHERE account_id=$4',
     [bio || null, langs, tagline || null, req.auth.id]);
   res.json({ ok: true });

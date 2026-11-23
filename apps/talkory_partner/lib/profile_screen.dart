@@ -140,12 +140,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ]),
                 ),
                 const SizedBox(height: 24),
-                TextField(
-                  controller: _name,
-                  maxLength: 30,
-                  decoration: const InputDecoration(labelText: 'Display name', helperText: 'Shown to callers instead of your number', border: OutlineInputBorder()),
-                ),
-                NicknameChips(api: widget.api, onPick: (n) => setState(() => _name.text = n)),
+                // The name is chosen once, when signing up, so it is shown but not editable afterwards.
+                if (_meta?['nameLocked'] == true)
+                  InputDecorator(
+                    decoration: const InputDecoration(
+                      labelText: 'Display name',
+                      helperText: 'Chosen when you joined. Write to support if this needs changing.',
+                      border: OutlineInputBorder(),
+                    ),
+                    child: Row(children: [
+                      Expanded(child: Text(_name.text, style: const TextStyle(fontSize: 16))),
+                      Icon(Icons.lock_outline, size: 18, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    ]),
+                  )
+                else ...[
+                  TextField(
+                    controller: _name,
+                    maxLength: 30,
+                    decoration: const InputDecoration(labelText: 'Display name', helperText: 'Shown to callers instead of your number. You can only set this once.', border: OutlineInputBorder()),
+                  ),
+                  NicknameChips(api: widget.api, onPick: (n) => setState(() => _name.text = n)),
+                ],
                 const SizedBox(height: 16),
                 TextField(
                   controller: _tagline,

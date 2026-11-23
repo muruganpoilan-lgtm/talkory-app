@@ -57,8 +57,10 @@ router.post('/verify-otp', async (req, res) => {
     try {
       await client.query('BEGIN');
       acc = (await client.query(
-        'INSERT INTO accounts (role, phone, display_name, is_adult, terms_version, terms_accepted_at) VALUES ($1,$2,$3,TRUE,$4,now()) RETURNING *',
-        [role, phone, displayName, TERMS_VERSION])).rows[0];
+        // A host's name is fixed from the moment she signs up: name_locked stops her changing it later.
+        `INSERT INTO accounts (role, phone, display_name, is_adult, terms_version, terms_accepted_at, name_locked)
+         VALUES ($1,$2,$3,TRUE,$4,now(),$5) RETURNING *`,
+        [role, phone, displayName, TERMS_VERSION, role === 'partner'])).rows[0];
       await client.query('INSERT INTO wallets (account_id) VALUES ($1)', [acc.id]);
       if (role === 'partner')
         await client.query('INSERT INTO partner_profiles (account_id, rate_per_min) VALUES ($1, 1000)', [acc.id]);
