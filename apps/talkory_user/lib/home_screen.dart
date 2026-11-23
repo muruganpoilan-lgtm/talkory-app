@@ -81,11 +81,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final c = await widget.api.hostCallIncoming();
       final id = c?['id'] as String?;
       if (id == null || !_seenCalls.add(id)) return;
-      await _showIncoming(id, (c?['partner_name'] as String?) ?? 'Host', c?['is_free'] == true);
+      // A host's own giveaway runs 3 minutes; the user's own free call runs 2.
+      await _showIncoming(id, (c?['partner_name'] as String?) ?? 'Host', c?['is_free'] == true,
+          c?['is_host_free'] == true ? 3 : 2);
     } catch (_) {}
   }
 
-  Future<void> _showIncoming(String callId, String hostName, bool free) async {
+  Future<void> _showIncoming(String callId, String hostName, bool free, [int freeMinutes = 2]) async {
     _ringing = true;
     Ringer.instance.startRing();
     HapticFeedback.vibrate();
@@ -99,7 +101,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       barrierDismissible: false,
       builder: (dctx) => AlertDialog(
         title: const Text('Incoming call'),
-        content: Text(free ? '$hostName is calling you.\nThis call is free for 2 minutes!' : '$hostName is calling you'),
+        content: Text(free ? '$hostName is calling you.\nThis call is free for $freeMinutes minutes!' : '$hostName is calling you'),
         actions: [
           TextButton(onPressed: () => Navigator.of(dctx).pop(false), child: const Text('Decline')),
           FilledButton(onPressed: () => Navigator.of(dctx).pop(true), child: const Text('Accept')),

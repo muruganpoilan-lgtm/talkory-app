@@ -5,23 +5,30 @@ const { pool, redis, requireAuth } = require('./db');
 const { billTick, rateFor, isVip } = require('./billing');
 const { finishCall } = require('./callctl');
 const { ringTimeout, scheduleTick } = require('./queue');
-const { freeStatus } = require('./freecall');
+const { freeStatus, hostFreeStatus } = require('./freecall');
 
-// A host calls a user they already chat with. Billing only begins when the user taps Accept. The first host call to a user in
-// any 3 hours is free for 2 minutes (the host is still paid by the platform); after that the user pays the normal rate.
+// A host calls a user they already chat with. Billing only begins when the user taps Accept.
+// Free minutes come in two kinds: the user's own 2 (once per user every 3 hours, the platform pays the host),
+// then the host's own 3 (once per host every 3 hours, she earns nothing for them). After that the user pays the normal rate.
 const CALL_MAX_SECONDS = 4 * 3600;
 const agoraToken = (channel, uid) =>
   RtcTokenBuilder.buildTokenWithUid(
     process.env.AGORA_APP_ID, process.env.AGORA_APP_CERT, channel, uid, RtcRole.PUBLISHER,
     CALL_MAX_SECONDS, CALL_MAX_SECONDS);
 
-// Can this user get a free 2-minute call from a host right now? (one per user every 3 hours)
+// What this call would cost: the user's own free 2 minutes if they have them, otherwise the host's
+// own 3-minute giveaway if she has one left (she earns nothing for those).
 router.get('/free-status', requireAuth(['partner']), async (req, res) => {
   const userId = String(req.query.userId || '');
   if (!/^[0-9a-f-]{36}$/i.test(userId)) return res.status(404).json({ error: 'not found' });
   const thread = await pool.query('SELECT 1 FROM messages WHERE user_id=$1 AND partner_id=$2 LIMIT 1', [userId, req.auth.id]);
   if (!thread.rowCount) return res.status(404).json({ error: 'not found' });
-  res.json(await freeStatus(userId));
+  const user = await freeStatus(userId);
+  const mine = await hostFreeStatus(req.auth.id);
+  res.json({
+    ...user, // kept as it was, so an older app still shows the right thing
+    gift: { ...mine, used: !user.available && mine.available }, // "used" = this call would spend her giveaway
+  });
 });
 
 // Host starts a call
@@ -52,7 +59,11 @@ router.post('/', requireAuth(['partner']), async (req, res) => {
 
   const vip = await isVip(userId);
   const minCost = Math.ceil((rateFor({ is_vip: vip }) * Number(process.env.MIN_CALL_SECONDS || 60)) / 60);
-  const free = (await freeStatus(userId)).available; // free 2-minute call, once per user every 3 hours; the platform pays the host
+  // The user's own free 2 minutes come first (the platform pays the host for those). If they are used up,
+  // the host may give away 3 minutes of her own, once every 3 hours, earning nothing for them.
+  const userFree = (await freeStatus(userId)).available;
+  const hostFree = userFree ? false : (await hostFreeStatus(req.auth.id)).available;
+  const free = userFree || hostFree;
   const w = await pool.query('SELECT balance FROM wallets WHERE account_id=$1', [userId]);
   if (!free && (!w.rows[0] || Number(w.rows[0].balance) < minCost)) return res.status(402).json({ error: 'user does not have enough coins for a call' });
 
@@ -65,8 +76,9 @@ router.post('/', requireAuth(['partner']), async (req, res) => {
 
   const channel = `call_${crypto.randomBytes(8).toString('hex')}`;
   const call = (await pool.query(
-    `INSERT INTO calls (user_id, partner_id, channel_name, rate_per_min, initiated_by, is_free, is_vip) VALUES ($1,$2,$3,$4,'partner',$5,$6) RETURNING *`,
-    [userId, req.auth.id, channel, rateFor({ is_vip: vip }), free, vip])).rows[0];
+    `INSERT INTO calls (user_id, partner_id, channel_name, rate_per_min, initiated_by, is_free, is_host_free, is_vip)
+     VALUES ($1,$2,$3,$4,'partner',$5,$6,$7) RETURNING *`,
+    [userId, req.auth.id, channel, rateFor({ is_vip: vip }), free, hostFree, vip])).rows[0];
   await ringTimeout(call.id);
 
   res.json({ callId: call.id, appId: process.env.AGORA_APP_ID, channel, token: agoraToken(channel, 2), uid: 2 });
@@ -75,7 +87,7 @@ router.post('/', requireAuth(['partner']), async (req, res) => {
 // User polls for a host ringing them
 router.get('/incoming', requireAuth(['user']), async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT c.id, c.is_free, a.display_name AS partner_name FROM calls c JOIN accounts a ON a.id = c.partner_id
+    `SELECT c.id, c.is_free, c.is_host_free, a.display_name AS partner_name FROM calls c JOIN accounts a ON a.id = c.partner_id
       WHERE c.user_id=$1 AND c.status='ringing' AND c.initiated_by='partner' AND c.created_at > now() - interval '25 seconds'
       ORDER BY c.created_at DESC LIMIT 1`, [req.auth.id]);
   res.json(rows[0] || null);

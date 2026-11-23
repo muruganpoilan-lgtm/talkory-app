@@ -1,7 +1,7 @@
 const { pool, redis } = require('./db');
 
 const TICK_SECONDS = 15;
-const FREE_SECONDS = 120; // keep equal to freecall.js
+const { freeSecondsFor } = require('./freecall'); // how long a free call runs: 2 min for the user's own, 3 for a host's giveaway
 
 // Fixed pricing for every call: the caller pays CALL_RATE_PAISE per minute, the host earns CALL_HOST_PAISE per minute,
 // Talkory keeps the difference (1000 / 600 / 400 paise = Rs 10 / Rs 6 / Rs 4, so 10 minutes = 100 coins). Charged exactly per minute, even though billing runs every 15 seconds.
@@ -41,11 +41,19 @@ async function billTick(call, tickNo) {
   const amount = upTo(rate, tickNo) - upTo(rate, tickNo - 1);
   const share = Math.min(amount, upTo(CALL_HOST, tickNo) - upTo(CALL_HOST, tickNo - 1));
 
-  if (call.is_free && tickNo * TICK_SECONDS > FREE_SECONDS) return false; // free minutes are used up: end the call
+  if (call.is_free && tickNo * TICK_SECONDS > freeSecondsFor(call)) return false; // free minutes are used up: end the call
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    if (call.is_host_free) {
+      // The host is giving these minutes away: nobody is charged and nobody earns.
+      // The counter only moves from its expected value, so a retried tick changes nothing.
+      await client.query('UPDATE calls SET billed_seconds = billed_seconds + $1 WHERE id=$2 AND billed_seconds = $3',
+        [TICK_SECONDS, call.id, (tickNo - 1) * TICK_SECONDS]);
+      await client.query('COMMIT');
+      return true;
+    }
     if (call.is_free) { // user pays nothing, the host is still paid
       const earn = await client.query(
         `INSERT INTO ledger (account_id, type, amount, call_id, idem_key) VALUES ($1,'call_earning',$2,$3,$4)

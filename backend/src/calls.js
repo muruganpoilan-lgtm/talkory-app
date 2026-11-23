@@ -6,7 +6,7 @@ const { billTick, TICK_SECONDS, rateFor, isVip } = require('./billing');
 const push = require('./push');
 const { finishCall } = require('./callctl');
 const { ringTimeout, scheduleTick } = require('./queue');
-const { FREE_SECONDS } = require('./freecall');
+const { FREE_SECONDS, freeSecondsFor } = require('./freecall');
 
 const CALL_MAX_SECONDS = 4 * 3600; // token + privilege lifetime, also the partner busy-lock lifetime
 const agoraToken = (channel, uid) =>
@@ -107,7 +107,7 @@ router.get('/:id/status', requireAuth(['user', 'partner']), async (req, res) => 
     await redis.set(`call:hb:${c.id}`, 1, 'EX', 40);
     await redis.set(`call:hb:${c.id}:${req.auth.id}`, Date.now(), 'EX', 300); // per side, so each phone can tell whether the other app is still alive
   }
-  if (c.status === 'active' && c.is_free) secondsLeft = Math.max(0, FREE_SECONDS - c.billed_seconds); // both sides see the free time left
+  if (c.status === 'active' && c.is_free) secondsLeft = Math.max(0, freeSecondsFor(c) - c.billed_seconds); // both sides see the free time left
   else if (c.status === 'active') { // the user's balance decides when the call ends: the host sees the same countdown
     const w = await pool.query('SELECT balance FROM wallets WHERE account_id=$1', [c.user_id]);
     const tickCost = Math.ceil((rateFor(c) * TICK_SECONDS) / 60);

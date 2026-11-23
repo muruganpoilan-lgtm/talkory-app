@@ -19,6 +19,27 @@ Future<void> startHostCall(BuildContext context, Api api, String userId, String 
   final nav = Navigator.of(context);
   final messenger = ScaffoldMessenger.of(context);
   try {
+    // If this call would spend her own free minutes, say so first: she earns nothing for them.
+    try {
+      final s = await api.hostFreeStatus(userId);
+      final gift = s['gift'] as Map?;
+      if (gift != null && gift['used'] == true && context.mounted) {
+        final mins = ((gift['seconds'] as num?) ?? 180) ~/ 60;
+        final yes = await showDialog<bool>(
+          context: context,
+          builder: (d) => AlertDialog(
+            title: Text('Give $userName $mins free minutes?'),
+            content: Text('$userName has no free call left, so this would use your own free call. '
+                'You will not earn for these $mins minutes. You get one every 3 hours.'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Cancel')),
+              FilledButton(onPressed: () => Navigator.pop(d, true), child: const Text('Give $mins minutes')),
+            ],
+          ),
+        );
+        if (yes != true) return;
+      }
+    } catch (_) {} // could not check: ring anyway, the server decides what the call costs
     final session = await api.hostCall(userId);
     final connected = await nav.push<bool>(
       MaterialPageRoute(builder: (_) => CallScreen(api: api, session: session, peerName: userName, peerFemale: false)),

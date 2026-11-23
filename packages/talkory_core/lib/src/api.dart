@@ -194,7 +194,8 @@ class Api {
 
   Future<void> rejectHostCall(String id) => _send('POST', '/host-calls/$id/reject');
 
-  /// Host side: {available, seconds, nextAt} for the free 2-minute call to this user.
+  /// Host side: {available, seconds, nextAt} for the user's own free 2 minutes, plus
+  /// gift: {available, seconds, nextAt, used} for the host's own 3-minute giveaway.
   Future<Map<String, dynamic>> hostFreeStatus(String userId) async =>
       Map<String, dynamic>.from(await _send('GET', '/host-calls/free-status?userId=$userId'));
 
