@@ -29,8 +29,8 @@ Future<void> startHostCall(BuildContext context, Api api, String userId, String 
           context: context,
           builder: (d) => AlertDialog(
             title: Text('Give $userName $mins free minutes?'),
-            content: Text('$userName has no free call left, so this would use your own free call. '
-                'You will not earn for these $mins minutes. You get one every 3 hours.'),
+            content: Text('This would use your own free call. You will not earn for these $mins minutes. '
+                'You get one every 3 hours.'),
             actions: [
               TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Cancel')),
               FilledButton(onPressed: () => Navigator.pop(d, true), child: const Text('Give $mins minutes')),
@@ -245,19 +245,22 @@ class _ChatScreenState extends State<ChatScreen> {
   String _freeText() {
     final f = _free;
     if (f == null) return '';
-    final paid = 'Free call: your next call to this user is free for ${formatSeconds(f['seconds'])}. You are not paid for it.';
-    if (f['available'] == true) return paid;
+    // The user's own free call may be switched off entirely, so her giveaway is what usually counts.
+    if (f['available'] == true) {
+      return 'Free call: your next call to this user is free for ${formatSeconds(f['seconds'])}. You are not paid for it.';
+    }
     final gift = f['gift'] as Map?;
-    final next = DateTime.tryParse((f['nextAt'] as String?) ?? '')?.toLocal();
+    if (gift == null) return '';
+    if (gift['available'] == true) {
+      return 'You can give this user ${formatSeconds(gift['seconds'])} free, once every 3 hours. '
+          'You are not paid for those minutes.';
+    }
+    final next = DateTime.tryParse((gift['nextAt'] as String?) ?? '')?.toLocal();
     if (next == null) return '';
     final left = next.difference(DateTime.now());
-    if (left.isNegative) return paid;
-    // Her own giveaway can still cover this call, and she earns nothing for it.
-    if (gift != null && gift['available'] == true) {
-      return 'This user has no free call left. You can give them ${formatSeconds(gift['seconds'])} free, '
-          'once every 3 hours. You are not paid for those minutes.';
-    }
-    return 'This user already had a free call. Free again in ${left.inHours}h ${left.inMinutes % 60}m; normal rates until then.';
+    if (left.isNegative) return '';
+    return 'You have used your free minutes. You can give more in ${left.inHours}h ${left.inMinutes % 60}m; '
+        'normal rates until then.';
   }
 
   @override

@@ -1,6 +1,6 @@
 const { pool } = require('./db');
 
-const FREE_SECONDS = Number(process.env.FREE_SECONDS || 30); // the user's own free call
+const FREE_SECONDS = Number(process.env.FREE_SECONDS || 0); // the user's own free call: 0 switches it off
 const HOST_FREE_SECONDS = Number(process.env.HOST_FREE_SECONDS || 180); // the minutes a host can give away
 const COOLDOWN_HOURS = Number(process.env.FREE_CALL_COOLDOWN_HOURS || 24); // one free call per user in this window
 const HOST_COOLDOWN_HOURS = Number(process.env.HOST_FREE_CALL_COOLDOWN_HOURS || 3); // one giveaway per host in this window
@@ -21,8 +21,9 @@ async function lastFreeAt(column, id, hours, hostGift) {
 
 const after = (at, hours) => new Date(new Date(at).getTime() + hours * 3600 * 1000).toISOString();
 
-// One free call per user a day. Nobody is charged and nobody earns for it.
+// The user's own free call, when FREE_SECONDS switches it on. Nobody is charged and nobody earns for it.
 async function freeStatus(userId) {
+  if (FREE_SECONDS <= 0) return { available: false, seconds: 0, nextAt: null, off: true };
   const at = await lastFreeAt('user_id', userId, COOLDOWN_HOURS, false);
   return at
     ? { available: false, seconds: FREE_SECONDS, nextAt: after(at, COOLDOWN_HOURS) }

@@ -6,7 +6,7 @@ const { billTick, TICK_SECONDS, rateFor, isVip } = require('./billing');
 const push = require('./push');
 const { finishCall } = require('./callctl');
 const { ringTimeout, scheduleTick } = require('./queue');
-const { FREE_SECONDS, freeSecondsFor } = require('./freecall');
+const { freeSecondsFor } = require('./freecall');
 
 const CALL_MAX_SECONDS = 4 * 3600; // token + privilege lifetime, also the partner busy-lock lifetime
 const agoraToken = (channel, uid) =>

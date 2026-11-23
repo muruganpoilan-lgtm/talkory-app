@@ -5,7 +5,7 @@ const { pool, redis, requireAuth } = require('./db');
 const { billTick, rateFor, isVip } = require('./billing');
 const { finishCall } = require('./callctl');
 const { ringTimeout, scheduleTick } = require('./queue');
-const { freeStatus, hostFreeStatus } = require('./freecall');
+const { freeStatus, hostFreeStatus, freeSecondsFor } = require('./freecall');
 
 // A host calls a user they already chat with. Billing only begins when the user taps Accept.
 // Free minutes come in two kinds: the user's own short daily one, then the host's own longer giveaway
@@ -59,8 +59,8 @@ router.post('/', requireAuth(['partner']), async (req, res) => {
 
   const vip = await isVip(userId);
   const minCost = Math.ceil((rateFor({ is_vip: vip }) * Number(process.env.MIN_CALL_SECONDS || 60)) / 60);
-  // The user's own free call comes first. If it is used up, the host may give away her own longer one,
-  // once every 3 hours. Neither earns her anything.
+  // The user's own free call comes first where it is switched on (FREE_SECONDS); it is off by default,
+  // so in practice the host's own giveaway is what makes a call free. Neither earns her anything.
   const userFree = (await freeStatus(userId)).available;
   const hostFree = userFree ? false : (await hostFreeStatus(req.auth.id)).available;
   const free = userFree || hostFree;
@@ -90,7 +90,8 @@ router.get('/incoming', requireAuth(['user']), async (req, res) => {
     `SELECT c.id, c.is_free, c.is_host_free, a.display_name AS partner_name FROM calls c JOIN accounts a ON a.id = c.partner_id
       WHERE c.user_id=$1 AND c.status='ringing' AND c.initiated_by='partner' AND c.created_at > now() - interval '25 seconds'
       ORDER BY c.created_at DESC LIMIT 1`, [req.auth.id]);
-  res.json(rows[0] || null);
+  const c = rows[0];
+  res.json(c ? { ...c, free_seconds: c.is_free ? freeSecondsFor(c) : 0 } : null);
 });
 
 // User accepts -> billing starts

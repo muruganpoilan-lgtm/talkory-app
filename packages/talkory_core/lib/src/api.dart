@@ -19,10 +19,6 @@ String formatCoins(int paise) {
 /// What one chat message costs a user, in paise (0.3 coins). Keep in sync with MESSAGE_COST in backend/src/chat.js
 const kMessageCostPaise = 30;
 
-/// How long each kind of free call runs. Keep in sync with backend/src/freecall.js.
-const kFreeSeconds = 30;      // the user's own free call
-const kHostFreeSeconds = 180; // what a host can give away
-
 /// Free-call lengths read well either way: 30 -> "30 seconds", 180 -> "3 minutes".
 String formatSeconds(dynamic seconds) {
   final s = (seconds as num?)?.round() ?? 0;
