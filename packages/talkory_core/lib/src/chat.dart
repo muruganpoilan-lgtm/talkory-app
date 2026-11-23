@@ -245,7 +245,7 @@ class _ChatScreenState extends State<ChatScreen> {
   String _freeText() {
     final f = _free;
     if (f == null) return '';
-    final paid = 'Free call: your next call to this user is free for ${formatSeconds(f['seconds'])} (you are still paid).';
+    final paid = 'Free call: your next call to this user is free for ${formatSeconds(f['seconds'])}. You are not paid for it.';
     if (f['available'] == true) return paid;
     final gift = f['gift'] as Map?;
     final next = DateTime.tryParse((f['nextAt'] as String?) ?? '')?.toLocal();

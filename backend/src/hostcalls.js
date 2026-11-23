@@ -8,8 +8,8 @@ const { ringTimeout, scheduleTick } = require('./queue');
 const { freeStatus, hostFreeStatus } = require('./freecall');
 
 // A host calls a user they already chat with. Billing only begins when the user taps Accept.
-// Free minutes come in two kinds: the user's own 2 (once per user every 3 hours, the platform pays the host),
-// then the host's own 3 (once per host every 3 hours, she earns nothing for them). After that the user pays the normal rate.
+// Free minutes come in two kinds: the user's own short daily one, then the host's own longer giveaway
+// (once per host every 3 hours). No money moves on either: the user pays nothing and the host earns nothing.
 const CALL_MAX_SECONDS = 4 * 3600;
 const agoraToken = (channel, uid) =>
   RtcTokenBuilder.buildTokenWithUid(
@@ -59,8 +59,8 @@ router.post('/', requireAuth(['partner']), async (req, res) => {
 
   const vip = await isVip(userId);
   const minCost = Math.ceil((rateFor({ is_vip: vip }) * Number(process.env.MIN_CALL_SECONDS || 60)) / 60);
-  // The user's own free 2 minutes come first (the platform pays the host for those). If they are used up,
-  // the host may give away 3 minutes of her own, once every 3 hours, earning nothing for them.
+  // The user's own free call comes first. If it is used up, the host may give away her own longer one,
+  // once every 3 hours. Neither earns her anything.
   const userFree = (await freeStatus(userId)).available;
   const hostFree = userFree ? false : (await hostFreeStatus(req.auth.id)).available;
   const free = userFree || hostFree;

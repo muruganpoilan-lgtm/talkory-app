@@ -21,7 +21,7 @@ async function lastFreeAt(column, id, hours, hostGift) {
 
 const after = (at, hours) => new Date(new Date(at).getTime() + hours * 3600 * 1000).toISOString();
 
-// One free call per user every 3 hours. The host is paid for these by the platform.
+// One free call per user a day. Nobody is charged and nobody earns for it.
 async function freeStatus(userId) {
   const at = await lastFreeAt('user_id', userId, COOLDOWN_HOURS, false);
   return at

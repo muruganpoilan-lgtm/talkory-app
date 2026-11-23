@@ -46,22 +46,12 @@ async function billTick(call, tickNo) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    if (call.is_host_free) {
-      // The host is giving these minutes away: nobody is charged and nobody earns.
-      // The counter only moves from its expected value, so a retried tick changes nothing.
+    if (call.is_free) {
+      // A free call moves no money at all: the user is not charged, the host earns nothing,
+      // and Talkory pays nothing. Only the clock advances.
+      // The counter moves only from its expected value, so a retried tick changes nothing.
       await client.query('UPDATE calls SET billed_seconds = billed_seconds + $1 WHERE id=$2 AND billed_seconds = $3',
         [TICK_SECONDS, call.id, (tickNo - 1) * TICK_SECONDS]);
-      await client.query('COMMIT');
-      return true;
-    }
-    if (call.is_free) { // user pays nothing, the host is still paid
-      const earn = await client.query(
-        `INSERT INTO ledger (account_id, type, amount, call_id, idem_key) VALUES ($1,'call_earning',$2,$3,$4)
-         ON CONFLICT (idem_key) DO NOTHING RETURNING id`,
-        [call.partner_id, share, call.id, `call:${call.id}:earn:${tickNo}`]);
-      if (!earn.rowCount) { await client.query('ROLLBACK'); return true; }
-      await client.query('UPDATE wallets SET balance = balance + $1, updated_at = now() WHERE account_id=$2', [share, call.partner_id]);
-      await client.query('UPDATE calls SET billed_seconds = billed_seconds + $1 WHERE id=$2', [TICK_SECONDS, call.id]);
       await client.query('COMMIT');
       return true;
     }
