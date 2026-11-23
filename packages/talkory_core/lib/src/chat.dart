@@ -33,7 +33,7 @@ Future<void> startHostCall(BuildContext context, Api api, String userId, String 
                 'You get one every 3 hours.'),
             actions: [
               TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Cancel')),
-              FilledButton(onPressed: () => Navigator.pop(d, true), child: const Text('Give $mins minutes')),
+              FilledButton(onPressed: () => Navigator.pop(d, true), child: Text('Give $mins minutes')),
             ],
           ),
         );
