@@ -20,7 +20,8 @@ const queue = new Queue('calls', {
   defaultJobOptions: { removeOnComplete: true, removeOnFail: 200, attempts: 3, backoff: { type: 'exponential', delay: 1000 } },
 });
 
-const ringTimeout = (callId) => queue.add('ring-timeout', { callId }, { delay: RING_TIMEOUT_MS, jobId: `ring-${callId}` });
+const ringTimeout = (callId, ms = RING_TIMEOUT_MS) =>
+  queue.add('ring-timeout', { callId }, { delay: ms, jobId: `ring-${callId}` });
 const scheduleTick = (callId, tick, delay = TICK_SECONDS * 1000) =>
   queue.add('bill-tick', { callId, tick }, { delay, jobId: `tick-${callId}-${tick}` });
 

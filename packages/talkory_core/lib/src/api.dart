@@ -49,6 +49,25 @@ class CallSession {
       );
 }
 
+/// One host found by Random Call, with the call already ringing on their phone.
+class RandomMatch {
+  RandomMatch({required this.session, required this.partnerId, required this.partnerName, this.avatarUrl, this.tagline = '', this.ringSeconds = 15});
+  final CallSession session;
+  final String partnerId, partnerName;
+  final String? avatarUrl;
+  final String tagline;
+  final int ringSeconds;
+
+  factory RandomMatch.fromJson(Map<String, dynamic> j) => RandomMatch(
+        session: CallSession.fromJson(j),
+        partnerId: j['partnerId'] as String,
+        partnerName: (j['partnerName'] ?? 'Someone') as String,
+        avatarUrl: j['avatarUrl'] as String?,
+        tagline: (j['tagline'] ?? '') as String,
+        ringSeconds: (j['ringSeconds'] ?? 15) as int,
+      );
+}
+
 class Partner {
   Partner.fromJson(Map<String, dynamic> j)
       : id = j['id'],
@@ -184,6 +203,14 @@ class Api {
 
   Future<CallSession> startCall(String partnerId) async =>
       CallSession.fromJson(await _send('POST', '/calls', {'partnerId': partnerId}));
+
+  /// Random Call: ring whichever host is free. Pass the hosts already tried in this search so
+  /// a no-answer moves on instead of ringing the same person again. Null = nobody is free.
+  Future<RandomMatch?> startRandomCall({List<String> exclude = const []}) async {
+    final j = Map<String, dynamic>.from(await _send('POST', '/calls/random', {'exclude': exclude}) as Map);
+    if (j['none'] == true) return null;
+    return RandomMatch.fromJson(j);
+  }
 
   /// {available: bool, seconds: 120, nextAt: ISO time or null}: the free 2-minute call (one every 3 hours)
   Future<Map<String, dynamic>> freeCallStatus() async => Map<String, dynamic>.from(await _send('GET', '/calls/free-status') as Map);

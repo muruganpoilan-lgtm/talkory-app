@@ -7,8 +7,11 @@ const push = require('./push');
 const { finishCall } = require('./callctl');
 const { ringTimeout, scheduleTick } = require('./queue');
 const { freeSecondsFor } = require('./freecall');
+const { claimHost } = require('./randomcall');
 
 const CALL_MAX_SECONDS = 4 * 3600; // token + privilege lifetime, also the partner busy-lock lifetime
+// A random call rings for less time than one where the user chose the host: there are others waiting.
+const RANDOM_RING_MS = Number(process.env.RANDOM_RING_SECONDS || 15) * 1000;
 const agoraToken = (channel, uid) =>
   RtcTokenBuilder.buildTokenWithUid(
     process.env.AGORA_APP_ID, process.env.AGORA_APP_CERT, channel, uid, RtcRole.PUBLISHER,
@@ -54,6 +57,43 @@ router.post('/', requireAuth(['user']), async (req, res) => {
   await ringTimeout(call.id);
 
   res.json({ callId: call.id, appId: process.env.AGORA_APP_ID, channel, token: agoraToken(channel, 1), uid: 1 });
+});
+
+// Random Call: the user taps one button and we ring whoever is free.
+// The app sends back every host it has already tried, so a no-answer rolls straight on to the next.
+// Answers { none: true } when nobody is available, rather than an error, so the app can say so kindly.
+router.post('/random', requireAuth(['user']), async (req, res) => {
+  const vip = await isVip(req.auth.id);
+  const callRate = rateFor({ is_vip: vip });
+  const minCost = Math.ceil((callRate * Number(process.env.MIN_CALL_SECONDS || 60)) / 60);
+  const w = await pool.query('SELECT balance FROM wallets WHERE account_id=$1', [req.auth.id]);
+  if (Number(w.rows[0].balance) < minCost) return res.status(402).json({ error: 'insufficient balance', required: minCost });
+
+  // Holds the busy lock on whichever host it returns, so two users can never land on the same one.
+  const host = await claimHost(req.auth.id, req.body.exclude, CALL_MAX_SECONDS);
+  if (!host) return res.json({ none: true });
+
+  const channel = `call_${crypto.randomBytes(8).toString('hex')}`;
+  let call;
+  try {
+    call = (await pool.query(
+      `INSERT INTO calls (user_id, partner_id, channel_name, rate_per_min, is_free, is_vip, is_random)
+       VALUES ($1,$2,$3,$4,false,$5,true) RETURNING *`,
+      [req.auth.id, host.id, channel, callRate, vip])).rows[0];
+  } catch (e) {
+    await redis.del(`partner:busy:${host.id}`); // never strand a host as busy on a call that was not created
+    throw e;
+  }
+
+  const caller = await pool.query('SELECT display_name FROM accounts WHERE id=$1', [req.auth.id]);
+  push.notifyIncomingCall(host.id, call.id, (vip ? '👑 VIP · ' : '') + caller.rows[0].display_name).catch(() => {});
+  await ringTimeout(call.id, RANDOM_RING_MS); // shorter ring than a chosen host: the app has others to try
+
+  res.json({
+    callId: call.id, appId: process.env.AGORA_APP_ID, channel, token: agoraToken(channel, 1), uid: 1,
+    partnerId: host.id, partnerName: host.display_name, avatarUrl: host.avatar_url,
+    tagline: host.tagline || '', ringSeconds: Math.round(RANDOM_RING_MS / 1000),
+  });
 });
 
 // Partner polls for a ringing call (interim until push/WebSocket is added)

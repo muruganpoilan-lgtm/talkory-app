@@ -156,6 +156,14 @@ class _CallTabState extends State<CallTab> {
             const Text('Talk to someone who listens', style: TextStyle(color: Colors.white70, fontSize: 14)),
           ]),
         ),
+        RandomCallBanner(
+          api: widget.api,
+          onAddCoins: widget.onWallet,
+          onFinished: () {
+            widget.onBalanceChanged();
+            _reload();
+          },
+        ),
         SizedBox(
           height: 54,
           child: ListView(
