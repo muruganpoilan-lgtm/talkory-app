@@ -1,11 +1,13 @@
 const crypto = require('crypto');
+const { coins, COINS_PER_RUPEE } = require('./coins');
 const router = require('express').Router();
 const { pool, requireAuth } = require('./db');
 
 const MIN_RUPEES = 100;
 const MAX_RUPEES = 10000;
 
-// Coin packs: pay (rupees) -> coins credited. 1 coin = Rs 1; bigger packs give bonus coins.
+// Coin packs: pay (rupees) -> rupees' worth credited ("coins" below are rupee values; the app shows them
+// as coins via coins.js, 3 coins = Rs 1). Bigger packs give bonus value.
 const PACKS = [
   { id: 'p100', pay: 100, coins: 100, tag: '' },
   { id: 'p200', pay: 200, coins: 220, tag: '' },
@@ -145,11 +147,14 @@ router.get('/history', requireAuth(['user']), async (req, res) => {
 router.get('/packs', requireAuth(['user']), async (req, res) => {
   const vp = vipPack(await vipUntil(req.auth.id));
   const list = (await inPaidCall(req.auth.id)) ? [SAVER, ...PACKS, vp] : [...PACKS, vp]; // on a call: the call saver comes first
-  if (!(await isFirstRecharge(req.auth.id))) return res.json(list);
+  // Sent to the app in coins (3 per rupee); `value` is what the pack is worth in rupees.
+  const shown = (p, bonus = 0) => ({ ...p, value: p.coins + bonus, coins: coins(p.coins + bonus), coinsPerRupee: COINS_PER_RUPEE,
+    ...(bonus ? { firstBonus: coins(bonus) } : {}) });
+  if (!(await isFirstRecharge(req.auth.id))) return res.json(list.map((p) => shown(p)));
   res.json(list.map((p) => {
-    if (p.vip) return p; // the VIP pass gets no first-recharge bonus
+    if (p.vip) return shown(p); // the VIP pass gets no first-recharge bonus
     const bonus = firstBonusFor(p.pay);
-    return { ...p, coins: p.coins + bonus, firstBonus: bonus, tag: `${p.offer ? '⚡ Call saver' : '🎁 First recharge offer'}: +${bonus} free coins` };
+    return { ...shown(p, bonus), tag: `${p.offer ? '⚡ Call saver' : '🎁 First recharge offer'}: +${coins(bonus)} free coins` };
   }));
 });
 

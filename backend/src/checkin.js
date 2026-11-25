@@ -1,9 +1,10 @@
 const router = require('express').Router();
+const { coins: toCoins } = require('./coins');
 const { pool, requireAuth } = require('./db');
 
 // Daily check-in: users collect free coins once a day (India time). Coming back on consecutive days builds a streak:
 // day 1..7 pay the amounts below, then the week starts again. Missing a day starts again from day 1.
-// Change the numbers here to adjust the reward (whole coins).
+// Change the numbers here to adjust the reward (in rupees; the app shows 3 coins per rupee).
 const REWARDS = [1, 1, 2, 2, 3, 3, 7];
 
 const today = async (client) => (await client.query(`SELECT (now() AT TIME ZONE 'Asia/Kolkata')::date AS d`)).rows[0].d;
@@ -24,7 +25,7 @@ router.use(requireAuth(['user']));
 
 router.get('/', async (req, res) => {
   const s = await state(pool, req.auth.id);
-  res.json({ claimedToday: s.claimedToday, streak: s.streak, day: s.nextDay, coins: REWARDS[s.nextDay - 1], rewards: REWARDS });
+  res.json({ claimedToday: s.claimedToday, streak: s.streak, day: s.nextDay, coins: toCoins(REWARDS[s.nextDay - 1]), rewards: REWARDS.map(toCoins) });
 });
 
 router.post('/', async (req, res) => {
@@ -42,7 +43,7 @@ router.post('/', async (req, res) => {
       [req.auth.id, coins * 100, `checkin:${req.auth.id}:${s.d.toISOString().slice(0, 10)}`]);
     await client.query('UPDATE wallets SET balance = balance + $1, updated_at = now() WHERE account_id=$2', [coins * 100, req.auth.id]);
     await client.query('COMMIT');
-    res.json({ coins, streak, day: s.nextDay, rewards: REWARDS });
+    res.json({ coins: toCoins(coins), streak, day: s.nextDay, rewards: REWARDS.map(toCoins) });
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {});
     if (e.code === '23505') return res.status(409).json({ error: 'Already collected today. Come back tomorrow!' });

@@ -9,14 +9,17 @@ const kBaseUrl = String.fromEnvironment('API_URL', defaultValue: 'http://10.0.2.
 /// Keep in sync with LANGUAGES in backend/src/partners.js
 const kLanguages = ['Hindi', 'English', 'Tamil', 'Telugu', 'Bengali', 'Marathi', 'Odia', 'Bhojpuri', 'Malayalam', 'Kannada', 'Gujarati', 'Punjabi', 'Urdu', 'Assamese'];
 
-/// Coins shown to users: 1 coin = ₹1, kept in paise on the server. 3000 -> "30", 70 -> "0.7", 1850 -> "18.5".
+/// How many coins users get for ₹1. Keep in sync with COINS_PER_RUPEE in backend/src/coins.js.
+const kCoinsPerRupee = 3;
+
+/// Coins shown to users: 3 coins = ₹1. Money stays in paise on the server, so this only changes how it is shown.
+/// 3000 paise (₹30) -> "90", 30 -> "0.9", 1850 -> "55.5". Never rounds up, so a balance never looks bigger than it is.
 String formatCoins(int paise) {
-  if (paise % 100 == 0) return '${paise ~/ 100}';
-  if (paise % 10 == 0) return (paise / 100).toStringAsFixed(1);
-  return (paise / 100).toStringAsFixed(2);
+  final tenths = (paise * kCoinsPerRupee) ~/ 10; // tenths of a coin
+  return tenths % 10 == 0 ? '${tenths ~/ 10}' : (tenths / 10).toStringAsFixed(1);
 }
 
-/// What one chat message costs a user, in paise (0.3 coins). Keep in sync with MESSAGE_COST in backend/src/chat.js
+/// What one chat message costs a user, in paise (0.9 coins at 3 coins = ₹1). Keep in sync with MESSAGE_COST in backend/src/chat.js
 const kMessageCostPaise = 30;
 
 /// Free-call lengths read well either way: 30 -> "30 seconds", 180 -> "3 minutes".

@@ -242,7 +242,7 @@ class _CallScreenState extends State<CallScreen> {
     final when = left > 60 ? 'about ${(left / 60).ceil()} minutes' : 'about ${left}s';
     if (_free) return 'Free call ends in $when.';
     if (_host) return "Caller's balance is low: this call will end in $when.";
-    return left > 60 ? 'Low balance: your call will end in $when. Special offer: ₹99 for 125 coins.' : 'Only $when left! Get 125 coins for ₹99 and keep talking.';
+    return left > 60 ? 'Low balance: your call will end in $when. Special offer: ₹99 for 375 coins.' : 'Only $when left! Get 375 coins for ₹99 and keep talking.';
   }
 
   String get _clock {

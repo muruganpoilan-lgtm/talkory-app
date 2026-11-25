@@ -46,7 +46,7 @@ class _GiftSheetState extends State<_GiftSheet> {
   }
 
   Future<void> _send(Map<String, dynamic> g) async {
-    final coins = g['coins'] as int;
+    final coins = (g['coins'] as num).toInt();
     final yes = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(

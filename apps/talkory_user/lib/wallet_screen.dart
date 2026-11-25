@@ -23,10 +23,10 @@ class _WalletScreenState extends State<WalletScreen> {
   int? _balance; // paise
   // Coin packs come from the server (pay = rupees charged, coins = coins credited). These are used if the server cannot be reached.
   List<Map<String, dynamic>> _packs = [
-    {'id': 'p100', 'pay': 100, 'coins': 100, 'tag': ''},
-    {'id': 'p200', 'pay': 200, 'coins': 220, 'tag': ''},
-    {'id': 'p500', 'pay': 500, 'coins': 560, 'tag': 'Popular'},
-    {'id': 'p1000', 'pay': 1000, 'coins': 1200, 'tag': 'Best value'},
+    {'id': 'p100', 'pay': 100, 'coins': 300, 'tag': ''},
+    {'id': 'p200', 'pay': 200, 'coins': 660, 'tag': ''},
+    {'id': 'p500', 'pay': 500, 'coins': 1680, 'tag': 'Popular'},
+    {'id': 'p1000', 'pay': 1000, 'coins': 3600, 'tag': 'Best value'},
   ];
   bool _packsFromServer = false;
   String _packId = 'p500';
@@ -159,8 +159,8 @@ class _WalletScreenState extends State<WalletScreen> {
   }
 
   Widget _packCard(Map<String, dynamic> p) {
-    final pay = p['pay'] as int, coins = p['coins'] as int, tag = (p['tag'] as String?) ?? '';
-    final bonus = coins - pay;
+    final pay = p['pay'] as int, coins = (p['coins'] as num).toInt(), tag = (p['tag'] as String?) ?? '';
+    final bonus = coins - pay * kCoinsPerRupee; // 3 coins for every rupee paid; anything above that is bonus
     final selected = p['id'] == _packId;
     return GestureDetector(
       onTap: () => setState(() => _packId = p['id'] as String),

@@ -1,4 +1,5 @@
 const { pool, requireAuth } = require('./db');
+const { coins: toCoins, COINS_PER_RUPEE } = require('./coins');
 const jwt = require('jsonwebtoken');
 const { GST_PERCENT } = require('./paydays');
 
@@ -100,7 +101,7 @@ function buildReceiptPdf(d) {
   L.push({ rule: y + 10 }); y -= 8;
   const row = (a, b, bold) => { L.push({ t: a, x: 50, y, bold }); L.push({ t: b, x: 400, y, bold }); y -= 20; };
   row('Description', 'Amount', true);
-  row(`Talkory coins: ${d.coins} coins (1 coin = Rs. 1 of call and chat time)`, rs(d.pay), false);
+  row(`Talkory coins: ${toCoins(d.coins)} coins (${COINS_PER_RUPEE} coins = Rs. 1 of call and chat time)`, rs(d.pay), false);
   if (GSTIN && TOPUP_GST_PERCENT > 0) {
     const taxable = Math.round(d.pay * 100 / (100 + TOPUP_GST_PERCENT));
     row('   of which value of coins', rs(taxable), false);

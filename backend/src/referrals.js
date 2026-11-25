@@ -1,4 +1,5 @@
 const router = require('express').Router();
+const { coins: toCoins } = require('./coins');
 const { pool, requireAuth } = require('./db');
 const push = require('./push');
 
@@ -37,7 +38,7 @@ async function codeFor(accountId) {
 
 /// Adds coins to a wallet once and once only, whatever happens to the request.
 async function credit(client, accountId, coins, idemKey) {
-  const amount = coins * 100; // wallet is in paise, 1 coin = Rs 1
+  const amount = coins * 100; // wallet is in paise; these amounts are rupees (shown to users x3 as coins)
   const ins = await client.query(
     `INSERT INTO ledger (account_id, type, amount, ref, idem_key)
      VALUES ($1,'adjustment',$2,'referral',$3) ON CONFLICT (idem_key) DO NOTHING`,
@@ -70,7 +71,7 @@ async function payReferralOnTopup(accountId) {
   }
   const who = await pool.query('SELECT display_name FROM accounts WHERE id=$1', [accountId]);
   push.notifyHostNote(ref.referrer_id, '🎉 Refer and earn',
-    `${(who.rows[0] || {}).display_name || 'Your friend'} added coins, so ${REFERRER_COINS} coins are yours. Thank you!`).catch(() => {});
+    `${(who.rows[0] || {}).display_name || 'Your friend'} added coins, so ${toCoins(REFERRER_COINS)} coins are yours. Thank you!`).catch(() => {});
 }
 
 // What the Refer and earn screen shows.
@@ -85,13 +86,13 @@ router.get('/me', requireAuth(['user']), async (req, res) => {
   const daysOld = (Date.now() - new Date(me.created_at).getTime()) / 86400000;
   res.json({
     code,
-    referrerCoins: REFERRER_COINS,
-    friendCoins: FRIEND_COINS,
+    referrerCoins: toCoins(REFERRER_COINS),
+    friendCoins: toCoins(FRIEND_COINS),
     canUseCode: !used && daysOld <= JOIN_WINDOW_DAYS, // only new accounts, and only once
     joined: mine.rowCount,
-    earned: mine.rows.reduce((n, r) => n + (r.reward_coins || 0), 0),
+    earned: toCoins(mine.rows.reduce((n, r) => n + (r.reward_coins || 0), 0)),
     friends: mine.rows.map((r) => ({
-      name: r.display_name, at: r.created_at, paid: !!r.paid_at, coins: r.reward_coins || 0,
+      name: r.display_name, at: r.created_at, paid: !!r.paid_at, coins: toCoins(r.reward_coins || 0),
     })),
   });
 });
@@ -134,8 +135,8 @@ router.post('/claim', requireAuth(['user']), async (req, res) => {
     client.release();
   }
   push.notifyHostNote(owner.id, '👋 A friend joined',
-    `Someone used your code. Once they add coins, ${REFERRER_COINS} coins are yours.`).catch(() => {});
-  res.json({ ok: true, coins: FRIEND_COINS, from: owner.display_name });
+    `Someone used your code. Once they add coins, ${toCoins(REFERRER_COINS)} coins are yours.`).catch(() => {});
+  res.json({ ok: true, coins: toCoins(FRIEND_COINS), from: owner.display_name });
 });
 
 // ---- Admin: who referred whom, and what it has cost

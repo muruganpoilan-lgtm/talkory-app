@@ -1,4 +1,5 @@
 const router = require('express').Router();
+const { coins } = require('./coins');
 const rateLimit = require('express-rate-limit');
 const { pool, requireAuth } = require('./db');
 const push = require('./push');
@@ -6,7 +7,7 @@ const push = require('./push');
 // What the host earns from a gift, as a percentage of its price (calls pay the host 60%). The rest stays with Talkory.
 const HOST_PERCENT = Number(process.env.GIFT_HOST_PERCENT || 60);
 
-// The gift shop. Prices are in coins (1 coin = Rs 1). Change the list here; the apps read it from the server.
+// The gift shop. Prices here are in rupees (the app shows them as coins: 3 coins = Rs 1, see coins.js). Change the list here; the apps read it from the server.
 const GIFTS = [
   { key: 'rose',      emoji: '🌹', name: 'Rose',           coins: 12 },
   { key: 'missyou',   emoji: '💌', name: 'Miss You',       coins: 12 },
@@ -23,7 +24,7 @@ const sendLimit = rateLimit({ windowMs: 60 * 1000, limit: 20, keyGenerator: (req
   message: { error: 'You are sending gifts too fast. Please slow down.' } });
 
 router.get('/', requireAuth(['user', 'partner']), (req, res) => {
-  res.json(GIFTS.map((g) => ({ ...g, hostCoins: (g.coins * HOST_PERCENT) / 100 })));
+  res.json(GIFTS.map((g) => ({ ...g, rupees: g.coins, coins: coins(g.coins), hostCoins: coins((g.coins * HOST_PERCENT) / 100) })));
 });
 
 // A user sends a gift to a host, from the chat (hostId) or during a call (callId)
@@ -83,7 +84,7 @@ router.post('/send', requireAuth(['user']), sendLimit, async (req, res) => {
 
   const me = (await pool.query('SELECT display_name FROM accounts WHERE id=$1', [req.auth.id])).rows[0];
   push.notifyGift(hostId, me.display_name, `${gift.emoji} ${gift.name}`).catch(() => {});
-  res.json({ ok: true, balance, gift: { key: gift.key, emoji: gift.emoji, name: gift.name, coins: gift.coins },
+  res.json({ ok: true, balance, gift: { key: gift.key, emoji: gift.emoji, name: gift.name, coins: coins(gift.coins) },
              message: { id: msg.id, body: msg.body, created_at: msg.created_at, gift_key: msg.gift_key, mine: true } });
 });
 
