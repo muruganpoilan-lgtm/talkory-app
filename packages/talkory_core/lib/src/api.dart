@@ -399,7 +399,9 @@ class Api {
       (await _send('GET', '/chat/$otherId/messages?after=$after') as List).map((e) => Map<String, dynamic>.from(e)).toList();
 
   /// True once this user and host have had more than 5 answered calls together.
-  Future<bool> isBestFriend(String otherId) async => (await _send('GET', '/chat/$otherId/info') as Map)['bestFriend'] == true;
+  Future<bool> isBestFriend(String otherId) async => (await chatInfo(otherId))['bestFriend'] == true;
+  /// Chat screen header: {bestFriend, calls, minutes, bestFriendMinutes, status ('online'|'busy'|'offline', user app only)}
+  Future<Map<String, dynamic>> chatInfo(String otherId) async => Map<String, dynamic>.from(await _send('GET', '/chat/$otherId/info') as Map);
 
   /// Returns the stored message (plus `balance` in paise for users). Throws ApiException(402) when out of coins.
   Future<Map<String, dynamic>> sendMessage(String otherId, String body) async =>

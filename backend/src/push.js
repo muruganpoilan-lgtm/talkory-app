@@ -102,11 +102,11 @@ async function notifyAdminVideoCall(accountId) {
   })));
 }
 
-// "Best friends" of a host: users who have had more than BEST_FRIEND_AFTER answered calls with them (same rule as the badge in chat.js)
-const BEST_FRIEND_AFTER = Number(process.env.BEST_FRIEND_AFTER_CALLS || 5);
+// "Best friends" of a host: users who have talked with them BEST_FRIEND_MINUTES (45) minutes in total (same rule as the badge in chat.js)
+const BEST_FRIEND_SECONDS = Number(process.env.BEST_FRIEND_MINUTES || 45) * 60;
 const bestFriendIds = async (hostId) => (await pool.query(
-  `SELECT user_id FROM calls WHERE partner_id=$1 AND started_at IS NOT NULL GROUP BY user_id HAVING COUNT(*) > $2`,
-  [hostId, BEST_FRIEND_AFTER])).rows.map((r) => r.user_id);
+  `SELECT user_id FROM calls WHERE partner_id=$1 AND started_at IS NOT NULL GROUP BY user_id HAVING SUM(billed_seconds) >= $2`,
+  [hostId, BEST_FRIEND_SECONDS])).rows.map((r) => r.user_id);
 
 async function sendToTokens(tokens, message, label) {
   for (let i = 0; i < tokens.length; i += 500) {

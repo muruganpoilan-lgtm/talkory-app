@@ -154,11 +154,12 @@ class _ChatTabState extends State<ChatTab> {
                           final t = shown[i];
                           final unread = (t['unread'] ?? 0) as int;
                           return ListTile(
-                            leading: ProfileAvatar(baseUrl: widget.api.baseUrl, name: t['name'] as String, url: t['avatar_url'] as String?, radius: 26, female: widget.isUser),
-                            title: Row(children: [
-                              Flexible(child: Text(t['name'] as String, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: unread > 0 ? FontWeight.bold : FontWeight.w500))),
-                              if (t['best_friend'] == true) ...[const SizedBox(width: 6), const BestFriendBadge()],
-                            ]),
+                            leading: ChatAvatar(
+                              avatar: ProfileAvatar(baseUrl: widget.api.baseUrl, name: t['name'] as String, url: t['avatar_url'] as String?, radius: 26, female: widget.isUser),
+                              bestFriend: t['best_friend'] == true,
+                              status: t['status'] as String?, // users only: is this host online?
+                            ),
+                            title: Text(t['name'] as String, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: unread > 0 ? FontWeight.bold : FontWeight.w500)),
                             subtitle: Text(t['last_body'] as String, maxLines: 1, overflow: TextOverflow.ellipsis),
                             trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                               Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
@@ -221,6 +222,9 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _sending = false, _loaded = false;
   int? _balance; // paise, users only
   bool _bestFriend = false;
+  int _minutes = 0; // minutes of calls together, for the Best Friend banner
+  String? _status; // users only: 'online' | 'busy' | 'offline' for this host
+  Timer? _infoTimer;
   Map<String, dynamic>? _free; // hosts only: is a free 2-minute call to this user available?
 
   int get _lastId => _msgs.isEmpty ? 0 : _msgs.last['id'] as int;
@@ -232,7 +236,21 @@ class _ChatScreenState extends State<ChatScreen> {
     _timer = Timer.periodic(const Duration(seconds: 4), (_) => _poll());
     if (widget.isUser) widget.api.walletBalance().then((b) { if (mounted) setState(() => _balance = b); }).catchError((_) {});
     if (!widget.isUser) _loadFree();
-    widget.api.isBestFriend(widget.otherId).then((b) { if (mounted) setState(() => _bestFriend = b); }).catchError((_) {});
+    _loadInfo();
+    _infoTimer = Timer.periodic(const Duration(seconds: 15), (_) => _loadInfo()); // keeps the online status fresh
+  }
+
+  Future<void> _loadInfo() async {
+    try {
+      final i = await widget.api.chatInfo(widget.otherId);
+      if (mounted) {
+        setState(() {
+          _bestFriend = i['bestFriend'] == true;
+          _minutes = (i['minutes'] as num?)?.toInt() ?? 0;
+          _status = i['status'] as String?;
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadFree() async {
@@ -266,6 +284,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    _infoTimer?.cancel();
     _input.dispose();
     _scroll.dispose();
     super.dispose();
@@ -375,9 +394,9 @@ class _ChatScreenState extends State<ChatScreen> {
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        title: Row(children: [
-          Flexible(child: Text(widget.otherName, overflow: TextOverflow.ellipsis)),
-          if (_bestFriend) ...[const SizedBox(width: 8), const BestFriendBadge()],
+        title: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          Text(widget.otherName, overflow: TextOverflow.ellipsis),
+          if (widget.isUser && _status != null) StatusLine(status: _status!), // users see if the host is online
         ]),
         actions: [
           if (!widget.isUser)
@@ -402,6 +421,7 @@ class _ChatScreenState extends State<ChatScreen> {
         ],
       ),
       body: Column(children: [
+        if (_bestFriend) BestFriendBanner(name: widget.otherName, minutes: _minutes), // on top of the chat, both apps
         if (!widget.isUser && _freeText().isNotEmpty)
           Container(
             width: double.infinity,
@@ -492,7 +512,98 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 }
 
-/// Small gold "Best Friend" badge, shown once a user and a host have had more than 5 calls together.
+/// Chat-list avatar: a "BEST FRIEND" tag across the bottom (45+ minutes of calls together)
+/// and, in the user app, a dot showing whether the host is online (green), busy (orange) or offline (grey).
+class ChatAvatar extends StatelessWidget {
+  const ChatAvatar({super.key, required this.avatar, this.bestFriend = false, this.status});
+  final Widget avatar;
+  final bool bestFriend;
+  final String? status;
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: 60,
+        height: 60,
+        child: Stack(clipBehavior: Clip.none, alignment: Alignment.center, children: [
+          avatar,
+          if (status != null)
+            Positioned(
+              right: 4,
+              top: 4,
+              child: Container(
+                width: 14,
+                height: 14,
+                decoration: BoxDecoration(
+                  color: hostStatusColor(status!),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
+                ),
+              ),
+            ),
+          if (bestFriend)
+            Positioned(
+              bottom: -2,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE0A800),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: Colors.white, width: 1),
+                ),
+                child: const Text('BEST FRIEND',
+                    style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: 0.3)),
+              ),
+            ),
+        ]),
+      );
+}
+
+Color hostStatusColor(String status) => status == 'online'
+    ? Colors.green.shade600
+    : status == 'busy'
+        ? Colors.orange.shade700
+        : Colors.grey.shade500;
+
+/// "● Online" / "● Busy" / "● Offline" under the host's name at the top of the chat (user app).
+class StatusLine extends StatelessWidget {
+  const StatusLine({super.key, required this.status});
+  final String status;
+  @override
+  Widget build(BuildContext context) {
+    final label = status == 'online' ? 'Online' : status == 'busy' ? 'Busy on a call' : 'Offline';
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      Container(width: 8, height: 8, decoration: BoxDecoration(color: hostStatusColor(status), shape: BoxShape.circle)),
+      const SizedBox(width: 5),
+      Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+    ]);
+  }
+}
+
+/// Gold strip at the top of the chat once the two of them have talked 45+ minutes. Shown in both apps.
+class BestFriendBanner extends StatelessWidget {
+  const BestFriendBanner({super.key, required this.name, required this.minutes});
+  final String name;
+  final int minutes;
+  @override
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(colors: [Color(0xFFFFE9A8), Color(0xFFFFF6DA)]),
+          border: Border(bottom: BorderSide(color: Color(0xFFE0A800))),
+        ),
+        child: Row(children: [
+          const BestFriendBadge(),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text('You and $name have talked $minutes minutes',
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF8A5A00))),
+          ),
+        ]),
+      );
+}
+
+/// Small gold "Best Friend" badge, shown once a user and a host have talked 45+ minutes on calls.
 class BestFriendBadge extends StatelessWidget {
   const BestFriendBadge({super.key});
   @override

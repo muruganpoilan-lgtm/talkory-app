@@ -12,8 +12,12 @@ const STRIKES_TO_BLOCK = Number(process.env.CHAT_STRIKES_TO_BLOCK || 3);
 const MESSAGE_COST = Number(process.env.CHAT_COST_PAISE || 30); // paise = 0.3 coins, charged to the user for each message they send. Hosts reply free.
 const HOST_EARN = Number(process.env.CHAT_HOST_EARN_PAISE || 50); // paise the host receives for each message; the rest (10 paise) stays with Talkory
 const MAX_LEN = 500;
-// "Best Friend" badge: shown once a user and a host have had more than this many answered calls together
-const BEST_FRIEND_AFTER = Number(process.env.BEST_FRIEND_AFTER_CALLS || 5);
+// "Best Friend" badge: shown on both sides once a user and a host have talked this many minutes in total
+// (all their answered calls added together, free minutes included). Change BEST_FRIEND_MINUTES in .env.
+const BEST_FRIEND_SECONDS = Number(process.env.BEST_FRIEND_MINUTES || 45) * 60;
+// online / busy / offline for a host, the same three states as the Call tab
+const hostStatus = async (row) => (!row.is_online ? 'offline'
+  : row.manual_busy || (await redis.exists(`partner:busy:${row.id}`)) ? 'busy' : 'online');
 // Same rule as profiles: no phone numbers, handles or links, so hosts and users can't move off-platform
 const LEAKS = /(\+?\d[\d\s-]{6,}\d|@|https?:|www\.)/i;
 
@@ -35,7 +39,9 @@ router.get('/threads', requireAuth(['user', 'partner']), async (req, res) => {
   const other = req.auth.role === 'user' ? 'partner_id' : 'user_id';
   const { rows } = await pool.query(
     `SELECT t.other_id AS id, a.display_name AS name, a.avatar_url, t.last_body, t.last_at, t.unread,
-           (SELECT COUNT(*) FROM calls c WHERE c.${mine} = $1 AND c.${other} = t.other_id AND c.started_at IS NOT NULL) > $2 AS best_friend
+           (SELECT COALESCE(SUM(c.billed_seconds), 0) FROM calls c
+             WHERE c.${mine} = $1 AND c.${other} = t.other_id AND c.started_at IS NOT NULL) >= $2 AS best_friend,
+           p.is_online, p.manual_busy
        FROM (
          SELECT ${other} AS other_id,
                 (ARRAY_AGG(body ORDER BY id DESC))[1] AS last_body,
@@ -43,11 +49,18 @@ router.get('/threads', requireAuth(['user', 'partner']), async (req, res) => {
                 COUNT(*) FILTER (WHERE sender_id <> $1 AND read_at IS NULL)::int AS unread
            FROM messages WHERE ${mine} = $1 GROUP BY ${other}
        ) t JOIN accounts a ON a.id = t.other_id
+       LEFT JOIN partner_profiles p ON p.account_id = t.other_id
       WHERE NOT a.is_blocked
         AND NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id=$1 AND b.blocked_id=t.other_id) OR (b.blocker_id=t.other_id AND b.blocked_id=$1))
-      ORDER BY t.last_at DESC LIMIT 100`, [req.auth.id, BEST_FRIEND_AFTER]);
-  // a user's photo is private to them; hosts only ever see an initial
-  res.json(rows.map((r) => ({ ...r, avatar_url: req.auth.role === 'user' ? r.avatar_url : null })));
+      ORDER BY t.last_at DESC LIMIT 100`, [req.auth.id, BEST_FRIEND_SECONDS]);
+  const isUser = req.auth.role === 'user';
+  // a user's photo is private to them; hosts only ever see an initial.
+  // Users also see whether each host is online, busy or offline.
+  res.json(await Promise.all(rows.map(async ({ is_online, manual_busy, ...r }) => ({
+    ...r,
+    avatar_url: isUser ? r.avatar_url : null,
+    ...(isUser ? { status: await hostStatus({ id: r.id, is_online, manual_busy }) } : {}),
+  }))));
 });
 
 router.get('/unread', requireAuth(['user', 'partner']), async (req, res) => {
@@ -56,12 +69,19 @@ router.get('/unread', requireAuth(['user', 'partner']), async (req, res) => {
   res.json({ unread: r.rows[0].n });
 });
 
-// Is this person a "Best Friend"? (more than BEST_FRIEND_AFTER answered calls between this user and host)
+// Chat screen header: is this person a "Best Friend" (45+ minutes of calls together), and, for users, is the host online?
 router.get('/:otherId/info', requireAuth(['user', 'partner']), async (req, res) => {
   if (!/^[0-9a-f-]{36}$/i.test(req.params.otherId)) return res.status(404).json({ error: 'not found' });
   const { userId, partnerId } = sides(req, req.params.otherId);
-  const n = (await pool.query('SELECT COUNT(*)::int AS n FROM calls WHERE user_id=$1 AND partner_id=$2 AND started_at IS NOT NULL', [userId, partnerId])).rows[0].n;
-  res.json({ bestFriend: n > BEST_FRIEND_AFTER, calls: n });
+  const t = (await pool.query(
+    `SELECT COUNT(*)::int AS n, COALESCE(SUM(billed_seconds), 0)::int AS secs
+       FROM calls WHERE user_id=$1 AND partner_id=$2 AND started_at IS NOT NULL`, [userId, partnerId])).rows[0];
+  const out = { bestFriend: t.secs >= BEST_FRIEND_SECONDS, calls: t.n, minutes: Math.floor(t.secs / 60), bestFriendMinutes: BEST_FRIEND_SECONDS / 60 };
+  if (req.auth.role === 'user') {
+    const p = (await pool.query('SELECT is_online, manual_busy FROM partner_profiles WHERE account_id=$1', [partnerId])).rows[0];
+    out.status = p ? await hostStatus({ id: partnerId, ...p }) : 'offline';
+  }
+  res.json(out);
 });
 
 // Messages in a thread. ?after=<id> returns only newer ones (polling). Opening a thread marks theirs as read.
