@@ -1,7 +1,7 @@
 const { pool, redis } = require('./db');
 
 const TICK_SECONDS = 15;
-const { freeSecondsFor } = require('./freecall'); // how long a free call runs: 2 min for the user's own, 3 for a host's giveaway
+const { freeSecondsFor } = require('./freecall'); // how long a free call runs: both are set in freecall.js (host giveaway: 2 minutes)
 
 // Fixed pricing for every call: the caller pays CALL_RATE_PAISE per minute, the host earns CALL_HOST_PAISE per minute,
 // Talkory keeps the difference (1000 / 600 / 400 paise = Rs 10 / Rs 6 / Rs 4, so 10 minutes = 100 coins). Charged exactly per minute, even though billing runs every 15 seconds.

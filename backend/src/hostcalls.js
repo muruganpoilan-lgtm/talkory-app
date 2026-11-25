@@ -21,8 +21,12 @@ const agoraToken = (channel, uid) =>
 router.get('/free-status', requireAuth(['partner']), async (req, res) => {
   const userId = String(req.query.userId || '');
   if (!/^[0-9a-f-]{36}$/i.test(userId)) return res.status(404).json({ error: 'not found' });
+  // Same rule as starting a call: a user she chats with, or a user in the "Users online" list
   const thread = await pool.query('SELECT 1 FROM messages WHERE user_id=$1 AND partner_id=$2 LIMIT 1', [userId, req.auth.id]);
-  if (!thread.rowCount) return res.status(404).json({ error: 'not found' });
+  if (!thread.rowCount) {
+    const seen = await redis.zscore('users:online', userId);
+    if (!seen || Date.now() - Number(seen) > 75 * 1000) return res.status(404).json({ error: 'not found' });
+  }
   const user = await freeStatus(userId);
   const mine = await hostFreeStatus(req.auth.id);
   res.json({

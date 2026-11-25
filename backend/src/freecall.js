@@ -1,20 +1,20 @@
 const { pool } = require('./db');
 
 const FREE_SECONDS = Number(process.env.FREE_SECONDS || 0); // the user's own free call: 0 switches it off
-const HOST_FREE_SECONDS = Number(process.env.HOST_FREE_SECONDS || 180); // the minutes a host can give away
+const HOST_FREE_SECONDS = Number(process.env.HOST_FREE_SECONDS || 120); // the seconds a host can give away (120 = 2 minutes)
 const COOLDOWN_HOURS = Number(process.env.FREE_CALL_COOLDOWN_HOURS || 24); // one free call per user in this window
 const HOST_COOLDOWN_HOURS = Number(process.env.HOST_FREE_CALL_COOLDOWN_HOURS || 3); // one giveaway per host in this window
 
 /// How long this free call lasts. A host's giveaway is longer than the user's own free call.
 const freeSecondsFor = (call) => (call && call.is_host_free ? HOST_FREE_SECONDS : FREE_SECONDS);
 
-/// A free call that was offered counts even if it was declined or missed, so the "free minutes"
-/// message does not show on every ring.
+/// Only a free call that was actually answered uses up the free minutes. A ring that was missed,
+/// declined or cut before it connected gives them back, so the host can try again straight away.
 async function lastFreeAt(column, id, hours, hostGift) {
   const { rows } = await pool.query(
     `SELECT created_at FROM calls
       WHERE ${column}=$1 AND is_free AND is_host_free = $3 AND created_at > now() - ($2 || ' hours')::interval
-        AND status <> 'failed'
+        AND started_at IS NOT NULL
       ORDER BY created_at DESC LIMIT 1`, [id, String(hours), hostGift]);
   return rows[0] ? rows[0].created_at : null;
 }

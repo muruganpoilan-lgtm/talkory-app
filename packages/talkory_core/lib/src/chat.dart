@@ -24,7 +24,7 @@ Future<void> startHostCall(BuildContext context, Api api, String userId, String 
       final s = await api.hostFreeStatus(userId);
       final gift = s['gift'] as Map?;
       if (gift != null && gift['used'] == true && context.mounted) {
-        final mins = ((gift['seconds'] as num?) ?? 180) ~/ 60;
+        final mins = ((gift['seconds'] as num?) ?? 120) ~/ 60;
         final yes = await showDialog<bool>(
           context: context,
           builder: (d) => AlertDialog(
