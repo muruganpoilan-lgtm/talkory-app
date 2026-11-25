@@ -9,8 +9,8 @@ const wordfilter = require('./wordfilter');
 const STRIKES_TO_BLOCK = Number(process.env.CHAT_STRIKES_TO_BLOCK || 3);
 
 
-const MESSAGE_COST = Number(process.env.CHAT_COST_PAISE || 30); // paise = 0.3 coins, charged to the user for each message they send. Hosts reply free.
-const HOST_EARN = Number(process.env.CHAT_HOST_EARN_PAISE || 50); // paise the host receives for each message; the rest (10 paise) stays with Talkory
+const MESSAGE_COST = Number(process.env.CHAT_COST_PAISE || 5); // paise (Rs 0.05 = 0.15 coins), charged to the user for each message they send. Hosts reply free.
+const HOST_EARN = Number(process.env.CHAT_HOST_EARN_PAISE || 50); // most a host can receive per message; she never gets more than the message costs, so today she gets all 5 paise
 const MAX_LEN = 500;
 // "Best Friend" badge: shown on both sides once a user and a host have talked this many minutes in total
 // (all their answered calls added together, free minutes included). Change BEST_FRIEND_MINUTES in .env.

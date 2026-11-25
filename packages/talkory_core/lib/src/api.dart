@@ -13,14 +13,15 @@ const kLanguages = ['Hindi', 'English', 'Tamil', 'Telugu', 'Bengali', 'Marathi',
 const kCoinsPerRupee = 3;
 
 /// Coins shown to users: 3 coins = ₹1. Money stays in paise on the server, so this only changes how it is shown.
-/// 3000 paise (₹30) -> "90", 30 -> "0.9", 1850 -> "55.5". Never rounds up, so a balance never looks bigger than it is.
+/// 3000 paise (₹30) -> "90", 5 -> "0.15", 30 -> "0.9", 1850 -> "55.5". Exact: paise x 3 is a whole number of hundredths.
 String formatCoins(int paise) {
-  final tenths = (paise * kCoinsPerRupee) ~/ 10; // tenths of a coin
-  return tenths % 10 == 0 ? '${tenths ~/ 10}' : (tenths / 10).toStringAsFixed(1);
+  final h = paise * kCoinsPerRupee; // hundredths of a coin
+  if (h % 100 == 0) return '${h ~/ 100}';
+  return (h / 100).toStringAsFixed(h % 10 == 0 ? 1 : 2);
 }
 
-/// What one chat message costs a user, in paise (0.9 coins at 3 coins = ₹1). Keep in sync with MESSAGE_COST in backend/src/chat.js
-const kMessageCostPaise = 30;
+/// What one chat message costs a user, in paise: ₹0.05 = 0.15 coins at 3 coins = ₹1. Keep in sync with MESSAGE_COST in backend/src/chat.js
+const kMessageCostPaise = 5;
 
 /// Free-call lengths read well either way: 30 -> "30 seconds", 180 -> "3 minutes".
 String formatSeconds(dynamic seconds) {
@@ -390,7 +391,7 @@ class Api {
   Future<void> uploadIntro(String audioBase64) => _send('POST', '/partner/intro', {'audioBase64': audioBase64});
   Future<void> removeIntro() => _send('POST', '/partner/intro/remove');
 
-  // ---- chat. Users pay 0.3 coins per message they send; host replies are free.
+  // ---- chat. Users pay ₹0.05 (0.15 coins) per message they send; host replies are free.
   /// [{id (other person), name, avatar_url, last_body, last_at, unread}]
   Future<List<Map<String, dynamic>>> chatThreads() async =>
       (await _send('GET', '/chat/threads') as List).map((e) => Map<String, dynamic>.from(e)).toList();
