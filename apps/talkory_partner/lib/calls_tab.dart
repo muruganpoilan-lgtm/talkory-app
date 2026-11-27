@@ -104,7 +104,7 @@ class _CallsTabState extends State<CallsTab> {
             subtitle: Text(u['busy'] == true
                 ? 'On a call'
                 : u['new_user'] == true
-                    ? 'New user: first paid call earns you a bonus'
+                    ? 'New user: call first to earn a bonus'
                     : 'Online'),
             trailing: IconButton.filled(
               style: IconButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),

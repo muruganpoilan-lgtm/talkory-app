@@ -106,16 +106,16 @@ router.get('/online-users', requireAuth(['partner']), async (req, res) => {
   await redis.zremrangebyscore('users:online', 0, Date.now() - 10 * 60 * 1000); // tidy up
   const ids = await redis.zrangebyscore('users:online', Date.now() - ONLINE_WINDOW_MS, '+inf');
   if (!ids.length) return res.json([]);
-  // new_user = joined recently and no paid call yet: the first host to call them gets the new-user bonus (firstcall.js)
+  // new_user = joined recently and no real call yet: the first host to call them can earn the new-user bonus (firstcall.js)
   const fc = require('./firstcall');
   const { rows } = await pool.query(
     `SELECT a.id, a.display_name AS name,
             EXISTS (SELECT 1 FROM calls c WHERE c.user_id=a.id AND c.status IN ('ringing','active')) AS busy,
-            ${fc.NEW_USER_SQL.replace('$1', '$3')} AS new_user
+            ${fc.NEW_USER_SQL.replace('$1', '$3').replace('$2', '$4')} AS new_user
        FROM accounts a
       WHERE a.id = ANY($1::uuid[]) AND a.role='user' AND NOT a.is_blocked AND a.deleted_at IS NULL
         AND NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id=$2 AND b.blocked_id=a.id) OR (b.blocker_id=a.id AND b.blocked_id=$2))
-      ORDER BY busy, new_user DESC, a.display_name LIMIT 100`, [ids, req.auth.id, String(fc.NEW_USER_DAYS)]);
+      ORDER BY busy, new_user DESC, a.display_name LIMIT 100`, [ids, req.auth.id, String(fc.NEW_USER_DAYS), fc.MIN_SECONDS]);
   res.json(fc.offer().enabled ? rows : rows.map((r) => ({ ...r, new_user: false })));
 });
 

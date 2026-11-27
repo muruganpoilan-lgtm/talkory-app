@@ -21,12 +21,8 @@ async function finishCall(callId, status, from = ['ringing', 'active']) {
       if (!rows[0].is_random || process.env.RANDOM_CALL_FINE === '1')
         require('./missedcalls').chargeIfNeeded(rows[0].partner_id).catch((e) => console.error('[missed] fine failed:', e.message));
     }
-    // New-user offer: the host who makes a new user's first paid call gets a bonus (firstcall.js).
-    // Checked a few seconds later so the last billing tick has landed.
-    if (rows[0].started_at && rows[0].initiated_by === 'partner' && !rows[0].is_free) {
-      const done = rows[0];
-      setTimeout(() => require('./firstcall').payIfEligible(done), 5000);
-    }
+    // New-user offer: the host who made this user's first call may now earn her bonus (firstcall.js)
+    require('./firstcall').afterCall(rows[0]);
     // Never answered: stop the partner's phone from ringing
     if (!rows[0].started_at && rows[0].initiated_by !== 'partner') push.notifyCallCancelled(rows[0].partner_id, callId).catch(() => {});
   }

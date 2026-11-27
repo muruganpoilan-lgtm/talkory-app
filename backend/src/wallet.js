@@ -97,6 +97,8 @@ async function creditTopup(orderId, paymentId) {
     require('./invoice').createReceipt(order.id).catch((e) => console.error('[invoice] receipt failed:', e.message)); // invoice for the user
     // Refer and earn: whoever brought this user in is paid on their first top-up (does nothing after that)
     require('./referrals').payReferralOnTopup(order.account_id).catch((e) => console.error('[referral] payout failed:', e.message));
+    // New-user offer: the host who called this user first earns her bonus when he buys coins (firstcall.js)
+    require('./firstcall').afterTopup(order.account_id);
     return order;
   } catch (e) {
     await client.query('ROLLBACK');

@@ -243,11 +243,10 @@ class _HomeTabState extends State<HomeTab> {
     );
   }
 
-  /// New-user offer: the host who makes a new user's first paid call earns a bonus (backend firstcall.js).
+  /// New-user offer: the host who calls a new user first earns a bonus once he buys coins (backend firstcall.js).
   Widget _offerCard() {
     final o = _offer!;
-    final mins = ((o['minSeconds'] as num?) ?? 60) / 60;
-    final minText = mins == mins.roundToDouble() ? '${mins.round()} minute${mins == 1 ? '' : 's'}' : '${o['minSeconds']} seconds';
+    final days = (o['payWithinDays'] as num?) ?? 7;
     return SoftCard(
       color: const Color(0xFFFFF4D6),
       child: Padding(
@@ -260,7 +259,8 @@ class _HomeTabState extends State<HomeTab> {
               Text('New user offer: ₹${o['rupees']} bonus', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: kInk)),
               const SizedBox(height: 3),
               Text(
-                'Be the first to call a new user and earn ₹${o['rupees']} (${o['coins']} coins) when the paid call lasts $minText or more. '
+                'Be the first to call a new user (your free 2-minute call counts). '
+                'When he buys coins within $days days, you earn ₹${o['rupees']} (${o['coins']} coins). '
                 'Look for the NEW tag in Users online on the Calls tab.',
                 style: const TextStyle(fontSize: 13, color: Colors.black87),
               ),
