@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:talkory_core/talkory_core.dart';
 import 'earnings_screen.dart';
+import 'intro_screen.dart';
 import 'contract_screen.dart';
 import 'kyc_screen.dart';
 import 'leaderboard.dart';
@@ -237,6 +238,46 @@ class _HomeTabState extends State<HomeTab> {
     );
   }
 
+  /// Voice intro on the Home page (it used to be only in Profile). The button changes with the review state.
+  Widget _introCard() {
+    final st = _profile?['introStatus'] as String?;
+    final (sub, action) = switch (st) {
+      'approved' => ('Live: users can play it on your card', 'Re-record'),
+      'pending' => ('Being reviewed', 'Open'),
+      'rejected' => ('Not approved: record it again', 'Record again'),
+      _ => ('Record a short hello for your card', 'Record'),
+    };
+    return SoftCard(
+      child: InkWell(
+        onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => IntroScreen(api: widget.api))).then((_) => _load()),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+          child: Row(children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: const BoxDecoration(color: Color(0xFFEFE9FB), shape: BoxShape.circle),
+              child: const Icon(Icons.mic_none, color: kRoyal, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                const Text('Voice intro', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: kInk)),
+                Text(sub, style: TextStyle(fontSize: 13, color: st == 'rejected' ? Colors.red.shade700 : Colors.black54)),
+              ]),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(color: st == 'pending' ? const Color(0xFFEFE9FB) : kRoyal, borderRadius: BorderRadius.circular(999)),
+              child: Text(action, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: st == 'pending' ? kRoyal : Colors.white)),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final name = (_profile?['displayName'] as String?) ?? '';
@@ -246,19 +287,27 @@ class _HomeTabState extends State<HomeTab> {
       value: SystemUiOverlayStyle.light,
       child: RefreshIndicator(
         onRefresh: _load,
-        edgeOffset: 80,
+        edgeOffset: 50,
         child: ListView(
           padding: const EdgeInsets.only(bottom: 16),
           children: [
-            GradientHeader(
-              showLogo: true,
-              title: name.isEmpty ? 'Talkory Partner' : 'Hi, $name',
-              subtitle: 'Talkory Partner',
-              bottomPadding: 56,
-              trailing: ProfileAvatar(baseUrl: widget.api.baseUrl, name: name, url: _profile?['avatarUrl'] as String?, radius: 26, ring: kGold),
+            // One slim bar instead of the tall gradient header, so the online switch is the first thing she sees.
+            Container(
+              color: kRoyal,
+              padding: EdgeInsets.fromLTRB(14, MediaQuery.of(context).padding.top + 8, 14, 8),
+              child: Row(children: [
+                const LogoBadge(size: 30),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(name.isEmpty ? 'Talkory Partner' : 'Hi, $name',
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
+                ),
+                ProfileAvatar(baseUrl: widget.api.baseUrl, name: name, url: _profile?['avatarUrl'] as String?, radius: 17, ring: kGold),
+              ]),
             ),
-            Transform.translate(
-              offset: const Offset(0, -34),
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
               child: SoftCard(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
@@ -297,6 +346,7 @@ class _HomeTabState extends State<HomeTab> {
                 ),
               ),
             ),
+            if (_profile != null) _introCard(),
             if (kyc == 'approved' && !_contractSigned)
               SoftCard(
                 color: const Color(0xFFFFF3CD),

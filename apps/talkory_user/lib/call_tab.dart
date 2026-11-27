@@ -32,10 +32,13 @@ class _CallTabState extends State<CallTab> {
   Timer? _friendTimer;
   List<Partner> _friends = [];
   final Set<String> _dismissed = {}; // best friends whose banner was closed during this visit
+  bool _searching = false; // the slim header swaps to a search field
+  bool _rewardWaiting = false; // today's daily reward not collected yet: red dot on the gift icon
 
   @override
   void initState() {
     super.initState();
+    _loadReward();
     _loadFriends();
     _friendTimer = Timer.periodic(const Duration(seconds: 20), (_) => _loadFriends());
   }
@@ -51,6 +54,51 @@ class _CallTabState extends State<CallTab> {
       }
     } catch (_) {}
   }
+
+  Future<void> _loadReward() async {
+    try {
+      final s = await widget.api.dailyReward();
+      if (mounted) setState(() => _rewardWaiting = s['claimedToday'] != true);
+    } catch (_) {}
+  }
+
+  /// The daily reward used to be a full card above the hosts; now it opens from this gift icon.
+  /// A red dot shows while today's coins are waiting.
+  Widget _rewardIcon() => IconButton(
+        tooltip: 'Daily reward',
+        visualDensity: VisualDensity.compact,
+        onPressed: () async {
+          await showModalBottomSheet<void>(
+            context: context,
+            showDragHandle: true,
+            builder: (_) => SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _rewardWaiting
+                    ? DailyRewardCard(api: widget.api, onCollected: widget.onBalanceChanged)
+                    : const Padding(
+                        padding: EdgeInsets.fromLTRB(24, 4, 24, 16),
+                        child: Text("You've collected today's reward. Come back tomorrow for more coins.", textAlign: TextAlign.center),
+                      ),
+              ),
+            ),
+          );
+          _loadReward();
+        },
+        icon: Stack(clipBehavior: Clip.none, children: [
+          const Icon(Icons.card_giftcard, color: Colors.white),
+          if (_rewardWaiting)
+            Positioned(
+              right: -2,
+              top: -2,
+              child: Container(
+                width: 9,
+                height: 9,
+                decoration: BoxDecoration(color: const Color(0xFFFF4D4F), shape: BoxShape.circle, border: Border.all(color: kRoyal, width: 1.5)),
+              ),
+            ),
+        ]),
+      );
 
   @override
   void didUpdateWidget(CallTab old) {
@@ -125,65 +173,94 @@ class _CallTabState extends State<CallTab> {
       value: SystemUiOverlayStyle.light,
       child: Column(
       children: [
-        RoyalBox(
-          padding: EdgeInsets.fromLTRB(16, top + 12, 16, 20),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              Expanded(child: NameSearchField(controller: _search, onChanged: _onSearchChanged)),
-              const SizedBox(width: 10),
-              InkWell(
-                onTap: widget.onWallet,
-                borderRadius: BorderRadius.circular(999),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  decoration: BoxDecoration(color: kGold, borderRadius: BorderRadius.circular(999)),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(Icons.monetization_on, size: 18, color: kRoyalDeep),
-                    const SizedBox(width: 6),
-                    Text(widget.balance == null ? '—' : formatCoins(widget.balance!),
-                        style: const TextStyle(color: kRoyalDeep, fontWeight: FontWeight.w800)),
-                  ]),
-                ),
-              ),
-            ]),
-            const SizedBox(height: 16),
-            Row(children: const [
-              LogoBadge(size: 38),
-              SizedBox(width: 10),
-              Text('Talkory', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
-            ]),
-            const SizedBox(height: 2),
-            const Text('Talk to someone who listens', style: TextStyle(color: Colors.white70, fontSize: 14)),
-          ]),
-        ),
-        RandomCallBanner(
-          api: widget.api,
-          onAddCoins: widget.onWallet,
-          onFinished: () {
-            widget.onBalanceChanged();
-            _reload();
-          },
+        // One slim bar instead of the old tall header: logo, search, daily reward, coins.
+        Container(
+          color: kRoyal,
+          padding: EdgeInsets.fromLTRB(12, top + 6, 8, 6),
+          child: _searching
+              ? Row(children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 40,
+                      child: TextField(
+                        controller: _search,
+                        autofocus: true,
+                        onChanged: _onSearchChanged,
+                        textInputAction: TextInputAction.search,
+                        decoration: InputDecoration(
+                          hintText: 'Search names',
+                          isDense: true,
+                          filled: true,
+                          fillColor: Colors.white,
+                          prefixIcon: const Icon(Icons.search, size: 20),
+                          contentPadding: EdgeInsets.zero,
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        ),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Close search',
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    onPressed: () {
+                      setState(() => _searching = false);
+                      if (_search.text.isNotEmpty) {
+                        _search.clear();
+                        _reload();
+                      }
+                    },
+                  ),
+                ])
+              : Row(children: [
+                  const LogoBadge(size: 30),
+                  const SizedBox(width: 8),
+                  const Text('Talkory', style: TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
+                  const Spacer(),
+                  IconButton(
+                    tooltip: 'Search names',
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.search, color: Colors.white),
+                    onPressed: () => setState(() => _searching = true),
+                  ),
+                  _rewardIcon(),
+                  const SizedBox(width: 4),
+                  InkWell(
+                    onTap: widget.onWallet,
+                    borderRadius: BorderRadius.circular(999),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(color: kGold, borderRadius: BorderRadius.circular(999)),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        const Icon(Icons.monetization_on, size: 16, color: kRoyalDeep),
+                        const SizedBox(width: 4),
+                        Text(widget.balance == null ? '—' : formatCoins(widget.balance!),
+                            style: const TextStyle(color: kRoyalDeep, fontWeight: FontWeight.w800, fontSize: 13)),
+                      ]),
+                    ),
+                  ),
+                ]),
         ),
         SizedBox(
-          height: 54,
+          height: 42,
           child: ListView(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.fromLTRB(12, 7, 12, 5),
             children: [
               for (final l in [null, ...kLanguages])
                 Padding(
-                  padding: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.only(right: 6),
                   child: ChoiceChip(
                     label: Text(l ?? 'All'),
                     selected: _language == l,
                     showCheckmark: false,
                     selectedColor: kInk,
-                    backgroundColor: Colors.white,
+                    backgroundColor: const Color(0xFFF2EFF9),
                     side: BorderSide.none,
-                    elevation: 3,
-                    shadowColor: const Color(0x554B22B0),
                     shape: const StadiumBorder(),
-                    labelStyle: TextStyle(color: _language == l ? Colors.white : kInk, fontWeight: FontWeight.w500),
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    labelStyle: TextStyle(color: _language == l ? Colors.white : kInk, fontWeight: FontWeight.w500, fontSize: 12),
                     onSelected: (_) {
                       _language = l;
                       _reload();
@@ -193,7 +270,15 @@ class _CallTabState extends State<CallTab> {
             ],
           ),
         ),
-        DailyRewardCard(api: widget.api, onCollected: widget.onBalanceChanged),
+        RandomCallBanner(
+          api: widget.api,
+          compact: true,
+          onAddCoins: widget.onWallet,
+          onFinished: () {
+            widget.onBalanceChanged();
+            _reload();
+          },
+        ),
         Expanded(
           child: RefreshIndicator(
             onRefresh: () async {
@@ -214,32 +299,15 @@ class _CallTabState extends State<CallTab> {
                 if (list.isEmpty) {
                   return ListView(children: const [Padding(padding: EdgeInsets.all(32), child: Text('No hosts to show right now. Pull down to refresh.'))]);
                 }
-                // Online hosts first, then Busy, then Offline, each under a small heading
-                final items = <Object>[];
-                for (final st in const ['online', 'busy', 'offline']) {
-                  final group = list.where((p) => p.status == st).toList();
-                  if (group.isEmpty) continue;
-                  items.add(st);
-                  items.addAll(group); // one host per row
-                }
+                // Online hosts first, then Busy, then Offline. No headings: the photo ring's colour shows each status.
+                final items = <Partner>[
+                  for (final st in const ['online', 'busy', 'offline']) ...list.where((p) => p.status == st),
+                ];
                 return ListView.builder(
-                  padding: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.only(top: 2, bottom: 12),
                   itemCount: items.length,
                   itemBuilder: (_, i) {
-                    final it = items[i];
-                    if (it is String) {
-                      final label = it == 'online' ? 'ONLINE' : it == 'busy' ? 'BUSY' : 'OFFLINE';
-                      final color = it == 'online' ? Colors.green.shade700 : it == 'busy' ? Colors.orange.shade800 : Colors.grey.shade600;
-                      return Padding(
-                        padding: const EdgeInsets.fromLTRB(24, 12, 20, 2),
-                        child: Row(children: [
-                          Container(width: 9, height: 9, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-                          const SizedBox(width: 8),
-                          Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w800, letterSpacing: 1, fontSize: 12)),
-                        ]),
-                      );
-                    }
-                    final h = it as Partner;
+                    final h = items[i];
                     return HostCard(p: h, baseUrl: widget.api.baseUrl, api: widget.api, onCall: () => _call(h), onChat: () => _chat(h));
                   },
                 );
@@ -300,99 +368,94 @@ class HostCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final canCall = p.status == 'online';
     final stColor = p.status == 'busy' ? Colors.orange.shade700 : p.status == 'offline' ? Colors.grey.shade500 : const Color(0xFF3BA55C);
-    final stLabel = p.status == 'busy' ? 'BUSY' : p.status == 'offline' ? 'OFFLINE' : 'ONLINE';
-    // Star rating out of 5 on a green tag over the bottom of the photo ring. New hosts show "New".
+    // Star rating out of 5 on a small tag over the bottom of the photo ring. New hosts show "New".
     final rated = p.ratingCount > 0;
     final ratingTag = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0.5),
       decoration: BoxDecoration(
         color: rated ? const Color(0xFF3BA55C) : kRoyal,
-        borderRadius: BorderRadius.circular(5),
-        border: Border.all(color: Colors.white, width: 2),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: Colors.white, width: 1.5),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        if (rated) const Icon(Icons.star_rounded, size: 14, color: Colors.white),
-        if (rated) const SizedBox(width: 2),
+        if (rated) const Icon(Icons.star_rounded, size: 11, color: Colors.white),
         Text(rated ? p.rating.toStringAsFixed(1) : 'New',
             semanticsLabel: rated ? 'Rated ${p.rating.toStringAsFixed(1)} out of 5 by ${p.ratingCount} people' : 'New host',
-            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800)),
+            style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)),
       ]),
     );
-    final photo = Column(mainAxisSize: MainAxisSize.min, children: [
-      Stack(clipBehavior: Clip.none, alignment: Alignment.bottomCenter, children: [
-        Container(
-          padding: const EdgeInsets.all(3),
-          decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white, border: Border.all(color: stColor, width: 3.5)),
-          child: ProfileAvatar(baseUrl: baseUrl, name: p.name, url: p.avatarUrl, radius: 38),
-        ),
-        Positioned(bottom: -10, child: ratingTag),
-      ]),
-      const SizedBox(height: 18),
-      Text(stLabel, style: TextStyle(color: stColor, fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
+    // Photo with the status ring (green online, orange busy, grey offline) and the rating tag.
+    final photo = Stack(clipBehavior: Clip.none, alignment: Alignment.bottomCenter, children: [
+      Container(
+        padding: const EdgeInsets.all(2),
+        decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white, border: Border.all(color: stColor, width: 2.5)),
+        child: ProfileAvatar(baseUrl: baseUrl, name: p.name, url: p.avatarUrl, radius: 24),
+      ),
+      Positioned(bottom: -7, child: ratingTag),
     ]);
+    // Small gold pill: coin, "30/min", phone. Busy hosts get "Book next" instead.
     final callButton = p.status == 'busy' && api != null
         ? BookSlotButton(api: api!, p: p)
         : FilledButton(
             style: FilledButton.styleFrom(
               backgroundColor: kGold,
-              foregroundColor: kInk,
+              foregroundColor: kRoyalDeep,
               disabledBackgroundColor: const Color(0xFFE6E2EE),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              minimumSize: const Size(0, 36),
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+              shape: const StadiumBorder(),
+              minimumSize: const Size(0, 30),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               visualDensity: VisualDensity.compact,
             ),
             onPressed: canCall ? onCall : null,
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(Icons.call, size: 15),
+              const Icon(Icons.monetization_on, size: 15),
+              const SizedBox(width: 3),
+              Text('${formatCoins(p.ratePerMin)}/min', maxLines: 1, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
               const SizedBox(width: 4),
-              Text('${formatCoins(p.ratePerMin)}/min', maxLines: 1, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+              const Icon(Icons.call, size: 14),
             ]),
           );
     return Container(
-      margin: const EdgeInsets.fromLTRB(12, 6, 12, 6),
-      padding: const EdgeInsets.fromLTRB(12, 14, 12, 14),
+      margin: const EdgeInsets.fromLTRB(10, 4, 10, 4),
+      padding: const EdgeInsets.fromLTRB(10, 8, 8, 10),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0x0F1B1740)),
-        boxShadow: const [BoxShadow(color: Color(0x0F1B1740), blurRadius: 12, offset: Offset(0, 4))],
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFECE9F3)),
       ),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        SizedBox(width: 96, child: photo),
-        const SizedBox(width: 12),
+      child: Row(children: [
+        photo,
+        const SizedBox(width: 10),
         Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
             Row(children: [
-              Flexible(child: Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: kInk))),
-              if (p.verified) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.verified, size: 18, color: Colors.blue)),
-              const Spacer(),
-              InkWell(
-                onTap: onChat,
-                customBorder: const CircleBorder(),
-                child: const Padding(padding: EdgeInsets.all(4), child: Icon(Icons.chat_bubble_outline, size: 21, color: kRoyal, semanticLabel: 'Chat')),
-              ),
-              if (api != null) FavouriteHeart(api: api!, p: p),
+              Flexible(child: Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: kInk))),
+              if (p.verified) const Padding(padding: EdgeInsets.only(left: 3), child: Icon(Icons.verified, size: 15, color: Colors.blue)),
             ]),
-            if (p.tagline.isNotEmpty)
-              Text(p.tagline, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: kInk)),
-            const SizedBox(height: 4),
-            Row(children: [
-              Icon(Icons.translate, size: 15, color: Colors.grey.shade500),
-              const SizedBox(width: 5),
-              Expanded(child: Text(p.languages.join(', '), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.grey.shade600, fontSize: 13))),
-            ]),
-            const SizedBox(height: 12),
-            Row(children: [
-              if (p.introUrl != null) ...[
-                IntroButton(baseUrl: baseUrl, url: p.introUrl!),
-                const SizedBox(width: 8),
-              ],
-              callButton,
-            ]),
+            Text(
+              [if (p.tagline.isNotEmpty) p.tagline, p.languages.join(', ')].join(' · '),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+            ),
+            if (p.introUrl != null)
+              Padding(padding: const EdgeInsets.only(top: 4), child: IntroButton(baseUrl: baseUrl, url: p.introUrl!, compact: true)),
           ]),
         ),
+        const SizedBox(width: 6),
+        Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisSize: MainAxisSize.min, children: [
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            InkWell(
+              onTap: onChat,
+              customBorder: const CircleBorder(),
+              child: const Padding(padding: EdgeInsets.all(4), child: Icon(Icons.chat_bubble_outline, size: 19, color: kRoyal, semanticLabel: 'Chat')),
+            ),
+            if (api != null) FavouriteHeart(api: api!, p: p),
+          ]),
+          const SizedBox(height: 4),
+          callButton,
+        ]),
       ]),
     );
   }
@@ -437,7 +500,7 @@ class _FavouriteHeartState extends State<FavouriteHeart> {
       customBorder: const CircleBorder(),
       child: Padding(
         padding: const EdgeInsets.all(4),
-        child: Icon(on ? Icons.favorite : Icons.favorite_border, size: 22, color: on ? const Color(0xFFE53970) : Colors.grey.shade500,
+        child: Icon(on ? Icons.favorite : Icons.favorite_border, size: 19, color: on ? const Color(0xFFE53970) : Colors.grey.shade500,
             semanticLabel: on ? 'Remove from favourites' : 'Add to favourites'),
       ),
     );
@@ -485,17 +548,17 @@ class _BookSlotButtonState extends State<BookSlotButton> {
       style: FilledButton.styleFrom(
         backgroundColor: pos == null ? Colors.orange.shade300 : const Color(0xFFEDE7FA),
         foregroundColor: pos == null ? kInk : kRoyal,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        minimumSize: const Size(0, 36),
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        shape: const StadiumBorder(),
+        minimumSize: const Size(0, 30),
+        padding: const EdgeInsets.symmetric(horizontal: 10),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         visualDensity: VisualDensity.compact,
       ),
       onPressed: _busy ? null : _tap,
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(pos == null ? Icons.event_available : Icons.hourglass_top, size: 15),
+        Icon(pos == null ? Icons.event_available : Icons.hourglass_top, size: 14),
         const SizedBox(width: 4),
-        Text(pos == null ? 'Book next' : 'In line #$pos', maxLines: 1, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+        Text(pos == null ? 'Book next' : 'In line #$pos', maxLines: 1, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
       ]),
     );
   }

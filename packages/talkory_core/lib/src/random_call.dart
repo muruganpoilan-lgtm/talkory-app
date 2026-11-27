@@ -173,14 +173,45 @@ class _RandomCallScreenState extends State<RandomCallScreen> {
 
 /// The banner that starts a Random Call, for the top of the user's home screen.
 class RandomCallBanner extends StatelessWidget {
-  const RandomCallBanner({super.key, required this.api, this.onAddCoins, this.onFinished, this.rateLine});
+  const RandomCallBanner({super.key, required this.api, this.onAddCoins, this.onFinished, this.rateLine, this.compact = false});
+  final bool compact; // one thin line, for the spacious Call tab
   final Api api;
   final VoidCallback? onAddCoins;
   final VoidCallback? onFinished; // refresh the balance and the host list afterwards
   final String? rateLine; // e.g. '₹10/min' — left out when null
 
+  Future<void> _open(BuildContext context) async {
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => RandomCallScreen(api: api, onAddCoins: onAddCoins)));
+    onFinished?.call();
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (compact) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(10, 2, 10, 4),
+        child: Material(
+          color: const Color(0xFFEFE9FB),
+          borderRadius: BorderRadius.circular(12),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () => _open(context),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+              child: Row(children: [
+                const Icon(Icons.shuffle, size: 16, color: Color(0xFF3C1E94)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(rateLine == null ? 'Random call: talk to anyone online' : 'Random call · $rateLine',
+                      maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12.5, color: Color(0xFF3C1E94))),
+                ),
+                const Text('Start', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: kRoyal)),
+              ]),
+            ),
+          ),
+        ),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
       child: Material(
