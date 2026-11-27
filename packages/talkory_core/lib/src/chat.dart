@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'agora_warm.dart';
 import 'api.dart';
 import 'block_reasons.dart';
 import 'call_screen.dart';
@@ -11,6 +12,40 @@ import 'theme.dart';
 import 'widgets.dart';
 
 final _hostCalling = <String>{};
+final _userCalling = <String>{};
+
+/// User only: call a host straight from the chat thread, e.g. by tapping the
+/// "<host> is online. Call now!" notice. Mirrors the host card's call flow.
+Future<void> startUserCall(BuildContext context, Api api, String hostId, String hostName, {VoidCallback? onAddCoins}) async {
+  if (!_userCalling.add(hostId)) return;
+  final nav = Navigator.of(context);
+  final messenger = ScaffoldMessenger.of(context);
+  try {
+    AgoraWarm.warm(); // start the call engine while the call request is on its way
+    final session = await api.startCall(hostId);
+    final connected = await nav.push<bool>(
+      MaterialPageRoute(builder: (_) => CallScreen(api: api, session: session, peerName: hostName, onAddCredits: onAddCoins)),
+    );
+    if (connected == true) {
+      await nav.push(MaterialPageRoute(
+        builder: (_) => PostCallScreen(api: api, callId: session.callId, peerName: hostName, canRate: true),
+      ));
+    }
+  } on ApiException catch (e) {
+    if (e.status == 402) {
+      messenger.showSnackBar(SnackBar(
+        content: const Text('Not enough coins for this call.'),
+        action: onAddCoins == null ? null : SnackBarAction(label: 'Add coins', onPressed: onAddCoins),
+      ));
+    } else {
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  } catch (_) {
+    messenger.showSnackBar(const SnackBar(content: Text('Network error. Try again.')));
+  } finally {
+    _userCalling.remove(hostId);
+  }
+}
 
 /// Host only: ring a user from anywhere (chat list or chat screen). A user's own free call is short and daily,
 /// then normal rates apply. Opens the call screen and, after a connected call, the post-call screen.
@@ -399,6 +434,25 @@ class _ChatScreenState extends State<ChatScreen> {
           if (widget.isUser && _status != null) StatusLine(status: _status!), // users see if the host is online
         ]),
         actions: [
+          if (widget.isUser)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
+              child: FilledButton.icon(
+                // Like the screenshot: a white "Call Now" pill in the header. Live only while she is online.
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: kRoyal,
+                  disabledBackgroundColor: Colors.white54,
+                  disabledForegroundColor: Colors.black38,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                ),
+                onPressed: _status == 'online'
+                    ? () => startUserCall(context, widget.api, widget.otherId, widget.otherName, onAddCoins: widget.onAddCoins)
+                    : null,
+                icon: const Icon(Icons.call, size: 18),
+                label: Text(_status == 'busy' ? 'Busy' : 'Call Now'),
+              ),
+            ),
           if (!widget.isUser)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
@@ -465,6 +519,15 @@ class _ChatScreenState extends State<ChatScreen> {
                             child: GiftBubble(emoji: body.first, name: body.skip(1).join(' '), mine: mine),
                           );
                         }
+                        if (m['kind'] == 'host_online') {
+                          return HostOnlineNotice(
+                            text: m['body'] as String,
+                            at: DateTime.tryParse((m['created_at'] as String?) ?? '')?.toLocal(),
+                            // Only a user can call this host; a host who somehow receives her own
+                            // notice (shouldn't happen server-side) just sees it, not a call button.
+                            onTap: widget.isUser ? () => startUserCall(context, widget.api, widget.otherId, widget.otherName, onAddCoins: widget.onAddCoins) : null,
+                          );
+                        }
                         return Align(
                           alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
                           child: Container(
@@ -475,7 +538,17 @@ class _ChatScreenState extends State<ChatScreen> {
                               color: mine ? scheme.primary : scheme.surfaceContainerHighest,
                               borderRadius: BorderRadius.circular(16),
                             ),
-                            child: Text(m['body'] as String, style: TextStyle(color: mine ? scheme.onPrimary : scheme.onSurface)),
+                            child: Wrap(
+                              alignment: WrapAlignment.end,
+                              crossAxisAlignment: WrapCrossAlignment.end,
+                              spacing: 8,
+                              children: [
+                                Text(m['body'] as String, style: TextStyle(color: mine ? scheme.onPrimary : scheme.onSurface)),
+                                if (DateTime.tryParse((m['created_at'] as String?) ?? '') case final t?)
+                                  Text(_clock(t.toLocal()),
+                                      style: TextStyle(fontSize: 11, color: (mine ? scheme.onPrimary : scheme.onSurface).withOpacity(0.65))),
+                              ],
+                            ),
                           ),
                         );
                       },
@@ -577,6 +650,53 @@ class StatusLine extends StatelessWidget {
     ]);
   }
 }
+
+/// "🔔 <host> is online. Call now!" — dropped into the chat timeline itself (see backend
+/// chatnotice.js) so a user who opens the thread later still sees the host was free to call.
+/// Centered and bell-styled so it reads as a system nudge, not a message from either side.
+/// Tappable in the user app: taps straight into the same call flow as the host card.
+class HostOnlineNotice extends StatelessWidget {
+  const HostOnlineNotice({super.key, required this.text, this.at, this.onTap});
+  final String text;
+  final DateTime? at;
+  final VoidCallback? onTap;
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Center(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Material(
+              color: Colors.white,
+              elevation: 1,
+              borderRadius: BorderRadius.circular(20),
+              child: InkWell(
+                onTap: onTap,
+                borderRadius: BorderRadius.circular(20),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.notifications_active, size: 16, color: kRoyal),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(text,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black87)),
+                    ),
+                  ]),
+                ),
+              ),
+            ),
+            if (at != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 3),
+                child: Text(_clock(at!), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+              ),
+          ]),
+        ),
+      );
+}
+
+String _clock(DateTime t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
 /// Gold strip at the top of the chat once the two of them have talked 45+ minutes. Shown in both apps.
 class BestFriendBanner extends StatelessWidget {
