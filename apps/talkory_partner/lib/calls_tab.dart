@@ -91,8 +91,21 @@ class _CallsTabState extends State<CallsTab> {
                 ),
               ),
             ]),
-            title: Text((u['name'] ?? 'User') as String, style: const TextStyle(fontWeight: FontWeight.w800, color: kInk)),
-            subtitle: Text(u['busy'] == true ? 'On a call' : 'Online'),
+            title: Row(children: [
+              Flexible(child: Text((u['name'] ?? 'User') as String, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, color: kInk))),
+              if (u['new_user'] == true)
+                Container(
+                  margin: const EdgeInsets.only(left: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                  decoration: BoxDecoration(color: kGold, borderRadius: BorderRadius.circular(6)),
+                  child: const Text('NEW', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: kRoyalDeep)),
+                ),
+            ]),
+            subtitle: Text(u['busy'] == true
+                ? 'On a call'
+                : u['new_user'] == true
+                    ? 'New user: first paid call earns you a bonus'
+                    : 'Online'),
             trailing: IconButton.filled(
               style: IconButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
               tooltip: 'Call',

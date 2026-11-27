@@ -355,6 +355,8 @@ class Api {
   Future<void> setShowOnline(bool on) async { await _send('PUT', '/account/show-online', {'showOnline': on}); }
   /// Host app: users who have the app open now. Each: {id, name, busy}.
   Future<List<Map<String, dynamic>>> onlineUsers() async => ((await _send('GET', '/partners/online-users')) as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+  /// New-user offer: {enabled, rupees, coins, minSeconds, newUserDays}
+  Future<Map<String, dynamic>> firstCallOffer() async => Map<String, dynamic>.from(await _send('GET', '/partners/first-call-offer') as Map);
   Future<Map<String, dynamic>> onlineToday() async => Map<String, dynamic>.from(await _send('GET', '/partners/online-today'));
   Future<Map<String, dynamic>> myProfile() async => Map<String, dynamic>.from(await _send('GET', '/partners/me'));
 

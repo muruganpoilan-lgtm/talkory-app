@@ -24,6 +24,7 @@ class _HomeTabState extends State<HomeTab> {
   Map<String, dynamic>? _ot; // today's online time vs the daily minimum
   Map<String, dynamic>? _wt; // this week's call hours and Paradise level
   Map<String, dynamic>? _lb; // weekly leaderboard
+  Map<String, dynamic>? _offer; // new-user first-call bonus
   bool _needsBackground = false; // phone may delay incoming calls (battery saving)
   Timer? _otTimer;
 
@@ -43,6 +44,10 @@ class _HomeTabState extends State<HomeTab> {
   }
 
   Future<void> _loadOnline() async {
+    try {
+      final f = await widget.api.firstCallOffer();
+      if (mounted) setState(() => _offer = f);
+    } catch (_) {} // older server: no offer card
     try {
       final o = await widget.api.onlineToday();
       if (mounted) setState(() => _ot = o);
@@ -238,6 +243,34 @@ class _HomeTabState extends State<HomeTab> {
     );
   }
 
+  /// New-user offer: the host who makes a new user's first paid call earns a bonus (backend firstcall.js).
+  Widget _offerCard() {
+    final o = _offer!;
+    final mins = ((o['minSeconds'] as num?) ?? 60) / 60;
+    final minText = mins == mins.roundToDouble() ? '${mins.round()} minute${mins == 1 ? '' : 's'}' : '${o['minSeconds']} seconds';
+    return SoftCard(
+      color: const Color(0xFFFFF4D6),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('🎁', style: TextStyle(fontSize: 26)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('New user offer: ₹${o['rupees']} bonus', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: kInk)),
+              const SizedBox(height: 3),
+              Text(
+                'Be the first to call a new user and earn ₹${o['rupees']} (${o['coins']} coins) when the paid call lasts $minText or more. '
+                'Look for the NEW tag in Users online on the Calls tab.',
+                style: const TextStyle(fontSize: 13, color: Colors.black87),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    );
+  }
+
   /// Voice intro on the Home page (it used to be only in Profile). The button changes with the review state.
   Widget _introCard() {
     final st = _profile?['introStatus'] as String?;
@@ -347,6 +380,7 @@ class _HomeTabState extends State<HomeTab> {
               ),
             ),
             if (_profile != null) _introCard(),
+            if (_offer?['enabled'] == true && kyc == 'approved') _offerCard(),
             if (kyc == 'approved' && !_contractSigned)
               SoftCard(
                 color: const Color(0xFFFFF3CD),
