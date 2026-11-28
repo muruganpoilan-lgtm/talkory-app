@@ -2,6 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'nickname_chips.dart';
+import 'phone_hint.dart';
 import 'api.dart';
 import 'legal.dart';
 import 'theme.dart';
@@ -9,6 +10,8 @@ import 'theme.dart';
 /// Phone login shared by both apps. [role] is 'user' or 'partner'.
 /// First time on a phone: number, then an OTP (and a display name for a new account).
 /// After that this phone is remembered and "Continue" signs in straight away, with no OTP.
+/// The number is never typed twice: the first time Google's "Choose a phone number" sheet pops up with
+/// the SIM numbers, and after that the last number is already filled in.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key, required this.api, required this.role, required this.title, required this.onLoggedIn});
   final Api api;
@@ -24,12 +27,51 @@ class _LoginScreenState extends State<LoginScreen> {
   final _code = TextEditingController();
   final _name = TextEditingController();
   bool _otpSent = false, _agree = false, _busy = false;
+  bool _remembered = false; // the number was filled in from the last login on this phone
   String? _error;
   late final _tapTerms = TapGestureRecognizer()..onTap = () => openLegal(widget.api, 'terms');
   late final _tapPrivacy = TapGestureRecognizer()..onTap = () => openLegal(widget.api, 'privacy');
 
   String get _full => '+91${_phone.text.trim()}';
   bool get _phoneOk => RegExp(r'^[6-9]\d{9}$').hasMatch(_phone.text.trim());
+
+  @override
+  void initState() {
+    super.initState();
+    _fillNumber();
+  }
+
+  // Second time onwards: the last number is filled in (and was already agreed to), so it is one tap.
+  // First time: Google's sheet pops up with this phone's SIM numbers.
+  Future<void> _fillNumber() async {
+    final last = await lastPhone(widget.role);
+    if (!mounted) return;
+    if (last != null) {
+      setState(() {
+        _phone.text = last;
+        _agree = true;
+        _remembered = true;
+      });
+      return;
+    }
+    await _pickFromSim();
+  }
+
+  Future<void> _pickFromSim() async {
+    final n = await pickPhoneNumber();
+    if (n != null && mounted) setState(() => _phone.text = n);
+  }
+
+  void _useAnother() {
+    forgetLastPhone(widget.role);
+    setState(() {
+      _phone.clear();
+      _remembered = false;
+      _agree = false;
+      _error = null;
+    });
+    _pickFromSim();
+  }
 
   @override
   void dispose() {
@@ -61,6 +103,7 @@ class _LoginScreenState extends State<LoginScreen> {
   // Remembered phone: straight in. Otherwise send the OTP.
   Future<void> _continue() => _run(() async {
         if (await widget.api.deviceLogin(phone: _full, role: widget.role)) {
+          await saveLastPhone(widget.role, _phone.text.trim());
           widget.onLoggedIn();
           return;
         }
@@ -82,6 +125,7 @@ class _LoginScreenState extends State<LoginScreen> {
           isAdult: _agree,
           acceptedTerms: _agree,
         );
+        await saveLastPhone(widget.role, _phone.text.trim());
         widget.onLoggedIn();
       });
 
@@ -155,8 +199,19 @@ class _LoginScreenState extends State<LoginScreen> {
                       decoration: const InputDecoration(border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, hintText: 'Enter your number'),
                     ),
                   ),
+                  if (_phone.text.isEmpty)
+                    IconButton(
+                      tooltip: 'Choose my number',
+                      onPressed: _busy ? null : _pickFromSim,
+                      icon: const Icon(Icons.sim_card_outlined, color: kRoyal),
+                    ),
                 ]),
               ),
+              if (_remembered)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(onPressed: _busy ? null : _useAnother, child: const Text('Use another number')),
+                ),
               const SizedBox(height: 14),
               Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Checkbox(value: _agree, activeColor: kRoyal, onChanged: (v) => setState(() => _agree = v ?? false)),

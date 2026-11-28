@@ -16,6 +16,20 @@ class _AdminLoginState extends State<AdminLogin> {
   bool _sent = false, _busy = false;
   String? _error;
 
+  @override
+  void initState() {
+    super.initState();
+    _fillNumber();
+  }
+
+  // The last admin number is filled in; the first time, Google's "Choose a phone number" sheet pops up.
+  // Admins still get an OTP every time (safer for the panel), but never type the number again.
+  Future<void> _fillNumber() async {
+    final last = await lastPhone('admin');
+    final n = last ?? await pickPhoneNumber();
+    if (n != null && mounted && _phone.text.isEmpty) setState(() => _phone.text = '+91$n');
+  }
+
   Future<void> _run(Future<void> Function() task) async {
     setState(() {
       _busy = true;
@@ -39,6 +53,8 @@ class _AdminLoginState extends State<AdminLogin> {
 
   Future<void> _verify() => _run(() async {
         await widget.api.verifyOtp(phone: _phone.text.trim(), code: _code.text.trim(), role: 'admin');
+        final ten = tenDigits(_phone.text);
+        if (ten != null) await saveLastPhone('admin', ten);
         widget.onLoggedIn();
       });
 

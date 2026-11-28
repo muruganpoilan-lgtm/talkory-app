@@ -19,6 +19,7 @@ dependencies:
   geolocator: ^13.0.1
   vibration: ^2.0.0
   device_info_plus: ^10.1.0
+  smart_auth: ^2.0.0 # Google's "Choose a phone number" sheet on the login screen
 
 flutter:
   assets:

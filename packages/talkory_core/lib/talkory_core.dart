@@ -1,5 +1,6 @@
 export 'src/api.dart';
 export 'src/login_screen.dart';
+export 'src/phone_hint.dart';
 export 'src/legal.dart';
 export 'src/account.dart';
 export 'src/widgets.dart';

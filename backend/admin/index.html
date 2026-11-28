@@ -101,16 +101,18 @@ async function api(path,body){
   const d=await r.json().catch(()=>({}));
   if(r.status===401&&token){logout();throw Error('Session expired')}
   if(!r.ok)throw Error(d.error||'Request failed');return d}
+// The last admin number that signed in on this browser is filled in next time (the OTP is still asked).
+const lastAdminPhone=()=>{try{return localStorage.adminPhone||''}catch(_){return ''}};
 function logout(){token='';isOwner=null;counts={};sessionStorage.removeItem('t');render()}
 function login(){$('#app').innerHTML=`<div class="login"><div class="lcard"><img src="/panel/logo.png" alt="Talkory Tech"><h1>Talkory Admin</h1>
 <p class="mut">${phone?'Enter the OTP sent to '+esc(phone):'Sign in with your admin phone number'}</p>
-<label>Phone number<input id="ph" placeholder="+91XXXXXXXXXX" inputmode="tel" value="${esc(phone)}" ${phone?'disabled':''}></label>
+<label>Phone number<input id="ph" placeholder="+91XXXXXXXXXX" inputmode="tel" autocomplete="tel" value="${esc(phone||lastAdminPhone())}" ${phone?'disabled':''}></label>
 <label style="display:${phone?'':'none'}">OTP<input id="cd" placeholder="6-digit code" inputmode="numeric" autocomplete="one-time-code"></label>
 <button class="pri" id="go">${phone?'Verify and sign in':'Send OTP'}</button><div class="err" id="e"></div>
 ${phone?'<button class="link" id="chg">Use another number</button>':''}</div></div>`;
   const go=async()=>{try{$('#go').disabled=true;const p=$('#ph').value.trim();
     if(!phone){await api('/auth/request-otp',{phone:p});phone=p;login();$('#cd').focus()}
-    else{const d=await api('/auth/verify-otp',{phone,code:$('#cd').value.trim(),role:'admin'});token=d.token;sessionStorage.t=token;render()}
+    else{const d=await api('/auth/verify-otp',{phone,code:$('#cd').value.trim(),role:'admin'});token=d.token;sessionStorage.t=token;try{localStorage.adminPhone=phone}catch(_){}render()}
   }catch(e){$('#e').textContent=e.message;$('#go').disabled=false}};
   $('#go').onclick=go;$('#app').querySelectorAll('input').forEach(i=>i.onkeydown=e=>{if(e.key==='Enter')go()});
   if($('#chg'))$('#chg').onclick=()=>{phone='';login()}}
