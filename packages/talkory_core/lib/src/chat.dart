@@ -111,6 +111,7 @@ class _ChatTabState extends State<ChatTab> {
   Timer? _timer;
   final _search = TextEditingController();
   String _query = '';
+  bool _searching = false; // the slim header swaps to a search field
 
   @override
   void initState() {
@@ -156,9 +157,52 @@ class _ChatTabState extends State<ChatTab> {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: Column(children: [
-        RoyalBox(
-          padding: EdgeInsets.fromLTRB(16, top + 12, 16, 18),
-          child: NameSearchField(controller: _search, onChanged: (v) => setState(() => _query = v.trim().toLowerCase())),
+        // Slim bar, same as the Call tab: title and a search icon that opens a small search field.
+        Container(
+          color: kRoyal,
+          padding: EdgeInsets.fromLTRB(12, top + 6, 8, 6),
+          child: SizedBox(
+            height: 40,
+            child: _searching
+                ? Row(children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _search,
+                        autofocus: true,
+                        onChanged: (v) => setState(() => _query = v.trim().toLowerCase()),
+                        textInputAction: TextInputAction.search,
+                        decoration: InputDecoration(
+                          hintText: 'Search names',
+                          isDense: true,
+                          filled: true,
+                          fillColor: Colors.white,
+                          prefixIcon: const Icon(Icons.search, size: 20),
+                          contentPadding: EdgeInsets.zero,
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Close search',
+                      icon: const Icon(Icons.close, color: Colors.white),
+                      onPressed: () {
+                        _search.clear();
+                        setState(() { _searching = false; _query = ''; });
+                      },
+                    ),
+                  ])
+                : Row(children: [
+                    const SizedBox(width: 4),
+                    const Text('Chats', style: TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
+                    const Spacer(),
+                    IconButton(
+                      tooltip: 'Search names',
+                      visualDensity: VisualDensity.compact,
+                      icon: const Icon(Icons.search, color: Colors.white),
+                      onPressed: () => setState(() => _searching = true),
+                    ),
+                  ]),
+          ),
         ),
         Expanded(
           child: RefreshIndicator(
