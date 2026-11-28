@@ -3,12 +3,13 @@ const { coins, COINS_PER_RUPEE } = require('./coins');
 const router = require('express').Router();
 const { pool, requireAuth } = require('./db');
 
-const MIN_RUPEES = 100;
+const MIN_RUPEES = 50;
 const MAX_RUPEES = 10000;
 
 // Coin packs: pay (rupees) -> rupees' worth credited ("coins" below are rupee values; the app shows them
 // as coins via coins.js, 3 coins = Rs 1). Bigger packs give bonus value.
 const PACKS = [
+  { id: 'p50', pay: 50, coins: 50, tag: '' }, // smallest recharge: 150 coins = 5 minutes of calling
   { id: 'p100', pay: 100, coins: 100, tag: '' },
   { id: 'p200', pay: 200, coins: 220, tag: '' },
   { id: 'p500', pay: 500, coins: 560, tag: 'Popular' },
