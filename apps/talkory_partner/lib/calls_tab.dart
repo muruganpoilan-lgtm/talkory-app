@@ -150,11 +150,22 @@ class _CallsTabState extends State<CallsTab> {
           _loadUsers();
           await _load();
         },
-        edgeOffset: 80,
+        edgeOffset: 50,
         child: ListView(
           padding: const EdgeInsets.only(bottom: 16),
           children: [
-            const GradientHeader(title: 'Calls', subtitle: 'Users online and your recent calls'),
+            // Slim bar, same as the Home tab (the tall gradient header pushed the list down).
+            Container(
+              color: kRoyal,
+              padding: EdgeInsets.fromLTRB(14, MediaQuery.of(context).padding.top + 8, 14, 8),
+              child: const SizedBox(
+                height: 34,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Calls', style: TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
+                ),
+              ),
+            ),
             const SizedBox(height: 8),
             _onlineUsers(),
             if (calls == null && _error == null) const Padding(padding: EdgeInsets.all(32), child: Center(child: CircularProgressIndicator())),
