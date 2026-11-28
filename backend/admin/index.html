@@ -165,6 +165,12 @@ const TABS={
  locations:{url:'/admin/locations',cols:['Name','Role','Approx. location','Updated'],
   row:r=>[esc(r.display_name),esc(r.role),'<a href="https://www.google.com/maps?q='+encodeURIComponent(r.lat+','+r.lng)+'" target="_blank" rel="noopener">'+esc(r.lat)+', '+esc(r.lng)+'</a>',when(r.location_at)],
   acts:r=>[]},
+ userphones:{url:'/admin/phones?role=user',cols:['User','Phone','Joined','Status'],
+  row:r=>[esc(r.display_name),'<a href="tel:'+esc(r.phone)+'">'+esc(r.phone)+'</a>',when(r.created_at),r.is_blocked?'<span class="mut">Blocked</span>':'<b class="ok">Active</b>'],
+  acts:r=>[]},
+ hostphones:{url:'/admin/phones?role=partner',cols:['Host','Phone','Joined','Status'],
+  row:r=>[esc(r.display_name),'<a href="tel:'+esc(r.phone)+'">'+esc(r.phone)+'</a>',when(r.created_at),r.is_blocked?'<span class="mut">Blocked</span>':'<b class="ok">Active</b>'],
+  acts:r=>[]},
  video:{url:'/admin/video-calls/accounts',cols:['Name','Role','Phone'],
   row:r=>[esc(r.display_name),esc(r.role),esc(r.phone)],
   acts:r=>[['Video call','ok',null,()=>videoCall(r)],...(r.role==='partner'?[['Let them rename','','/admin/accounts/'+r.id+'/unlock-name',()=>({}),'Let '+r.display_name+' choose a new name? They can change it once, then it is fixed again.']]:[]),['Block','bad','/admin/accounts/'+r.id+'/block',()=>({reason:prompt('Why is '+r.display_name+' being blocked? They will be shown this when they try to log in:','')||''}),'Block '+r.display_name+'? They can no longer log in.']]},
@@ -356,7 +362,7 @@ async function newMeeting(){
       d.close();d.remove();
       if(r.status==='live')meetingRoom(r.id,title);else{alert('Meeting scheduled. Invited people have been notified.');render()}
     }catch(e){alert(e.message)}}}
-const OWNER_TABS=['earnings','payouts','invoices','receipts','admins'];let isOwner=null;
+const OWNER_TABS=['earnings','payouts','invoices','receipts','admins','userphones','hostphones'];let isOwner=null;
 async function addAdmin(){
   const phone=prompt('Phone number of the new admin, with country code (example +919876543210):','+91');if(!phone)return;
   const name=prompt('Name of the new admin:','Admin');if(name===null)return;
@@ -399,6 +405,8 @@ const META={overview:['Overview','What needs your attention right now','home'],
  support:['Support','Help requests from users and hosts','chat','No support tickets. Replies you send show up in the app.'],
  video:['Video calls','Start a free video call with any user or host','video','No accounts to call yet.'],
  meetings:['Meetings','Group video meetings with users and hosts','users','No meetings yet. Start one with New meeting.'],
+ userphones:['User phone numbers','Every user\'s phone number, newest first. Download as a CSV file for Excel.','users','No users yet.'],
+ hostphones:['Host phone numbers','Every host\'s phone number, newest first. Download as a CSV file for Excel.','users','No hosts yet.'],
  earnings:['Earnings','Talkory income and your withdrawals','wallet','No earnings yet.'],
  payouts:['Payouts','Host withdrawal requests to pay','send','No payouts to send.'],
  invoices:['Host invoices','Invoices for every host payout','receipt','No host invoices yet.'],
@@ -409,7 +417,7 @@ const META={overview:['Overview','What needs your attention right now','home'],
  quality:['Call quality','How fast calls connect, how many drop, and on which phones (last 7 days)','video','No call reports yet. They arrive from the new app version.'],
  crashes:['App crashes','Errors the apps reported','flag','No crashes reported.']};
 const GROUPS=[['',['overview']],['Hosts',['kyc','photos','intros','records','contracts','inactive']],['Users and safety',['reports','blocked','peopleblocks','blockhistory','agreements','locations']],
- ['Talk',['support','video','meetings']],['App health',['quality','crashes']],['Money',['earnings','payouts','invoices','receipts','referrals','missedfines']],['Team',['admins']]];
+ ['Talk',['support','video','meetings']],['App health',['quality','crashes']],['Money',['earnings','payouts','invoices','receipts','referrals','missedfines']],['Phone numbers',['userphones','hostphones']],['Team',['admins']]];
 // what counts as "waiting" for the badges and the overview
 const COUNT_SRC={kyc:['/admin/kyc'],photos:['/admin/avatars'],intros:['/admin/intros'],support:['/admin/tickets',r=>r.needs_reply],
  reports:['/admin/reports'],payouts:['/partner/admin/payouts',r=>r.status==='requested'||r.status==='processing']};
@@ -418,6 +426,14 @@ const canSee=k=>isOwner||!OWNER_TABS.includes(k);
 function paintBadges(){document.querySelectorAll('[data-b]').forEach(b=>{const n=counts[b.dataset.b];b.textContent=n>99?'99+':n||'';b.classList.toggle('show',n>0)})}
 async function loadCounts(){await Promise.all(Object.entries(COUNT_SRC).filter(([k])=>canSee(k)).map(async([k,[u,f]])=>{
   try{const rows=await api(u);counts[k]=f?rows.filter(f).length:rows.length}catch(_){counts[k]=null}}));paintBadges()}
+// Saves the list as a CSV file (opens in Excel). The phone is written as ="+91..." so Excel keeps the + and all digits.
+async function downloadPhones(t){
+  try{const rows=await api(TABS[t].url);
+    const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+    const csv=['Name,Phone,Joined,Status',...rows.map(r=>[q(r.display_name),q('="'+r.phone+'"'),q(new Date(r.created_at).toISOString().slice(0,10)),q(r.is_blocked?'Blocked':'Active')].join(','))].join('\r\n');
+    const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv'}));
+    a.download=(t==='hostphones'?'talkory-host-phones-':'talkory-user-phones-')+new Date().toISOString().slice(0,10)+'.csv';a.click();
+  }catch(e){alert(e.message)}}
 function go(t){tab=t;render();window.scrollTo(0,0)}
 async function overview(){
   const B=$('#body');B.innerHTML='<div class="tiles">'+'<div class="sk"></div>'.repeat(6)+'</div>';
@@ -446,6 +462,7 @@ async function render(){
   if(tab==='overview')return overview();
   loadCounts();
   if(tab==='admins'){$('#tact').insertAdjacentHTML('beforeend','<button class="pri" id="na2">'+ic('plus')+'Add admin</button>');$('#na2').onclick=addAdmin}
+  if(tab==='userphones'||tab==='hostphones'){$('#tact').insertAdjacentHTML('beforeend','<button class="pri" id="csv">'+ic('doc')+'Download CSV</button>');$('#csv').onclick=()=>downloadPhones(tab)}
   if(tab==='meetings'){$('#tact').insertAdjacentHTML('beforeend','<button class="pri" id="nm">'+ic('plus')+'New meeting</button>');$('#nm').onclick=newMeeting}
   $('#body').innerHTML='<div class="card" id="list"><div class="empty"><span class="mut">Loading…</span></div></div>';
   const T=TABS[tab];let rows=[];

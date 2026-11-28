@@ -181,6 +181,16 @@ async function earningsNumbers(q) {
 }
 const availableOf = (n) => Math.max(0, n.calls + n.free + n.chats - n.withdrawn); // never shown below zero
 
+// Phone numbers, users and hosts kept apart. Owner only: it is the whole contact list.
+router.get('/phones', requireOwner, async (req, res) => {
+  const role = req.query.role === 'partner' ? 'partner' : 'user';
+  const { rows } = await pool.query(
+    `SELECT id, display_name, phone, created_at, is_blocked
+       FROM accounts WHERE role=$1 AND deleted_at IS NULL
+      ORDER BY created_at DESC LIMIT 5000`, [role]);
+  res.json(rows);
+});
+
 // One summary row first, then the withdrawals already taken.
 router.get('/earnings', requireOwner, async (req, res) => {
   const n = await earningsNumbers(pool);
